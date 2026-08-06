@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "flutter_myproject"
+		},
+		{
+			"path": "my_project_server"
+		}
+	],
+	"settings": {
+		"java.compile.nullAnalysis.mode": "automatic"
+	}
+}
