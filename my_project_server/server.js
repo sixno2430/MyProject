@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const userAccount = require('./models/user_account');
 const jwt = require('./libs/jwt');
 // const dateUtil = require('./libs/date_util');
+const dashboard = require('./models/dashboard');
 const app = express();
 app.use(bp.json());
 app.use(bp.urlencoded({ extended: true }));
@@ -35,6 +36,12 @@ app.post("/api/multiple_by_2", (req, res) => {
     };
 
     res.send(JSON.stringify(response));
+});
+
+app.get('/api/dashboard/:user_id', async (req, res) => {
+  const userId = req.params.user_id;
+  const result = await dashboard.getDashboardSummary(userId);
+  res.json(result);
 });
 
 app.get('/api/user/:user_id', async (req, res) => {
