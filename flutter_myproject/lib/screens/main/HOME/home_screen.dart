@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_myproject/widgets/button_nav.dart';
 
 // หน้าทั้ง 5 หน้าในแถบล่าง
-import 'package:flutter_myproject/screens/dashboard_screen.dart';   // หน้าแรก: หน้าหลัก (ต้องสร้างเพิ่ม)
-import 'package:flutter_myproject/screens/main/palmplot_screen.dart';     // หน้าสวน
-import 'package:flutter_myproject/screens/main/finance_screen.dart';     // หน้าการเงิน
-import 'package:flutter_myproject/screens/main/report_screen.dart';      // หน้ารายงาน
-import 'package:flutter_myproject/screens/main/profile_screen.dart';     // หน้าโปรไฟล์
+import 'package:flutter_myproject/screens/main/HOME/dashboard_screen.dart';   // หน้าแรก: หน้าหลัก (ต้องสร้างเพิ่ม)
+import 'package:flutter_myproject/screens/garden/palmplot/palmplot_screen.dart';     // หน้าสวน
+import 'package:flutter_myproject/screens/finance/finance_screen.dart';     // หน้าการเงิน
+import 'package:flutter_myproject/screens/main/report/report_screen.dart';      // หน้ารายงาน
+import 'package:flutter_myproject/screens/main/profile/profile_screen.dart';     // หน้าโปรไฟล์
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

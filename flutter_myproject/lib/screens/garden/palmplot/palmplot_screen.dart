@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_myproject/screens/garden/add_plot_screen.dart';
+import 'package:flutter_myproject/screens/garden/palmplot/add_plot_screen.dart';
 
 
 class PalmplotScreen extends StatelessWidget {

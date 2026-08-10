@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_myproject/screens/main/palmplot_screen.dart';
-import 'package:flutter_myproject/screens/garden/gardencare_screen.dart';
-import 'package:flutter_myproject/screens/garden/harvest_screen.dart';
-import 'package:flutter_myproject/screens/main/report_screen.dart';
-import 'package:flutter_myproject/screens/garden/palmvarieties_screen.dart';
-
+import 'package:flutter_myproject/screens/garden/palmplot/palmplot_screen.dart';
+import 'package:flutter_myproject/screens/garden/gardencare/gardencare_screen.dart';
+import 'package:flutter_myproject/screens/garden/havest/harvest_screen.dart';
+import 'package:flutter_myproject/screens/main/report/report_screen.dart';
+import 'package:flutter_myproject/screens/garden/plamvarieties/palmvarieties_screen.dart';
+import 'package:flutter_myproject/screens/finance/finance_screen.dart'; 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
@@ -221,7 +221,7 @@ class DashboardScreen extends StatelessWidget {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const HarvestScreen(),
+                            builder: (_) => const HarvestRecordScreen(),
                           ),
                         ),
                       ),
@@ -238,7 +238,12 @@ class DashboardScreen extends StatelessWidget {
                         label: 'รายรับ-จ่าย',
                         bgColor: const Color(0xFFE0F2F1),
                         labelColor: const Color(0xFF00695C),
-                        onTap: () {}, // TODO: ไปหน้าการเงิน
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const FinanceScreen(),
+                          ),
+                        ),
                       ),
                       _buildMenuItem(
                         context,

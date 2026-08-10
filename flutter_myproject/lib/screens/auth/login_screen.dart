@@ -4,7 +4,7 @@ import 'package:flutter_myproject/screens/auth/register_screen.dart';
 
 
 // ← เพิ่ม import HomeScreen (ปรับ path ตามจริง)
-import 'package:flutter_myproject/screens/main/home_screen.dart';
+import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
