@@ -41,7 +41,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // 1. กำหนด URL ของ API
       // ถ้ารันบนเครื่องจริง: ใช้ IP จริง เช่น 'https://yourserver.com/api/register'
       // ถ้ารันบน emulator: ใช้ 'http://10.0.2.2:8000/api/register' (ชี้ไป localhost ของคอม)
-      final url = Uri.parse('https://your-api.com/api/register');
+      final url = Uri.parse('http://127.0.0.1:3000/api/register');
 
       // 2. เตรียมข้อมูลที่จะส่ง (Map → JSON)
       final bodyData = {

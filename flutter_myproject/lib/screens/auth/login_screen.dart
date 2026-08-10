@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/screens/auth/register_screen.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_myproject/config/app_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+//<<<<<<< HEAD
 
 
 // ← เพิ่ม import HomeScreen (ปรับ path ตามจริง)
 import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
+//=======
+import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
+//>>>>>>> a3eb39c5044d2a7c6c4f71981eb57e422e1f4a1b
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,7 +22,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // ← ประกาศตัวแปรที่ขาดหายไป
   bool _isLoading = false;
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -27,61 +34,119 @@ class _LoginScreenState extends State<LoginScreen> {
     {'label': 'ร้านค้า', 'icon': Icons.store},
   ];
 
-  // ← เพิ่มฟังก์ชัน mock (แก้เป็น API จริงทีหลัง)
+  // ขั้นที่ 1: เช็ค username/password กับ server -> ได้ authenToken (อายุสั้น)
   Future<(bool, String, String)> _authenRequest() async {
-    await Future.delayed(const Duration(seconds: 1));
-    // TODO: แก้เป็นเรียก API จริง
-    return (false, "mock_token_12345", "");
+    final username = _usernameController.text;
+    final password = _passwordController.text;
+
+    final response = await http.post(
+      Uri.parse("${AppConfig.apiBaseUri}/authen_request"),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(<String, String>{
+        'username': username,
+        'password': password,
+      }),
+    );
+
+    final json = jsonDecode(response.body);
+
+    return (
+      json["isError"] as bool,
+      json["data"] as String,
+      json["errorMessage"] as String,
+    );
   }
 
-  Future<({bool isError, String errorMessage, String data})> _accessRequest(String token) async {
-    await Future.delayed(const Duration(seconds: 1));
-    // TODO: แก้เป็นเรียก API จริง
-    return (isError: false, errorMessage: "", data: "access_token_xyz");
+  // ขั้นที่ 2: เอา authenToken ไปแลก accessToken (อายุยาวขึ้น)
+  Future<({bool isError, String errorMessage, String data})> _accessRequest(
+    String token,
+  ) async {
+    final response = await http.post(
+      Uri.parse("${AppConfig.apiBaseUri}/access_request"),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(<String, String>{'token': token}),
+    );
+
+    final json = jsonDecode(response.body);
+
+    return (
+      isError: json["isError"] as bool,
+      errorMessage: json["errorMessage"] as String,
+      data: json["data"] as String,
+    );
+  }
+
+  // เก็บ accessToken ลง SharedPreferences เพื่อใช้เรียก API อื่นๆ ต่อไป
+  Future<void> _saveAccessToken(String accessToken) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('access_token', accessToken);
   }
 
   void _doLogin(BuildContext context) async {
     setState(() => _isLoading = true);
 
-    var (isError, authenToken, errorMessage) = await _authenRequest();
+    try {
+      var (isError, authenToken, errorMessage) = await _authenRequest();
 
-    if (isError) {
+      if (isError) {
+        setState(() => _isLoading = false);
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(content: Text(errorMessage));
+            },
+          );
+        }
+      } else {
+        var result = await _accessRequest(authenToken);
+
+        setState(() => _isLoading = false);
+
+        if (result.isError) {
+          if (context.mounted) {
+            showDialog(
+              context: context,
+              builder: (context) {
+                return AlertDialog(content: Text(result.errorMessage));
+              },
+            );
+          }
+        } else {
+          await _saveAccessToken(result.data);
+
+          print("Login success! access_token: ${result.data}");
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("เข้าสู่ระบบสำเร็จ"),
+                backgroundColor: Color(0xFF22C55E),
+                duration: Duration(seconds: 2),
+              ),
+            );
+
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+            );
+          }
+        }
+      }
+    } catch (e) {
       setState(() => _isLoading = false);
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(content: Text(errorMessage));
-        },
-      );
-    } else {
-      var result = await _accessRequest(authenToken);
-
-      setState(() => _isLoading = false);
-
-      if (result.isError) {
+      print("เกิดข้อผิดพลาดตอน login: $e");
+      if (context.mounted) {
         showDialog(
           context: context,
           builder: (context) {
-            return AlertDialog(content: Text(result.errorMessage));
+            return AlertDialog(content: Text("เกิดข้อผิดพลาด: $e"));
           },
         );
-      } else {
-        print("Login success! access_token: ${result.data}");
-
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("เข้าสู่ระบบสำเร็จ"),
-              backgroundColor: Color(0xFF22C55E),
-              duration: Duration(seconds: 2),
-            ),
-          );
-
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
-        }
       }
     }
   }
@@ -101,10 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF064E3B),
-              Color(0xFF15803D),
-            ],
+            colors: [Color(0xFF064E3B), Color(0xFF15803D)],
           ),
         ),
         child: SafeArea(
@@ -125,10 +187,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   child: const Center(
-                    child: Text(
-                      '🌴',
-                      style: TextStyle(fontSize: 40),
-                    ),
+                    child: Text('🌴', style: TextStyle(fontSize: 40)),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -144,10 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 4),
                 const Text(
                   'ระบบจัดการสวนปาล์มน้ำมัน',
-                  style: TextStyle(
-                    color: Color(0xFF86EFAC),
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Color(0xFF86EFAC), fontSize: 14),
                 ),
                 const SizedBox(height: 32),
                 // Login Card
@@ -186,7 +242,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 right: index < roles.length - 1 ? 8 : 0,
                               ),
                               child: GestureDetector(
-                                onTap: () => setState(() => selectedRole = index),
+                                onTap: () =>
+                                    setState(() => selectedRole = index),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 10,
@@ -244,7 +301,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 6),
                       TextField(
-                        controller: _usernameController, // ← เพิ่ม controller
+                        controller: _usernameController,
                         decoration: InputDecoration(
                           hintText: 'กรอกชื่อผู้ใช้',
                           hintStyle: const TextStyle(
@@ -295,7 +352,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 6),
                       TextField(
-                        controller: _passwordController, // ← เพิ่ม controller
+                        controller: _passwordController,
                         obscureText: obscurePassword,
                         decoration: InputDecoration(
                           prefixIcon: const Icon(
@@ -349,22 +406,23 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: double.infinity,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF16A34A),
-                              Color(0xFF22C55E),
-                            ],
+                            colors: [Color(0xFF16A34A), Color(0xFF22C55E)],
                           ),
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF22C55E).withValues(alpha: 0.3),
+                              color: const Color(
+                                0xFF22C55E,
+                              ).withValues(alpha: 0.3),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
                           ],
                         ),
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : () => _doLogin(context), // ← เรียก _doLogin
+                          onPressed: _isLoading
+                              ? null
+                              : () => _doLogin(context),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
@@ -394,7 +452,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
                       // Forgot Password
-                      Center( 
+                      Center(
                         child: TextButton(
                           onPressed: () {},
                           child: const Text(
@@ -407,20 +465,21 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Demo Mode
-                      // ในหน้า Login (ปุ่ม "สมัครสมาชิก")
+                      // สมัครสมาชิก
                       TextButton(
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                            MaterialPageRoute(
+                              builder: (context) => const RegisterScreen(),
+                            ),
                           );
                         },
                         child: const Text(
                           'สมัครสมาชิก',
                           style: TextStyle(color: Color(0xFF15803D)),
                         ),
-                      )
+                      ),
                     ],
                   ),
                 ),
