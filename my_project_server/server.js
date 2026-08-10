@@ -6,6 +6,7 @@ const userAccount = require('./models/user_account');
 const jwt = require('./libs/jwt');
 // const dateUtil = require('./libs/date_util');
 const dashboard = require('./models/dashboard');
+const garden = require('./models/garden');
 const app = express();
 app.use(bp.json());
 app.use(bp.urlencoded({ extended: true }));
@@ -24,6 +25,16 @@ app.get("/api/users", (req, res) => {
     };
 
     res.json(JSON.stringify(response));
+});
+
+app.get('/api/gardens/:user_id', async (req, res) => {
+  const userId = req.params.user_id;
+  if (garden && typeof garden.getGardensByUserId === 'function') {
+    const result = await garden.getGardensByUserId(userId);
+    res.json(result);
+  } else {
+    res.json({ isError: true, data: [], errorMessage: "ยังไม่ได้สร้างไฟล์ models/garden.js หรือฟังก์ชัน getGardensByUserId" });
+  }
 });
 
 app.post("/api/multiple_by_2", (req, res) => {

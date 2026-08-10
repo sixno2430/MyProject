@@ -5,14 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-//<<<<<<< HEAD
+
 
 
 // ← เพิ่ม import HomeScreen (ปรับ path ตามจริง)
 import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
-//=======
-import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
-//>>>>>>> a3eb39c5044d2a7c6c4f71981eb57e422e1f4a1b
+// import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
