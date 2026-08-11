@@ -1,11 +1,16 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/add_gardencare_screen.dart';
 
 class GardenCareScreen extends StatefulWidget {
-  const GardenCareScreen({super.key});
+  final String userId;
+
+  // รับ userId เข้ามาจากหน้า Login หรือหน้าก่อนหน้า (ตั้ง Default เป็น U002 กันพัง)
+  const GardenCareScreen({super.key, this.userId = 'U002'});
 
   @override
   State<GardenCareScreen> createState() => _GardenCareScreenState();
@@ -14,11 +19,18 @@ class GardenCareScreen extends StatefulWidget {
 class _GardenCareScreenState extends State<GardenCareScreen> {
   final Color primaryGreen = const Color(0xFF2D6A4F);
 
-  // URL สำหรับ API
-  final String apiUrl = 'http://localhost:3000/api'; 
+  // กำหนด IP/URL ตามอุปกรณ์ที่รันอัตโนมัติ
+  String get apiUrl {
+    if (kIsWeb) return 'http://localhost:3000/api';
+    if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
+    return 'http://localhost:3000/api';
+  }
+
+  // ดึง userId ที่ส่งมาจาก Widget
+  String get currentUserId => widget.userId;
 
   String _selectedPlot = 'ทั้งหมด';
-  String _selectedTab = 'ทั้งหมด';
+  String _selectedTab = 'ทั้งหมด'; // ตั้งเริ่มต้นเป็น "ทั้งหมด" เพื่อให้แสดงข้อมูลจาก DB ทันที
 
   List<String> _plots = ['ทั้งหมด'];
   List<Map<String, dynamic>> _activities = [];
@@ -39,28 +51,36 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
 
     try {
       final careResponse = await http.get(Uri.parse('$apiUrl/care-logs'));
-      final gardenResponse = await http.get(Uri.parse('$apiUrl/gardens'));
+      final gardenResponse = await http.get(Uri.parse('$apiUrl/gardens/$currentUserId'));
 
       if (careResponse.statusCode == 200) {
         final resBody = jsonDecode(careResponse.body);
         
-        // แก้ไขแกะข้อมูลจาก resBody['data'] เพื่อรองรับ Format สไตล์โปรเจกต์
+        // รองรับ Format { isError: false, data: [...] }
         final List<dynamic> careData = (resBody is Map && resBody.containsKey('data')) 
             ? resBody['data'] 
             : (resBody is List ? resBody : []);
 
         List<Map<String, dynamic>> loadedActivities = careData.map((item) {
-          DateTime recordDate = DateTime.tryParse(item['record_date'] ?? '') ?? DateTime.now();
-          String formattedDate = DateFormat('d MMM', 'th_TH').format(recordDate);
+          DateTime recordDate = DateTime.tryParse(item['record_date']?.toString() ?? '') ?? DateTime.now();
+          String formattedDate = DateFormat('d MMM yyyy', 'th_TH').format(recordDate);
 
-          bool isFertilizer = item['fertilizer_id'] != null;
+          bool isFertilizer = item['fertilizer_id'] != null && item['fertilizer_id'].toString().isNotEmpty;
           String type = isFertilizer ? 'fertilizer' : (item['action_type'] ?? 'pruning');
-          
-          String detail = isFertilizer 
-              ? '${item['fertilizer_name'] ?? 'ปุ๋ย'} · ${item['quantity']} ${item['quantity_type'] ?? 'กก.'}'
-              : 'จำนวน ${item['quantity']} ${item['quantity_type'] ?? 'ต้น'}';
 
-          double costValue = double.tryParse(item['cost'].toString()) ?? 0.0;
+          // 🛠️ แปลงจำนวนทศนิยมเป็นตัวเลขสวยๆ
+          double numVal = double.tryParse(item['quantity']?.toString() ?? '0') ?? 0.0;
+          String formattedQty = (numVal % 1 == 0) ? numVal.toInt().toString() : numVal.toString();
+
+          // 🛠️ ดึงข้อมูลรายละเอียด/หมายเหตุมาโชว์ในการ์ด
+          String userNote = (item['note'] != null && item['note'].toString().trim().isNotEmpty)
+              ? '${item['note']} · '
+              : '';
+              
+          String unitStr = item['quantity_type'] ?? (isFertilizer ? 'กก.' : 'ต้น');
+          String detail = '$userNoteจำนวน $formattedQty $unitStr';
+
+          double costValue = double.tryParse(item['cost']?.toString() ?? '0') ?? 0.0;
           String costText = '${isFertilizer ? 'ค่าใช้จ่าย' : 'ค่าแรง'} ${NumberFormat('#,##0').format(costValue)} บาท';
 
           return {
@@ -75,6 +95,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
           };
         }).toList();
 
+        // แกะรายชื่อสวนจาก gardenResponse มาใส่ใน Dropdown
         List<String> plotList = ['ทั้งหมด'];
         if (gardenResponse.statusCode == 200) {
           final gardenResBody = jsonDecode(gardenResponse.body);
@@ -82,12 +103,17 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
               ? gardenResBody['data']
               : (gardenResBody is List ? gardenResBody : []);
           
-          plotList.addAll(gardenData.map((g) => g['garden_name'].toString()).toList());
+          plotList.addAll(
+            gardenData
+                .where((g) => g['garden_name'] != null)
+                .map((g) => g['garden_name'].toString())
+                .toList(),
+          );
         }
 
         setState(() {
           _activities = loadedActivities;
-          _plots = plotList.toSet().toList();
+          _plots = plotList.toSet().toList(); // ตัดชื่อสวนซ้ำออก
           _isLoading = false;
         });
       } else {
@@ -101,6 +127,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     }
   }
 
+  // กำหนดป้ายสไตล์และสีของแต่ละกิจกรรม
   Map<String, dynamic> _getTypeStyle(String type) {
     switch (type) {
       case 'fertilizer':
@@ -121,10 +148,22 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
           'bgColor': const Color(0xFFF3E5F5),
           'label': 'กำจัดวัชพืช',
         };
+      case 'watering':
+        return {
+          'color': const Color(0xFF2196F3),
+          'bgColor': const Color(0xFFE3F2FD),
+          'label': 'ให้น้ำ',
+        };
+      case 'spraying':
+        return {
+          'color': const Color(0xFFF44336),
+          'bgColor': const Color(0xFFFFEBEE),
+          'label': 'พ่นยา',
+        };
       default:
         return {
-          'color': Colors.grey,
-          'bgColor': Colors.grey[100],
+          'color': const Color(0xFF607D8B),
+          'bgColor': const Color(0xFFECEFF1),
           'label': 'อื่นๆ',
         };
     }
@@ -195,11 +234,13 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
         actions: [
           GestureDetector(
             onTap: () async {
-              await Navigator.push(
+              final result = await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AddGardenCareScreen()),
               );
-              _fetchDataFromBackend();
+              if (result == true) {
+                _fetchDataFromBackend();
+              }
             },
             child: Container(
               margin: const EdgeInsets.all(8),
@@ -240,6 +281,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              // ตัวเลือกแปลงสวน (Dropdown)
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 16),
                                 decoration: BoxDecoration(
@@ -281,6 +323,8 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
+                              
+                              // แท็บสลับประเภทกิจกรรม
                               Container(
                                 padding: const EdgeInsets.all(4),
                                 decoration: BoxDecoration(
@@ -296,11 +340,13 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
+
+                              // การ์ดสรุปตัวเลข
                               Row(
                                 children: [
                                   Expanded(
                                     child: _buildStatCard(
-                                      'กิจกรรมเดือนนี้',
+                                      'กิจกรรมทั้งหมด',
                                       '${stats['count']}',
                                       'ครั้ง',
                                       primaryGreen,
@@ -309,7 +355,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: _buildStatCard(
-                                      'ค่าปุ๋ยเดือนนี้',
+                                      'ค่าใช้จ่ายรวม',
                                       '${stats['cost']}',
                                       'บาท',
                                       primaryGreen,
@@ -318,6 +364,8 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
                                 ],
                               ),
                               const SizedBox(height: 20),
+
+                              // หัวข้อรายการล่าสุด
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
@@ -329,25 +377,27 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
                                     ),
                                   ),
                                   GestureDetector(
-                                    onTap: () {},
+                                    onTap: _fetchDataFromBackend,
                                     child: Row(
                                       children: [
                                         Text(
-                                          'ดูทั้งหมด',
+                                          'รีเฟรช',
                                           style: TextStyle(
                                             fontSize: 13,
                                             color: primaryGreen,
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                        Icon(Icons.arrow_forward_ios,
-                                            size: 12, color: primaryGreen),
+                                        Icon(Icons.refresh,
+                                            size: 14, color: primaryGreen),
                                       ],
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 12),
+
+                              // รายการการ์ดกิจกรรม
                               if (filtered.isEmpty)
                                 Center(
                                   child: Padding(
@@ -364,17 +414,21 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
                           ),
                         ),
                       ),
+
+                      // ปุ่มบันทึกการดูแลใหม่ด้านล่าง
                       Container(
                         color: const Color(0xFFF5F5F5),
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                         child: ElevatedButton.icon(
                           onPressed: () async {
-                            await Navigator.push(
+                            final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
                                   builder: (_) => const AddGardenCareScreen()),
                             );
-                            _fetchDataFromBackend();
+                            if (result == true) {
+                              _fetchDataFromBackend();
+                            }
                           },
                           icon: const Icon(Icons.add, color: Colors.white),
                           label: const Text(
@@ -452,7 +506,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
               Text(
                 value,
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: color,
                 ),

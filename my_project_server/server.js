@@ -153,7 +153,7 @@ app.get('/api/gardens', async (req, res) => {
   }
 });
 
-// 3. บันทึกข้อมูลการดูแลใหม่ (สำหรับรองรับการโพสต์ข้อมูล)
+// POST: บันทึกการดูแลสวนรายการใหม่
 app.post('/api/care-logs', async (req, res) => {
   const result = await care.createCareLog(req.body);
   res.json(result);

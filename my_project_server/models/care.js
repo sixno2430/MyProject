@@ -7,10 +7,10 @@ const careModel = {
       const sql = `
         SELECT 
           c.care_id,
-          g.garden_id,
-          g.garden_name,
+          c.garden_id,
+          COALESCE(g.garden_name, 'ไม่ระบุแปลง') AS garden_name,
           c.fertilizer_id,
-          f.fertilizer_name,
+          COALESCE(f.fertilizer_name, 'ปุ๋ยบำรุง') AS fertilizer_name,
           f.formula,
           c.quantity,
           c.quantity_type,
@@ -21,15 +21,27 @@ const careModel = {
         LEFT JOIN fertilizer f ON c.fertilizer_id = f.fertilizer_id
         ORDER BY c.record_date DESC
       `;
-      const [rows] = await db.query(sql);
-      return { isError: false, data: rows, errorMessage: "" };
+      
+      const result = await db.query(sql); // 👈 แก้ตรงนี้: ไม่ใช้ [rows]
+
+      // ป้องกัน Error โดยรองรับทั้งสไตล์ db_pool และ mysql2
+      let rows = [];
+      if (result && result.data !== undefined) {
+        rows = result.data;
+      } else {
+        rows = Array.isArray(result[0]) ? result[0] : result;
+      }
+
+      
+
+      return { isError: false, data: rows || [], errorMessage: "" };
     } catch (error) {
-      console.error('Error in getCareLogs:', error);
+      console.error('❌ Error in getCareLogs:', error.message);
       return { isError: true, data: [], errorMessage: error.message };
     }
   },
 
-  // 2. บันทึกข้อมูลการดูแลสวนรายการใหม่ (สำหรับรองรับหน้า AddGardenCareScreen ในอนาคต)
+  // 2. บันทึกข้อมูลการดูแลสวนรายการใหม่
   createCareLog: async (careData) => {
     try {
       const { care_id, garden_id, fertilizer_id, quantity, quantity_type, cost, record_date } = careData;
@@ -37,7 +49,8 @@ const careModel = {
         INSERT INTO palm_care (care_id, garden_id, fertilizer_id, quantity, quantity_type, cost, record_date)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `;
-      const [result] = await db.query(sql, [
+      
+      const result = await db.query(sql, [
         care_id,
         garden_id,
         fertilizer_id || null,
@@ -46,9 +59,10 @@ const careModel = {
         cost,
         record_date
       ]);
+
       return { isError: false, data: result, errorMessage: "" };
     } catch (error) {
-      console.error('Error in createCareLog:', error);
+      console.error('❌ Error in createCareLog:', error.message);
       return { isError: true, data: null, errorMessage: error.message };
     }
   }

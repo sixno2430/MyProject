@@ -1,7 +1,14 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 
 class AddGardenCareScreen extends StatefulWidget {
-  const AddGardenCareScreen({super.key});
+  final String userId;
+
+  const AddGardenCareScreen({super.key, this.userId = 'U002'});
 
   @override
   State<AddGardenCareScreen> createState() => _AddGardenCareScreenState();
@@ -11,28 +18,65 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
   final Color primaryGreen = const Color(0xFF2D6A4F);
   final _formKey = GlobalKey<FormState>();
 
-  String _selectedPlot = 'แปลง A — บ้านหน่งกวาง';
+  String get apiUrl {
+    if (kIsWeb) return 'http://localhost:3000/api';
+    if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
+    return 'http://localhost:3000/api';
+  }
+
+  String? _selectedGardenId;
+  List<Map<String, dynamic>> _plots = [];
+  bool _isLoadingPlots = true;
+
   String _selectedType = 'ใส่ปุ๋ย';
   DateTime _selectedDate = DateTime.now();
   final _detailController = TextEditingController();
   final _costController = TextEditingController();
   final _amountController = TextEditingController();
+  final _noteController = TextEditingController();
 
-  final List<String> _plots = [
-    'แปลง A — บ้านหน่งกวาง',
-    'แปลง B — ไร่นาสวน',
-    'แปลง C — สวนในบึง',
-    'แปลง D — ห้วยป่าซาง',
-  ];
+  bool _isSubmitting = false;
 
   final List<Map<String, dynamic>> _careTypes = [
-    {'label': 'ใส่ปุ๋ย', 'icon': '💊', 'color': Color(0xFF4CAF50)},
-    {'label': 'ตัดแต่ง', 'icon': '✂️', 'color': Color(0xFFFF9800)},
-    {'label': 'กำจัดวัชพืช', 'icon': '🌿', 'color': Color(0xFF9C27B0)},
-    {'label': 'ให้น้ำ', 'icon': '💧', 'color': Color(0xFF2196F3)},
-    {'label': 'พ่นยา', 'icon': '🔫', 'color': Color(0xFFF44336)},
-    {'label': 'อื่นๆ', 'icon': '🛠️', 'color': Color(0xFF607D8B)},
+    {'label': 'ใส่ปุ๋ย', 'icon': '💊', 'color': const Color(0xFF4CAF50), 'type': 'fertilizer', 'unit': 'กก.'},
+    {'label': 'ตัดแต่ง', 'icon': '✂️', 'color': const Color(0xFFFF9800), 'type': 'pruning', 'unit': 'ต้น'},
+    {'label': 'กำจัดวัชพืช', 'icon': '🌿', 'color': const Color(0xFF9C27B0), 'type': 'weeding', 'unit': 'แปลง'},
+    {'label': 'ให้น้ำ', 'icon': '💧', 'color': const Color(0xFF2196F3), 'type': 'watering', 'unit': 'ครั้ง'},
+    {'label': 'พ่นยา', 'icon': '🔫', 'color': const Color(0xFFF44336), 'type': 'spraying', 'unit': 'ครั้ง'},
+    {'label': 'อื่นๆ', 'icon': '🛠️', 'color': const Color(0xFF607D8B), 'type': 'other', 'unit': 'รายการ'},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPlotsFromBackend();
+  }
+
+  Future<void> _fetchPlotsFromBackend() async {
+    try {
+      final response = await http.get(Uri.parse('$apiUrl/gardens/${widget.userId}'));
+      if (response.statusCode == 200) {
+        final resBody = jsonDecode(response.body);
+        final List<dynamic> data = (resBody is Map && resBody.containsKey('data'))
+            ? resBody['data']
+            : (resBody is List ? resBody : []);
+
+        setState(() {
+          _plots = data.map((e) => {
+            'id': e['garden_id'].toString(),
+            'name': e['garden_name'].toString(),
+          }).toList();
+
+          if (_plots.isNotEmpty) {
+            _selectedGardenId = _plots.first['id'];
+          }
+          _isLoadingPlots = false;
+        });
+      }
+    } catch (e) {
+      setState(() => _isLoadingPlots = false);
+    }
+  }
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -50,13 +94,86 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
-  // String get _thaiDate {
-  //   final d = DateFormat('d MMMM yyyy', 'th').format(_selectedDate);
-  //   return d.replaceFirst(
-  //     _selectedDate.year.toString(),
-  //     (_selectedDate.year + 543).toString(),
-  //   );
-  // }
+  String get _thaiDate {
+    final d = DateFormat('d MMMM yyyy', 'th_TH').format(_selectedDate);
+    return d.replaceFirst(
+      _selectedDate.year.toString(),
+      (_selectedDate.year + 543).toString(),
+    );
+  }
+
+  Future<void> _saveCareLog() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedGardenId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณาเลือกแปลงสวน')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      String careId = 'C${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
+      String formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
+
+      // ดึงข้อมูลประเภทกิจกรรมที่เลือก
+      final currentTypeObj = _careTypes.firstWhere(
+        (element) => element['label'] == _selectedType,
+        orElse: () => _careTypes.first,
+      );
+
+      // สกัดตัวเลขจำนวน
+      String rawAmountText = _amountController.text.trim();
+      String numericOnly = rawAmountText.replaceAll(RegExp(r'[^0-9.]'), '');
+      double quantityVal = double.tryParse(numericOnly) ?? 0.0;
+
+      double costVal = double.tryParse(_costController.text.replaceAll(',', '')) ?? 0.0;
+
+      // รวมข้อความรายละเอียด + หมายเหตุ (ถ้ามี)
+      String fullDetail = _detailController.text.trim();
+      if (_noteController.text.trim().isNotEmpty) {
+        fullDetail += ' (${_noteController.text.trim()})';
+      }
+
+      Map<String, dynamic> bodyData = {
+        'care_id': careId,
+        'garden_id': _selectedGardenId,
+        'fertilizer_id': _selectedType == 'ใส่ปุ๋ย' ? 'F001' : null,
+        'action_type': currentTypeObj['type'], // บันทึกประเภทกิจกรรมจริง
+        'quantity': quantityVal,
+        'quantity_type': currentTypeObj['unit'], // บันทึกหน่วยตามกิจกรรมจริง
+        'cost': costVal,
+        'record_date': formattedDate,
+        'note': fullDetail, // บันทึกรายละเอียดลง DB
+      };
+
+      final response = await http.post(
+        Uri.parse('$apiUrl/care-logs'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(bodyData),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('บันทึกการดูแลรักษาสวนเรียบร้อยแล้ว')),
+          );
+          Navigator.pop(context, true);
+        }
+      } else {
+        throw Exception('Server ตอบกลับสถานะ: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('เกิดข้อผิดพลาด: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,15 +195,9 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
         ),
         title: const Column(
           children: [
-            Text(
-              'การดูแลรักษาสวน',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            Text('การดูแลรักษาสวน', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
             SizedBox(height: 2),
-            Text(
-              'บันทึกการดูแล / การใส่ปุ๋ย',
-              style: TextStyle(fontSize: 12, color: Colors.white70),
-            ),
+            Text('บันทึกการดูแล / การใส่ปุ๋ย', style: TextStyle(fontSize: 12, color: Colors.white70)),
           ],
         ),
         centerTitle: true,
@@ -101,34 +212,37 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // เลือกแปลงสวน
                     _buildLabel('แปลงสวน *'),
                     const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: primaryGreen, width: 1.5),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          isExpanded: true,
-                          value: _selectedPlot,
-                          icon: Icon(Icons.keyboard_arrow_down, color: primaryGreen),
-                          style: const TextStyle(color: Colors.black87, fontSize: 15),
-                          items: _plots.map((plot) {
-                            return DropdownMenuItem(value: plot, child: Text(plot));
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) setState(() => _selectedPlot = val);
-                          },
-                        ),
-                      ),
-                    ),
+                    _isLoadingPlots
+                        ? const Center(child: Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator()))
+                        : Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: primaryGreen, width: 1.5),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                value: _selectedGardenId,
+                                icon: Icon(Icons.keyboard_arrow_down, color: primaryGreen),
+                                style: const TextStyle(color: Colors.black87, fontSize: 15),
+                                items: _plots.map((plot) {
+                                  return DropdownMenuItem<String>(
+                                    value: plot['id'],
+                                    child: Text(plot['name']),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) setState(() => _selectedGardenId = val);
+                                },
+                              ),
+                            ),
+                          ),
                     const SizedBox(height: 20),
 
-                    // เลือกประเภทกิจกรรม
                     _buildLabel('ประเภทกิจกรรม *'),
                     const SizedBox(height: 10),
                     Wrap(
@@ -169,7 +283,6 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // วันที่ดำเนินการ
                     _buildLabel('วันที่ดำเนินการ *'),
                     const SizedBox(height: 6),
                     GestureDetector(
@@ -184,7 +297,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
                         child: Row(
                           children: [
                             const Text('📅 ', style: TextStyle(fontSize: 16)),
-                            //Text(_thaiDate, style: const TextStyle(fontSize: 15)),
+                            Text(_thaiDate, style: const TextStyle(fontSize: 15)),
                             const Spacer(),
                             Icon(Icons.calendar_today, size: 18, color: Colors.grey[400]),
                           ],
@@ -193,41 +306,39 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // รายละเอียด
                     _buildLabel('รายละเอียด *'),
                     const SizedBox(height: 6),
                     _buildTextField(
                       controller: _detailController,
-                      hint: 'เช่น ปุ๋ย 15-15-15 · 40 กก.',
+                      hint: 'เช่น ตัดแต่งทางใบใกล้วางกอง หรือ ปุ๋ย 15-15-15',
                       maxLines: 2,
+                      isRequired: true,
                     ),
                     const SizedBox(height: 16),
 
-                    // ปริมาณ / จำนวน
                     _buildLabel('ปริมาณ / จำนวน'),
                     const SizedBox(height: 6),
                     _buildTextField(
-                      controller: _amountController,
-                      hint: 'เช่น 40 กก. / 480 ต้น / 2 วัน',
+                      controller: _amountController, // 👈 ผูก Controller แล้ว
+                      hint: 'เช่น 40 (กก. / ต้น / ครั้ง)',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     ),
                     const SizedBox(height: 16),
 
-                    // ค่าใช้จ่าย
                     _buildLabel('ค่าใช้จ่าย (บาท)'),
                     const SizedBox(height: 6),
                     _buildTextField(
                       controller: _costController,
                       hint: 'เช่น 1,200',
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       prefix: const Text('💰 ', style: TextStyle(fontSize: 16)),
                     ),
                     const SizedBox(height: 16),
 
-                    // หมายเหตุ
-                    _buildLabel('หมายเหตุ'),
+                    _buildLabel('หมายเหตุเพิ่มเติม'),
                     const SizedBox(height: 6),
                     _buildTextField(
-                      controller: null,
+                      controller: _noteController,
                       hint: 'เพิ่มเติม...',
                       maxLines: 2,
                     ),
@@ -237,21 +348,17 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
             ),
           ),
 
-          // ปุ่มบันทึก
           Container(
             color: const Color(0xFFF5F5F5),
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             child: ElevatedButton.icon(
-              onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  // TODO: บันทึกข้อมูล
-                  Navigator.pop(context);
-                }
-              },
-              icon: const Text('🛠️', style: TextStyle(fontSize: 18)),
-              label: const Text(
-                'บันทึกการดูแล',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              onPressed: _isSubmitting ? null : _saveCareLog,
+              icon: _isSubmitting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('🛠️', style: TextStyle(fontSize: 18)),
+              label: Text(
+                _isSubmitting ? 'กำลังบันทึก...' : 'บันทึกการดูแล',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF40916C),
@@ -277,13 +384,16 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
     TextInputType keyboardType = TextInputType.text,
     int maxLines = 1,
     Widget? prefix,
+    bool isRequired = false,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       maxLines: maxLines,
       validator: (value) {
-        if (value == null || value.isEmpty) return 'กรุณากรอกข้อมูล';
+        if (isRequired && (value == null || value.trim().isEmpty)) {
+          return 'กรุณากรอกข้อมูลในช่องนี้';
+        }
         return null;
       },
       decoration: InputDecoration(

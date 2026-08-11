@@ -12,7 +12,7 @@ const garden = {
           plant_count, 
           plant_year,
           plant_age
-        FROM garden_with_age
+        FROM garden
         WHERE user_id = ?
       `;
 
@@ -40,7 +40,7 @@ const garden = {
         errorMessage: error.message
       };
     }
-  }, // 👈 ใส่จุลภาค (,) คั่นระหว่างฟังก์ชันตรงนี้
+  }, 
 
   createGarden: async (gardenData) => {
     try {
