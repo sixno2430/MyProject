@@ -13,6 +13,12 @@ app.use(bp.urlencoded({ extended: true }));
 const cors = require('cors');
 app.use(cors());
 
+// แก้ปัญหา BigInt ไม่สามารถ serialize เป็น JSON ได้
+BigInt.prototype.toJSON = function() {
+  return Number(this);
+};
+
+
 
 const hostname = '127.0.0.1';
 const port = 3000;

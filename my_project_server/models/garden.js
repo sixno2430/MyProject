@@ -12,7 +12,7 @@ const garden = {
           plant_count, 
           plant_year,
           plant_age
-        FROM garden 
+        FROM garden_with_age
         WHERE user_id = ?
       `;
 
