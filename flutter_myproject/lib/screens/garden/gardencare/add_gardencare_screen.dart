@@ -117,20 +117,20 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
       String careId = 'C${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
       String formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
 
-      // ดึงข้อมูลประเภทกิจกรรมที่เลือก
+      // ดึงข้อมูลประเภทกิจกรรมและหน่วยนับที่เลือก
       final currentTypeObj = _careTypes.firstWhere(
         (element) => element['label'] == _selectedType,
         orElse: () => _careTypes.first,
       );
 
-      // สกัดตัวเลขจำนวน
+      // 🛠️ ดึงเฉพาะตัวเลขและจุดทศนิยมจากช่องกรอกปริมาณ
       String rawAmountText = _amountController.text.trim();
       String numericOnly = rawAmountText.replaceAll(RegExp(r'[^0-9.]'), '');
       double quantityVal = double.tryParse(numericOnly) ?? 0.0;
 
       double costVal = double.tryParse(_costController.text.replaceAll(',', '')) ?? 0.0;
 
-      // รวมข้อความรายละเอียด + หมายเหตุ (ถ้ามี)
+      // รวมข้อความรายละเอียดและหมายเหตุ
       String fullDetail = _detailController.text.trim();
       if (_noteController.text.trim().isNotEmpty) {
         fullDetail += ' (${_noteController.text.trim()})';
@@ -140,9 +140,9 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
         'care_id': careId,
         'garden_id': _selectedGardenId,
         'fertilizer_id': _selectedType == 'ใส่ปุ๋ย' ? 'F001' : null,
-        'action_type': currentTypeObj['type'], // บันทึกประเภทกิจกรรมจริง
+        'action_type': currentTypeObj['type'], // บันทึกประเภทกิจกรรมจริงลง DB
         'quantity': quantityVal,
-        'quantity_type': currentTypeObj['unit'], // บันทึกหน่วยตามกิจกรรมจริง
+        'quantity_type': currentTypeObj['unit'], // บันทึกหน่วยตามประเภทกิจกรรม
         'cost': costVal,
         'record_date': formattedDate,
         'note': fullDetail, // บันทึกรายละเอียดลง DB
