@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/add_gardencare_screen.dart';
 
 class GardenCareScreen extends StatefulWidget {
@@ -11,51 +14,92 @@ class GardenCareScreen extends StatefulWidget {
 class _GardenCareScreenState extends State<GardenCareScreen> {
   final Color primaryGreen = const Color(0xFF2D6A4F);
 
+  // URL สำหรับ API
+  final String apiUrl = 'http://localhost:3000/api'; 
+
   String _selectedPlot = 'ทั้งหมด';
   String _selectedTab = 'ทั้งหมด';
 
-  final List<String> _plots = [
-    'ทั้งหมด',
-    'แปลง A',
-    'แปลง B',
-    'แปลง C',
-    'แปลง D',
-  ];
+  List<String> _plots = ['ทั้งหมด'];
+  List<Map<String, dynamic>> _activities = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
-  final List<Map<String, dynamic>> _activities = [
-    {
-      'title': 'ใส่ปุ๋ย · แปลง A',
-      'detail': 'ปุ๋ย 15-15-15 · 40 กก.',
-      'cost': 'ค่าใช้จ่าย 1,200 บาท',
-      'date': '10 มิ.ย.',
-      'type': 'fertilizer',
-      'plot': 'แปลง A',
-    },
-    {
-      'title': 'ตัดแต่งทางใบ · แปลง A',
-      'detail': 'ตัดครบ 480 ต้น',
-      'cost': 'ค่าแรง 1,500 บาท',
-      'date': '8 มิ.ย.',
-      'type': 'pruning',
-      'plot': 'แปลง A',
-    },
-    {
-      'title': 'ใส่ปุ๋ย · แปลง B',
-      'detail': 'ปุ๋ยเร่งโต 46-0-0 · 30 กก.',
-      'cost': 'ค่าใช้จ่าย 900 บาท',
-      'date': '7 มิ.ย.',
-      'type': 'fertilizer',
-      'plot': 'แปลง B',
-    },
-    {
-      'title': 'กำจัดวัชพืช · แปลง C',
-      'detail': 'ใช้เวลา 2 วัน',
-      'cost': 'ค่าแรง 800 บาท',
-      'date': '5 มิ.ย.',
-      'type': 'weeding',
-      'plot': 'แปลง C',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchDataFromBackend();
+  }
+
+  Future<void> _fetchDataFromBackend() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final careResponse = await http.get(Uri.parse('$apiUrl/care-logs'));
+      final gardenResponse = await http.get(Uri.parse('$apiUrl/gardens'));
+
+      if (careResponse.statusCode == 200) {
+        final resBody = jsonDecode(careResponse.body);
+        
+        // แก้ไขแกะข้อมูลจาก resBody['data'] เพื่อรองรับ Format สไตล์โปรเจกต์
+        final List<dynamic> careData = (resBody is Map && resBody.containsKey('data')) 
+            ? resBody['data'] 
+            : (resBody is List ? resBody : []);
+
+        List<Map<String, dynamic>> loadedActivities = careData.map((item) {
+          DateTime recordDate = DateTime.tryParse(item['record_date'] ?? '') ?? DateTime.now();
+          String formattedDate = DateFormat('d MMM', 'th_TH').format(recordDate);
+
+          bool isFertilizer = item['fertilizer_id'] != null;
+          String type = isFertilizer ? 'fertilizer' : (item['action_type'] ?? 'pruning');
+          
+          String detail = isFertilizer 
+              ? '${item['fertilizer_name'] ?? 'ปุ๋ย'} · ${item['quantity']} ${item['quantity_type'] ?? 'กก.'}'
+              : 'จำนวน ${item['quantity']} ${item['quantity_type'] ?? 'ต้น'}';
+
+          double costValue = double.tryParse(item['cost'].toString()) ?? 0.0;
+          String costText = '${isFertilizer ? 'ค่าใช้จ่าย' : 'ค่าแรง'} ${NumberFormat('#,##0').format(costValue)} บาท';
+
+          return {
+            'care_id': item['care_id'],
+            'title': '${isFertilizer ? 'ใส่ปุ๋ย' : 'ดูแลรักษา'} · ${item['garden_name'] ?? 'ไม่ระบุแปลง'}',
+            'detail': detail,
+            'cost': costText,
+            'cost_value': costValue,
+            'date': formattedDate,
+            'type': type,
+            'plot': item['garden_name'] ?? 'ไม่ระบุแปลง',
+          };
+        }).toList();
+
+        List<String> plotList = ['ทั้งหมด'];
+        if (gardenResponse.statusCode == 200) {
+          final gardenResBody = jsonDecode(gardenResponse.body);
+          final List<dynamic> gardenData = (gardenResBody is Map && gardenResBody.containsKey('data'))
+              ? gardenResBody['data']
+              : (gardenResBody is List ? gardenResBody : []);
+          
+          plotList.addAll(gardenData.map((g) => g['garden_name'].toString()).toList());
+        }
+
+        setState(() {
+          _activities = loadedActivities;
+          _plots = plotList.toSet().toList();
+          _isLoading = false;
+        });
+      } else {
+        throw Exception('เซิร์ฟเวอร์ตอบกลับด้วยสถานะ: ${careResponse.statusCode}');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'ไม่สามารถเชื่อมต่อข้อมูลได้ ($e)';
+        _isLoading = false;
+      });
+    }
+  }
 
   Map<String, dynamic> _getTypeStyle(String type) {
     switch (type) {
@@ -103,15 +147,11 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
         : _activities.where((a) => a['plot'] == _selectedPlot).toList();
 
     int count = filtered.length;
-    int cost = 0;
+    double cost = 0;
     for (var a in filtered) {
-      final costStr = a['cost'] as String;
-      final match = RegExp(r'[\d,]+').firstMatch(costStr);
-      if (match != null) {
-        cost += int.parse(match.group(0)!.replaceAll(',', ''));
-      }
+      cost += (a['cost_value'] as double? ?? 0.0);
     }
-    return {'count': count, 'cost': cost};
+    return {'count': count, 'cost': NumberFormat('#,##0').format(cost)};
   }
 
   @override
@@ -154,8 +194,12 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
         centerTitle: true,
         actions: [
           GestureDetector(
-            onTap: () {
-              // TODO: ไปหน้าเพิ่มบันทึก
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AddGardenCareScreen()),
+              );
+              _fetchDataFromBackend();
             },
             child: Container(
               margin: const EdgeInsets.all(8),
@@ -169,177 +213,189 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Dropdown เลือกแปลงสวน
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey[200]!),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        value: _selectedPlot,
-                        icon: Icon(Icons.keyboard_arrow_down, color: primaryGreen),
-                        style: TextStyle(
-                          color: primaryGreen,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        items: _plots.map((String plot) {
-                          return DropdownMenuItem<String>(
-                            value: plot,
-                            child: Row(
-                              children: [
-                                Icon(Icons.forest_outlined,
-                                    color: primaryGreen, size: 20),
-                                const SizedBox(width: 10),
-                                Text(plot),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (String? newValue) {
-                          if (newValue != null) {
-                            setState(() {
-                              _selectedPlot = newValue;
-                            });
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // แท็บ
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        _buildTab('ดูแลรักษา', '🔧'),
-                        _buildTab('ใส่ปุ๋ย', '💊'),
-                        _buildTab('ทั้งหมด', '📋'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // สถิติ
-                  Row(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          'กิจกรรมเดือนนี้',
-                          '${stats['count']}',
-                          'ครั้ง',
-                          primaryGreen,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildStatCard(
-                          'ค่าปุ๋ยเดือนนี้',
-                          '${stats['cost']}',
-                          'บาท',
-                          primaryGreen,
-                        ),
-                      ),
+                      Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: _fetchDataFromBackend,
+                        child: const Text('ลองใหม่'),
+                      )
                     ],
                   ),
-                  const SizedBox(height: 20),
-
-                  // หัวข้อรายการ
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                )
+              : RefreshIndicator(
+                  onRefresh: _fetchDataFromBackend,
+                  child: Column(
                     children: [
-                      const Text(
-                        'รายการล่าสุด',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () {},
-                        child: Row(
-                          children: [
-                            Text(
-                              'ดูทั้งหมด',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: primaryGreen,
-                                fontWeight: FontWeight.w600,
+                      Expanded(
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[200]!),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    isExpanded: true,
+                                    value: _plots.contains(_selectedPlot) ? _selectedPlot : 'ทั้งหมด',
+                                    icon: Icon(Icons.keyboard_arrow_down, color: primaryGreen),
+                                    style: TextStyle(
+                                      color: primaryGreen,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    items: _plots.map((String plot) {
+                                      return DropdownMenuItem<String>(
+                                        value: plot,
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.forest_outlined,
+                                                color: primaryGreen, size: 20),
+                                            const SizedBox(width: 10),
+                                            Text(plot),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: (String? newValue) {
+                                      if (newValue != null) {
+                                        setState(() {
+                                          _selectedPlot = newValue;
+                                        });
+                                      }
+                                    },
+                                  ),
+                                ),
                               ),
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    _buildTab('ดูแลรักษา', '🔧'),
+                                    _buildTab('ใส่ปุ๋ย', '💊'),
+                                    _buildTab('ทั้งหมด', '📋'),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      'กิจกรรมเดือนนี้',
+                                      '${stats['count']}',
+                                      'ครั้ง',
+                                      primaryGreen,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      'ค่าปุ๋ยเดือนนี้',
+                                      '${stats['cost']}',
+                                      'บาท',
+                                      primaryGreen,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'รายการล่าสุด',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: () {},
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          'ดูทั้งหมด',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: primaryGreen,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        Icon(Icons.arrow_forward_ios,
+                                            size: 12, color: primaryGreen),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (filtered.isEmpty)
+                                Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(32),
+                                    child: Text(
+                                      'ไม่มีรายการ${_selectedPlot != 'ทั้งหมด' ? 'ใน $_selectedPlot' : ''}',
+                                      style: TextStyle(color: Colors.grey[500]),
+                                    ),
+                                  ),
+                                )
+                              else
+                                ...filtered.map((item) => _buildActivityCard(item)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Container(
+                        color: const Color(0xFFF5F5F5),
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const AddGardenCareScreen()),
+                            );
+                            _fetchDataFromBackend();
+                          },
+                          icon: const Icon(Icons.add, color: Colors.white),
+                          label: const Text(
+                            'บันทึกการดูแลใหม่',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w600),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryGreen,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            Icon(Icons.arrow_forward_ios,
-                                size: 12, color: primaryGreen),
-                          ],
+                            elevation: 0,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-
-                  // รายการ
-                  if (filtered.isEmpty)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Text(
-                          'ไม่มีรายการ${_selectedPlot != 'ทั้งหมด' ? 'ใน$_selectedPlot' : ''}',
-                          style: TextStyle(color: Colors.grey[500]),
-                        ),
-                      ),
-                    )
-                  else
-                    ...filtered.map((item) => _buildActivityCard(item)),
-                ],
-              ),
-            ),
-          ),
-
-          // ปุ่มล่าง
-          Container(
-            color: const Color(0xFFF5F5F5),
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AddGardenCareScreen()),
-                );
-              },
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text(
-                'บันทึกการดูแลใหม่',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryGreen,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
                 ),
-                elevation: 0,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -396,14 +452,14 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
               Text(
                 value,
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: color,
                 ),
               ),
               const SizedBox(width: 4),
               Text(unit,
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600])),
             ],
           ),
         ],
@@ -426,10 +482,9 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
       ),
       child: Row(
         children: [
-          // แถบสีซ้าย
           Container(
             width: 4,
-            height: 100,
+            height: 90,
             decoration: BoxDecoration(
               color: color,
               borderRadius:

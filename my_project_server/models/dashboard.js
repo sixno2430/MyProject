@@ -81,7 +81,8 @@ module.exports = {
       };
     } finally {
       if (conn) conn.release();
-      return result;
+      
     }
+    return result;
   },
 };

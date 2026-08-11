@@ -2,12 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-<<<<<<< HEAD:flutter_myproject/lib/screens/garden/palmplot/palmplot_screen.dart
 import 'package:flutter_myproject/screens/garden/palmplot/add_plot_screen.dart';
-=======
 import 'package:http/http.dart' as http;
-import 'package:flutter_myproject/screens/garden/add_plot_screen.dart';
->>>>>>> af118b50ae85d06de0b1f8e41b625e9968a76bd1:flutter_myproject/lib/screens/main/palmplot_screen.dart
+
+
 
 // ==========================================
 // 1. MODEL CLASS: สำหรับแปลงข้อมูล JSON จาก Server

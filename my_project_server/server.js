@@ -7,6 +7,8 @@ const jwt = require('./libs/jwt');
 // const dateUtil = require('./libs/date_util');
 const dashboard = require('./models/dashboard');
 const garden = require('./models/garden');
+const db = require('./libs/db_pool');
+const care = require('./models/care'); 
 const app = express();
 app.use(bp.json());
 app.use(bp.urlencoded({ extended: true }));
@@ -123,6 +125,44 @@ app.post('/api/access_request', async (req, res) => {
     res.json({ isError: false, data: accessToken, errorMessage: "" });
   } catch (error) {
     res.json({ isError: true, data: "", errorMessage: 'Token ไม่ถูกต้องหรือหมดอายุ' });
+  }
+});
+
+app.get('/api/care-logs', async (req, res) => {
+  const result = await care.getCareLogs();
+  if (result.isError) {
+    return res.status(500).json({ message: 'Error fetching care logs', error: result.errorMessage });
+  }
+  res.json(result.data);
+});
+
+// 2. ดึงรายชื่อแปลงสวนทั้งหมด (เรียกผ่าน garden model เดิม)
+app.get('/api/gardens', async (req, res) => {
+  if (garden && typeof garden.getGardensByUserId === 'function') {
+    // กรณีถ้ามีดึงสวนทั้งหมด ให้เรียกใช้ function ของ garden model
+    const result = await garden.getGardensByUserId('ALL'); 
+    res.json(result);
+  } else {
+    res.json({ isError: true, data: [], errorMessage: "ไม่พบฟังก์ชันใน garden model" });
+  }
+});
+
+// 3. บันทึกข้อมูลการดูแลใหม่ (สำหรับรองรับการโพสต์ข้อมูล)
+app.post('/api/care-logs', async (req, res) => {
+  const result = await care.createCareLog(req.body);
+  res.json(result);
+});
+
+// POST: เพิ่มแปลงสวนใหม่
+app.post('/api/gardens', async (req, res) => {
+  if (garden && typeof garden.createGarden === 'function') {
+    const result = await garden.createGarden(req.body);
+    if (result.isError) {
+      return res.status(500).json(result);
+    }
+    res.status(201).json(result);
+  } else {
+    res.status(500).json({ isError: true, errorMessage: "ไม่พบฟังก์ชัน createGarden ใน models/garden.js" });
   }
 });
 
