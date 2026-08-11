@@ -16,20 +16,20 @@ class _ActivityScreenState extends State<ActivityScreen> {
   late Future<List<ActivityItem>> _activitiesFuture;
 
   @override
-  void initState() {
-    super.initState();
-    _loadActivities();
-  }
+  // void initState() {
+  //   super.initState();
+  //   _loadActivities();
+  // }
 
-  void _loadActivities() {
-    // TODO: เปลี่ยนเป็น service จริงที่ดึงจาก API/DB
-    _activitiesFuture = DashboardService().fetchActivities();
-  }
+  // void _loadActivities() {
+  //   // TODO: เปลี่ยนเป็น service จริงที่ดึงจาก API/DB
+  //   _activitiesFuture = DashboardService().fetchActivities();
+  // }
 
-  Future<void> _onRefresh() async {
-    setState(_loadActivities);
-    await _activitiesFuture;
-  }
+  // Future<void> _onRefresh() async {
+  //   setState(_loadActivities);
+  //   await _activitiesFuture;
+  // }
 
   List<ActivityItem> _filterList(List<ActivityItem> list) {
     if (_selectedFilter == 'all') return list;
@@ -56,11 +56,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   const SizedBox(height: 12),
                   Text('โหลดข้อมูลไม่สำเร็จ', style: TextStyle(color: Colors.grey[700])),
                   const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: _onRefresh,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('ลองใหม่'),
-                  ),
+                  // TextButton.icon(
+                  //   onPressed: _onRefresh,
+                  //   icon: const Icon(Icons.refresh),
+                  //   label: const Text('ลองใหม่'),
+                  // ),
                 ],
               ),
             );
