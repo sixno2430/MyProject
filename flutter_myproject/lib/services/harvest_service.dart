@@ -316,7 +316,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
                                 const SizedBox(height: 4),
                                 Text(
                                   '${item.quantityKg.toStringAsFixed(0)} กก. × ${item.pricePerKg.toStringAsFixed(1)} บาท',
-                                  style: const TextStyle(color: Colors.black87, fontSize: 13), // แก้ไขเป็น Colors.black87
+                                  style: const TextStyle(color: Colors.black87, fontSize: 13),
                                 ),
                               ],
                             ),
@@ -421,7 +421,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end, // แก้ไขตรงนี้จาก alignment
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: monthlyData.entries.map((entry) {
                   double heightFactor = (entry.value / maxKg).clamp(0.08, 1.0);
                   bool hasData = entry.value > 0;
@@ -448,7 +448,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
                         const SizedBox(height: 8),
                         Text(
                           entry.key,
-                          style: const TextStyle(fontSize: 11, color: Colors.black87), // แก้ไขเป็น Colors.black87
+                          style: const TextStyle(fontSize: 11, color: Colors.black87),
                         ),
                       ],
                     ),

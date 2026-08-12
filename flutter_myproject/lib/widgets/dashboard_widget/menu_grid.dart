@@ -58,7 +58,7 @@ class MenuGrid extends StatelessWidget {
                 labelColor: const Color(0xFFC2185B),
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const HarvestRecordScreen()),
+                  MaterialPageRoute(builder: (_) => const HarvestScreen()),
                 ),
               ),
             ],

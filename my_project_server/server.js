@@ -9,6 +9,7 @@ const dashboard = require('./models/dashboard');
 const garden = require('./models/garden');
 const db = require('./libs/db_pool');
 const care = require('./models/care'); 
+const harvest = require('./models/harvest');
 const app = express();
 app.use(bp.json());
 app.use(bp.urlencoded({ extended: true }));
@@ -170,6 +171,19 @@ app.post('/api/gardens', async (req, res) => {
   } else {
     res.status(500).json({ isError: true, errorMessage: "ไม่พบฟังก์ชัน createGarden ใน models/garden.js" });
   }
+});
+
+app.get('/api/harvests', async (req, res) => {
+  const gardenId = req.query.garden_id;
+  const result = await harvest.getAllHarvests(gardenId);
+  res.json(result);
+});
+
+// GET: /api/harvests/summary - ดึงข้อมูลสรุปผลรวม + กราฟ 12 เดือน
+app.get('/api/harvests/summary', async (req, res) => {
+  const gardenId = req.query.garden_id;
+  const result = await harvest.getSummary(gardenId);
+  res.json(result);
 });
 
 app.listen(port,  () => {
