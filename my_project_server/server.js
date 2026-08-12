@@ -21,8 +21,8 @@ BigInt.prototype.toJSON = function() {
 };
 
 
-
-const hostname = '127.0.0.1';
+const hostname = '0.0.0.0';  // แก้จาก '127.0.0.1'
+// const hostname = '127.0.0.1';   
 const port = 3000;
 
 
@@ -170,6 +170,32 @@ app.post('/api/gardens', async (req, res) => {
   } else {
     res.status(500).json({ isError: true, errorMessage: "ไม่พบฟังก์ชัน createGarden ใน models/garden.js" });
   }
+});
+// PUT: อัปเดตแปลงสวน
+app.put('/api/gardens/:garden_id', async (req, res) => {
+  const { garden_id } = req.params;
+  const result = await garden.updateGarden(garden_id, req.body);
+  res.json(result);
+});
+
+// DELETE: ลบแปลงสวน
+app.delete('/api/gardens/:garden_id', async (req, res) => {
+  const { garden_id } = req.params;
+  const result = await garden.deleteGarden(garden_id);
+  res.json(result);
+});
+// GET: ดึงพันธุ์ปาล์มของแปลงสวน
+app.get('/api/gardens/:garden_id/varieties', async (req, res) => {
+  const { garden_id } = req.params;
+  const result = await garden.getGardenVarieties(garden_id);
+  res.json(result);
+});
+const palmVariety = require('./models/palm_variety');
+
+// GET: ดึงรายการพันธุ์ปาล์มทั้งหมด
+app.get('/api/varieties', async (req, res) => {
+  const result = await palmVariety.getAll();
+  res.json(result);
 });
 
 app.listen(port,  () => {

@@ -62,6 +62,7 @@ class _PalmVarietyDropdownState extends State<PalmVarietyDropdown> {
       _loadVarieties();
     }
   }
+  
 
   Future<void> _loadVarieties() async {
     try {
