@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_myproject/config/app_config.dart';  // ← เพิ่ม
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -13,7 +14,6 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   
-  // Controllers สำหรับดึงค่าจากฟอร์ม
   final _nameController = TextEditingController();
   final _idCardController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -26,65 +26,58 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool obscureConfirmPassword = true;
   bool _isLoading = false;
 
+  // 🔥 เพิ่ม role_id ให้ตรงกับ database
   final List<Map<String, dynamic>> roles = [
-    {'label': 'เกษตรกร', 'icon': Icons.agriculture},
-    {'label': 'ร้านรับซื้อ', 'icon': Icons.store},
+    {'label': 'เกษตรกร', 'icon': Icons.agriculture, 'role_id': 'R002'},
+    {'label': 'ร้านรับซื้อ', 'icon': Icons.store, 'role_id': 'R003'},
   ];
 
-  // ============================================
-  // 🔥 _registerAPI() - ส่งข้อมูลไปเซิร์ฟเวอร์
-  // ============================================
-  Future<bool> _registerAPI() async {
-
-    //ใช้สำหรับมีApiนะจ๊ะ
+    Future<bool> _registerAPI() async {
     try {
-      // 1. กำหนด URL ของ API
-      // ถ้ารันบนเครื่องจริง: ใช้ IP จริง เช่น 'https://yourserver.com/api/register'
-      // ถ้ารันบน emulator: ใช้ 'http://10.0.2.2:8000/api/register' (ชี้ไป localhost ของคอม)
-      final url = Uri.parse('http://127.0.0.1:3000/api/register');
+      final url = Uri.parse('${AppConfig.apiBaseUri}/register');
+      
+      // 🔥 เพิ่มบรรทัดนี้เพื่อดู URL จริง
+      print('🌐 URL: $url');
 
-      // 2. เตรียมข้อมูลที่จะส่ง (Map → JSON)
       final bodyData = {
-        'role': roles[selectedRole]['label'],      // 'เกษตรกร' หรือ 'ร้านรับซื้อ'
-        'full_name': _nameController.text.trim(),   // 'ฟีฟ่า วิดยา'
-        'id_card': _idCardController.text.trim(),   // '1-2345-67890-12-3'
-        'phone': _phoneController.text.trim(),      // '081-234-5678'
-        'username': _usernameController.text.trim(), // 'fifa123'
-        'password': _passwordController.text,        // 'password123'
+        'role_id': roles[selectedRole]['role_id'],
+        'full_name': _nameController.text.trim(),
+        'id_card': _idCardController.text.trim().replaceAll('-', ''),
+        'phone': _phoneController.text.trim().replaceAll('-', ''),
+        'username': _usernameController.text.trim(),
+        'password': _passwordController.text,
       };
 
-      print('📤 ส่งข้อมูล: $bodyData'); // ดูข้อมูลใน console
+      print('📤 ส่งข้อมูล: $bodyData');
 
-      // 3. ส่ง HTTP POST Request
       final response = await http.post(
         url,
         headers: {
-          'Content-Type': 'application/json',  // บอกเซิร์ฟเวอร์ว่าเป็น JSON
-          'Accept': 'application/json',        // รับคืนเป็น JSON
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Accept': 'application/json',
         },
-        body: jsonEncode(bodyData),  // แปลง Map → String JSON
+        body: jsonEncode(bodyData),
       );
 
-      print('📥 ตอบกลับ: ${response.statusCode}');
+      // 🔥 เพิ่มบรรทัดนี้เพื่อดูว่าเซิร์ฟเวอร์ตอบอะไร
+      print('📥 Status: ${response.statusCode}');
       print('📥 Body: ${response.body}');
 
-      // 4. ตรวจสอบผลลัพธ์
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // ✅ สำเร็จ! (200=OK, 201=Created)
-        final data = jsonDecode(response.body);
-        print('✅ สมัครสำเร็จ: ${data['message']}');
-        return true;
-
-      } else {
-        // ❌ ผิดพลาด (400, 401, 422, 500, etc.)
-        final error = jsonDecode(response.body);
-        throw Exception(error['message'] ?? 'สมัครไม่สำเร็จ');
+      // 🔥 ตรวจสอบก่อนว่า response เป็น JSON จริงๆ
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw Exception('เซิร์ฟเวอร์ตอบกลับผิดพลาด (Status: ${response.statusCode})');
       }
 
+      final data = jsonDecode(response.body);
+
+      if (data['isError'] == true) {
+        throw Exception(data['errorMessage'] ?? 'สมัครไม่สำเร็จ');
+      }
+
+      return true;
+
     } catch (e) {
-      // ❌ Error เช่น ไม่มีเน็ต, เซิร์ฟเวอร์ล่ม, URL ผิด
       print('❌ Error: $e');
-      
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -122,7 +115,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Header
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: Column(
@@ -145,7 +137,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 16),
               
-              // Form Card
               Expanded(
                 child: Container(
                   decoration: const BoxDecoration(
@@ -162,7 +153,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Role Selector
                           const Text('ประเภทผู้ใช้', style: TextStyle(color: Color(0xFF4B5563), fontSize: 14, fontWeight: FontWeight.w500)),
                           const SizedBox(height: 10),
                           Row(
@@ -196,17 +186,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                          // ช่องกรอกข้อมูลทั้งหมด
                           _buildLabel('ชื่อ-นามสกุล'),
                           _buildTextField(controller: _nameController, hintText: 'ฟีฟ่า วิดยา', validator: (v) => v!.isEmpty ? 'กรุณากรอกชื่อ' : null),
                           const SizedBox(height: 14),
 
                           _buildLabel('เลขบัตรประชาชน'),
-                          _buildTextField(controller: _idCardController, hintText: 'X-XXXX-XXXXX-XX-X', keyboardType: TextInputType.number, validator: (v) => v!.isEmpty ? 'กรุณากรอกเลขบัตร' : null),
+                          _buildTextField(
+                            controller: _idCardController,
+                            hintText: 'X-XXXX-XXXXX-XX-X',
+                            keyboardType: TextInputType.number,
+                            validator: (v) {
+                              if (v!.isEmpty) return 'กรุณากรอกเลขบัตร';
+                              final clean = v.replaceAll('-', '');
+                              if (clean.length != 13) return 'เลขบัตรต้องมี 13 หลัก';
+                              return null;
+                            },
+                          ),
                           const SizedBox(height: 14),
 
                           _buildLabel('เบอร์โทรศัพท์'),
-                          _buildTextField(controller: _phoneController, hintText: '08X-XXX-XXXX', keyboardType: TextInputType.phone, validator: (v) => v!.isEmpty ? 'กรุณากรอกเบอร์โทร' : null),
+                          _buildTextField(
+                            controller: _phoneController,
+                            hintText: '08X-XXX-XXXX',
+                            keyboardType: TextInputType.phone,
+                            validator: (v) {
+                              if (v!.isEmpty) return 'กรุณากรอกเบอร์โทร';
+                              final clean = v.replaceAll('-', '');
+                              if (clean.length < 9 || clean.length > 10) return 'เบอร์โทรไม่ถูกต้อง';
+                              return null;
+                            },
+                          ),
                           const SizedBox(height: 14),
 
                           _buildLabel('Username'),
@@ -247,7 +256,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 24),
 
-                          // 🔥 ปุ่ม "เสร็จสิ้น" - เรียก _registerAPI()
                           Container(
                             width: double.infinity,
                             decoration: BoxDecoration(
@@ -257,19 +265,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : () async {
-                                // 1. Validate ฟอร์มก่อน
                                 if (!_formKey.currentState!.validate()) return;
-
-                                // 2. แสดง Loading
                                 setState(() => _isLoading = true);
 
-                                // 3. เรียก API
                                 final success = await _registerAPI();
 
-                                // 4. ซ่อน Loading
                                 setState(() => _isLoading = false);
 
-                                // 5. ถ้าสำเร็จ → ไปหน้า Login
                                 if (success && context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text('สมัครสมาชิกสำเร็จ!'), backgroundColor: Color(0xFF22C55E)),

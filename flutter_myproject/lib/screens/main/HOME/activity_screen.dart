@@ -15,7 +15,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
   String _selectedFilter = 'all';
   late Future<List<ActivityItem>> _activitiesFuture;
 
-  @override
+  //@override
   // void initState() {
   //   super.initState();
   //   _loadActivities();

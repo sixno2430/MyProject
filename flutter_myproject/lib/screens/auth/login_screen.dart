@@ -4,14 +4,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_myproject/services/auth_server.dart';
 
-
-
-
-// ← เพิ่ม import HomeScreen (ปรับ path ตามจริง)
+// ← import HomeScreen
 import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
-
-
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,13 +29,13 @@ class _LoginScreenState extends State<LoginScreen> {
     {'label': 'ร้านค้า', 'icon': Icons.store},
   ];
 
-  // ขั้นที่ 1: เช็ค username/password กับ server -> ได้ authenToken (อายุสั้น)
-  Future<(bool, String, String)> _authenRequest() async {
+  // 🔥 แก้: return user_id ด้วย
+  Future<(bool, String, String, String)> _authenRequest() async {
     final username = _usernameController.text;
     final password = _passwordController.text;
 
     final response = await http.post(
-      Uri.parse("${AppConfig.apiBaseUri}/authen_request"),
+      Uri.parse("${AppConfig.apiBaseUri}/authen_request"),  // ← เอา \ ออก
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
@@ -53,17 +49,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return (
       json["isError"] as bool,
-      json["data"] as String,
+      json["data"] as String,        // authenToken
+      json["user_id"] as String? ?? "",  // ← เพิ่ม user_id
       json["errorMessage"] as String,
     );
   }
 
-  // ขั้นที่ 2: เอา authenToken ไปแลก accessToken (อายุยาวขึ้น)
   Future<({bool isError, String errorMessage, String data})> _accessRequest(
     String token,
   ) async {
     final response = await http.post(
-      Uri.parse("${AppConfig.apiBaseUri}/access_request"),
+      Uri.parse("${AppConfig.apiBaseUri}/access_request"),  // ← เอา \ ออก
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
@@ -79,7 +75,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // เก็บ accessToken ลง SharedPreferences เพื่อใช้เรียก API อื่นๆ ต่อไป
   Future<void> _saveAccessToken(String accessToken) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('access_token', accessToken);
@@ -89,7 +84,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      var (isError, authenToken, errorMessage) = await _authenRequest();
+      // 🔥 แก้: รับ user_id จาก authenRequest
+      var (isError, authenToken, userId, errorMessage) = await _authenRequest();
 
       if (isError) {
         setState(() => _isLoading = false);
@@ -116,9 +112,12 @@ class _LoginScreenState extends State<LoginScreen> {
             );
           }
         } else {
+          // 🔥🔥🔥 สำคัญ! เก็บ user_id และ token ลง SharedPreferences
           await _saveAccessToken(result.data);
+          await AuthService.setUserId(userId);  // ← เก็บ user_id
+          await AuthService.setToken(result.data);  // ← เก็บ token
 
-          print("Login success! access_token: ${result.data}");
+          print("Login success! user_id: $userId, access_token: ${result.data}");  // ← เอา \ ออก
 
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -138,12 +137,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      print("เกิดข้อผิดพลาดตอน login: $e");
+      print("เกิดข้อผิดพลาดตอน login: $e");  // ← เอา \ ออก
       if (context.mounted) {
         showDialog(
           context: context,
           builder: (context) {
-            return AlertDialog(content: Text("เกิดข้อผิดพลาด: $e"));
+            return AlertDialog(content: Text("เกิดข้อผิดพลาด: $e"));  // ← เอา \ ออก
           },
         );
       }
@@ -174,7 +173,6 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 40),
-                // Logo
                 Container(
                   width: 80,
                   height: 80,
@@ -205,7 +203,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(color: Color(0xFF86EFAC), fontSize: 14),
                 ),
                 const SizedBox(height: 32),
-                // Login Card
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -222,7 +219,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Role Selector
                       const Text(
                         'เลือกบทบาท',
                         style: TextStyle(
@@ -289,7 +285,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         }),
                       ),
                       const SizedBox(height: 20),
-                      // Username
                       const Text(
                         'ชื่อผู้ใช้',
                         style: TextStyle(
@@ -340,7 +335,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Password
                       const Text(
                         'รหัสผ่าน',
                         style: TextStyle(
@@ -400,7 +394,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      // Login Button
                       Container(
                         width: double.infinity,
                         decoration: BoxDecoration(
@@ -450,7 +443,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Forgot Password
                       Center(
                         child: TextButton(
                           onPressed: () {},
@@ -464,7 +456,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // สมัครสมาชิก
                       TextButton(
                         onPressed: () {
                           Navigator.push(

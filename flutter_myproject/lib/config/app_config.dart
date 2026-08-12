@@ -1,6 +1,3 @@
-// class AppConfig {
-//   static const String apiBaseUri = "http://localhost:3000/api";
-// }
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
@@ -11,3 +8,4 @@ class AppConfig {
     return 'http://localhost:3000/api';
   }
 }
+

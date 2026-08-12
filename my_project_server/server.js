@@ -84,7 +84,11 @@ app.post('/api/authen_request', async (req, res) => {
     '5m'
   );
 
-  res.json({ isError: false, data: authenToken, errorMessage: "" });
+  res.json({ 
+    isError: false, 
+    data: authenToken, 
+    user_id: user.user_id,
+    errorMessage: "" });
 });
 
 // แลก accessToken
@@ -169,6 +173,8 @@ app.get('/api/gardens/:garden_id/varieties', async (req, res) => {
   const result = await garden.getGardenVarieties(garden_id);
   res.json(result);
 });
+// ================================== ห========
+
 
 // ==========================================
 // PALM CARE & VARIETIES API
@@ -240,7 +246,50 @@ app.post('/api/finance/add', async (req, res) => {
   res.json(result);
 });
 
-// ==========================================
+//api โปรไฟล์ผู้ใช้
+app.use('/api/profile', require('./routes/profile_routes'));
+
+
+//สมัครสมาชิก
+app.post('/api/register', async (req, res) => {
+  const { role_id, full_name, id_card, phone, username, password } = req.body;
+
+  // 🔥 Validate ข้อมูลก่อน
+  if (!role_id || !full_name || !id_card || !phone || !username || !password) {
+    return res.json({
+      isError: true,
+      errorMessage: 'กรุณากรอกข้อมูลให้ครบถ้วน',
+      data: null
+    });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const idResult = await userAccount.getNextUserId();
+    if (idResult.isError) {
+      return res.json(idResult);
+    }
+    const userId = idResult.data;
+
+    const result = await userAccount.createUser(
+      userId, role_id, id_card, full_name, phone, username, hashedPassword
+    );
+
+    res.json(result);
+
+  } catch (error) {
+    console.error('Register error:', error);
+    res.json({
+      isError: true,
+      errorMessage: 'เกิดข้อผิดพลาด: ' + error.message,
+      data: null
+    });
+  }
+});
+
+
+
 
 app.listen(port, () => {
   console.log(`Server running at http://${hostname}:${port}`);

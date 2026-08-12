@@ -1,258 +1,341 @@
 import 'package:flutter/material.dart';
-
-class ProfileScreen extends StatelessWidget {
+import 'package:flutter_myproject/services/profile_service.dart';
+import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/screens/auth/login_screen.dart';
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
-  final Color primaryGreen = const Color(0xFF2D6A4F);
-  final Color lightGreen = const Color(0xFF40916C);
-  final Color bgColor = const Color(0xFFF5F5F5);
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  Map<String, dynamic>? profile;
+  bool isLoading = true;
+  String? errorMessage;
+  String? currentUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserId();
+  }
+
+  /// ดึง user_id จาก AuthService (คนที่ล็อคอิน)
+  Future<void> _loadUserId() async {
+    final userId = await AuthService.getUserId();
+
+    // 🔧 ถ้ายังไม่มีใน SharedPreferences (ยังไม่ได้ login ผ่านระบบใหม่)
+    // ให้ใช้ค่า default ชั่วคราว หรือแก้ให้ login เก็บ user_id ก่อน
+    if (userId == null) {
+      setState(() {
+        errorMessage = 'กรุณาเข้าสู่ระบบใหม่';
+        isLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      currentUserId = userId;
+    });
+
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    if (currentUserId == null) return;
+
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    final result = await ProfileService.getProfile(currentUserId!);
+
+    if (result['success'] == true) {
+      setState(() {
+        profile = result['profile'];
+        isLoading = false;
+      });
+    } else {
+      setState(() {
+        errorMessage = result['message'] ?? 'ไม่สามารถโหลดข้อมูลได้';
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: CustomScrollView(
-        slivers: [
-          // Header เขียว
-          SliverToBoxAdapter(
-            child: Container(
-              decoration: BoxDecoration(
-                color: primaryGreen,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
+    if (isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (errorMessage != null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(errorMessage!, style: const TextStyle(color: Colors.red)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadUserId,
+                child: const Text('ลองใหม่'),
               ),
-              child: SafeArea(
+            ],
+          ),
+        ),
+      );
+    }
+
+    final p = profile!;
+    final role = p['role'];
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
+      body: RefreshIndicator(
+        onRefresh: _loadProfile,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              // ── Header ──
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.only(top: 60, bottom: 30),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF4A7C59),
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(30),
+                    bottomRight: Radius.circular(30),
+                  ),
+                ),
                 child: Column(
                   children: [
-                    const SizedBox(height: 20),
-                    Container(
-                      width: 90,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.15),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 2,
-                        ),
-                      ),
-                      child: const Center(
-                        child: Text('👨‍🌾', style: TextStyle(fontSize: 44)),
-                      ),
+                    const CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.white24,
+                      child: Text('👨‍🌾', style: TextStyle(fontSize: 50)),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'สมชาย มีทรัพย์',
-                      style: TextStyle(
-                        color: Colors.white,
+                    Text(
+                      p['full_name'] ?? '',
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('👨‍🌾 ', style: TextStyle(fontSize: 14)),
-                        Text(
-                          'เกษตรกร · PalmTrack',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'U001 · สมชาย',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
-                        fontSize: 13,
+                      '${role['role_name']} · PalmTrack',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.white70,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${p['user_id']} · ${role['role_name']}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.white54,
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
-          ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-          // ข้อมูลส่วนตัว
-          SliverToBoxAdapter(
-            child: _buildCard(
-              title: 'ข้อมูลส่วนตัว',
-              child: Column(
-                children: [
-                  _buildInfoRow('ชื่อ-นามสกุล', 'สมชาย มีทรัพย์'),
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-                  _buildInfoRow('เบอร์โทร', '081-234-5678'),
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-                  _buildInfoRow('เลขบัตรประชาชน', '1-9001-00000-00-0'),
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-                  _buildBadgeRow('บทบาท', '👨‍🌾 เกษตรกร'),
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-                  _buildInfoRow('สมาชิกตั้งแต่', '1 มกราคม 2566'),
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-                  _buildInfoRow('ชื่อผู้ใช้', 'somchai'),
-                ],
-              ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-          // ปุ่มแก้ไข
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Text('✏️', style: TextStyle(fontSize: 16)),
-                label: const Text(
-                  'แก้ไขข้อมูลส่วนตัว',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: lightGreen,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50),
+              // ── ข้อมูลส่วนตัว ──
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Card(
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  elevation: 0,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'ข้อมูลส่วนตัว',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _buildInfoRow('ชื่อ-นามสกุล', p['full_name']),
+                        _buildInfoRow('เบอร์โทร', p['phone']),
+                        _buildInfoRow('เลขบัตรประชาชน', p['citizen_id']),
+                        _buildInfoRowWithBadge('บทบาท', role['role_name']),
+                        _buildInfoRow('สมาชิกตั้งแต่', p['member_since']),
+                        _buildInfoRow('ชื่อผู้ใช้', p['username']),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-          // การตั้งค่า
-          SliverToBoxAdapter(
-            child: _buildCard(
-              title: 'การตั้งค่า',
-              child: Column(
-                children: [
-                  _buildSettingTile(icon: '🔒', title: 'เปลี่ยนรหัสผ่าน', onTap: () {}),
-                  const Divider(height: 1, indent: 56),
-                  _buildSettingTile(icon: '🔔', title: 'การแจ้งเตือน', onTap: () {}),
-                  const Divider(height: 1, indent: 56),
-                  _buildSettingTile(
-                    icon: '🌐',
-                    title: 'ภาษา / Language',
-                    trailing: const Text('ภาษาไทย', style: TextStyle(color: Colors.grey, fontSize: 14)),
-                    onTap: () {},
+              // ── ปุ่มแก้ไข ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      // TODO: ไปหน้าแก้ไขโปรไฟล์
+                    },
+                    icon: const Icon(Icons.edit, color: Colors.white),
+                    label: const Text(
+                      'แก้ไขข้อมูลส่วนตัว',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4A7C59),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
-                  const Divider(height: 1, indent: 56),
-                  _buildSettingTile(
-                    icon: 'ℹ️',
-                    title: 'เกี่ยวกับแอป',
-                    trailing: const Text('v1.0.0', style: TextStyle(color: Colors.grey, fontSize: 14)),
-                    onTap: () {},
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ElevatedButton.icon(
-                onPressed: () {},
-                label: const Text(
-                  'ออกจากระบบ',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromARGB(255, 223, 85, 85),
-                  foregroundColor: const Color.fromARGB(255, 255, 255, 255),
-                  minimumSize: const Size(double.infinity, 50),
+              ),
+
+              const SizedBox(height: 20),
+
+              // ── การตั้งค่า ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Card(
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  elevation: 0,
+                  child: Column(
+                    children: [
+                      _buildMenuItem(
+                        icon: Icons.lock,
+                        title: 'เปลี่ยนรหัสผ่าน',
+                        onTap: () {},
+                      ),
+                      const Divider(height: 1),
+                      _buildMenuItem(
+                        icon: Icons.notifications,
+                        title: 'การแจ้งเตือน',
+                        onTap: () {},
+                      ),
+                      const Divider(height: 1),
+                      _buildMenuItem(
+                        icon: Icons.language,
+                        title: 'ภาษา / Language',
+                        trailing: 'ภาษาไทย',
+                        onTap: () {},
+                      ),
+                      const Divider(height: 1),
+                      _buildMenuItem(
+                        icon: Icons.info,
+                        title: 'เกี่ยวกับแอป',
+                        trailing: 'v1.0.0',
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ),
-        ],
-      ),
-      
-    );
-  }
 
-  Widget _buildCard({required String title, required Widget child}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+              const SizedBox(height: 20),
+
+              // ── ปุ่มออกจากระบบ ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                    await AuthService.clear();
+                    if (mounted) {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      );
+                    }
+                  },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red[400],
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'ออกจากระบบ',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ),
+                ),
               ),
-            ),
-            child,
-          ],
+
+              const SizedBox(height: 30),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String? value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
           Text(
-            value,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87),
+            label,
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          ),
+          Text(
+            value ?? '-',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBadgeRow(String label, String value) {
+  Widget _buildInfoRowWithBadge(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+          Text(
+            label,
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: lightGreen.withOpacity(0.15),
+              color: const Color(0xFFE8F5E9),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Text(
-              value,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: lightGreen),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('👨‍🌾', style: TextStyle(fontSize: 12)),
+                const SizedBox(width: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF4A7C59),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -260,19 +343,19 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSettingTile({
-    required String icon,
+  Widget _buildMenuItem({
+    required IconData icon,
     required String title,
-    Widget? trailing,
+    String? trailing,
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Text(icon, style: const TextStyle(fontSize: 22)),
-      title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-      trailing: trailing ?? const Icon(Icons.chevron_right, color: Colors.grey),
+      leading: Icon(icon, color: Colors.grey[700]),
+      title: Text(title),
+      trailing: trailing != null
+          ? Text(trailing, style: TextStyle(color: Colors.grey[500]))
+          : const Icon(Icons.chevron_right),
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      minLeadingWidth: 24,
     );
   }
 }
