@@ -44,13 +44,13 @@ class MenuGrid extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const GardenCareScreen()),
                 ),
               ),
-              MenuItem(
-                emoji: '💊',
-                label: 'ใส่ปุ๋ย',
-                bgColor: const Color(0xFFFFEBEE),
-                labelColor: Colors.red,
-                onTap: () {},
-              ),
+              // MenuItem(
+              //   emoji: '💊',
+              //   label: 'ใส่ปุ๋ย',
+              //   bgColor: const Color(0xFFFFEBEE),
+              //   labelColor: Colors.red,
+              //   onTap: () {},
+              // ),
               MenuItem(
                 emoji: '🧺',
                 label: 'เก็บเกี่ยว',
