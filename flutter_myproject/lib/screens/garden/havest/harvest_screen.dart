@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'add_harvest_screen.dart';
 
 // ==========================================
-// 1. MODELS (วางไว้ส่วนบนของไฟล์)
+// 1. MODELS
 // ==========================================
 
 class HarvestData {
@@ -33,11 +34,11 @@ class HarvestData {
     return HarvestData(
       id: json['id']?.toString() ?? '',
       code: json['code'] ?? '',
-      plotName: json['plotName'] ?? '',
+      plotName: json['plotName'] ?? json['plot_name'] ?? '',
       buyer: json['buyer'] ?? '',
-      quantityKg: (json['quantityKg'] ?? 0).toDouble(),
-      pricePerKg: (json['pricePerKg'] ?? 0).toDouble(),
-      totalPrice: (json['totalPrice'] ?? 0).toDouble(),
+      quantityKg: (json['quantityKg'] ?? json['quantity_kg'] ?? 0).toDouble(),
+      pricePerKg: (json['pricePerKg'] ?? json['price_per_kg'] ?? 0).toDouble(),
+      totalPrice: (json['totalPrice'] ?? json['total_price'] ?? 0).toDouble(),
       date: json['date'] ?? '',
       status: json['status'] ?? 'sold',
     );
@@ -59,11 +60,11 @@ class HarvestSummary {
 
   factory HarvestSummary.fromJson(Map<String, dynamic> json) {
     return HarvestSummary(
-      totalQuantityKg: (json['totalQuantityKg'] ?? 0).toDouble(),
-      totalRevenue: (json['totalRevenue'] ?? 0).toDouble(),
-      averagePrice: (json['averagePrice'] ?? 0).toDouble(),
+      totalQuantityKg: (json['totalQuantityKg'] ?? json['total_quantity_kg'] ?? 0).toDouble(),
+      totalRevenue: (json['totalRevenue'] ?? json['total_revenue'] ?? 0).toDouble(),
+      averagePrice: (json['averagePrice'] ?? json['average_price'] ?? 0).toDouble(),
       last12MonthsProduction: Map<String, double>.from(
-        (json['last12MonthsProduction'] ?? json['last6MonthsProduction'] ?? {}).map(
+        (json['last12MonthsProduction'] ?? json['last6MonthsProduction'] ?? json['monthly_production'] ?? {}).map(
           (k, v) => MapEntry(k, (v as num).toDouble()),
         ),
       ),
@@ -72,11 +73,11 @@ class HarvestSummary {
 }
 
 // ==========================================
-// 2. SERVICE (คลาสเชื่อมต่อ API)
+// 2. SERVICE
 // ==========================================
 
 class HarvestService {
-  static const String baseUrl = 'http://localhost:3000/api'; 
+  static const String baseUrl = 'http://localhost:3000/api';
 
   Future<List<HarvestData>> fetchHarvestRecords({String? gardenId}) async {
     final uri = Uri.parse('$baseUrl/harvests').replace(
@@ -87,12 +88,30 @@ class HarvestService {
 
     if (response.statusCode == 200) {
       final resMap = jsonDecode(response.body);
-      if (resMap['isError'] == false) {
-        List<dynamic> listData = resMap['data'];
-        return listData.map((item) => HarvestData.fromJson(item)).toList();
-      } else {
-        throw Exception(resMap['errorMessage'] ?? 'ไม่สามารถดึงข้อมูลได้');
+
+      if (resMap is Map) {
+        if (resMap['isError'] == false && resMap['data'] != null) {
+          final data = resMap['data'];
+
+          if (data is List) {
+            return data.map((item) => HarvestData.fromJson(item)).toList();
+          }
+
+          if (data is Map) {
+            final listData = data['items'] ?? data['harvests'] ?? data['records'] ?? data['rows'];
+            if (listData is List) {
+              return listData.map((item) => HarvestData.fromJson(item)).toList();
+            }
+          }
+
+          return [];
+        } else {
+          throw Exception(resMap['errorMessage'] ?? 'ไม่สามารถดึงข้อมูลได้');
+        }
+      } else if (resMap is List) {
+        return resMap.map((item) => HarvestData.fromJson(item)).toList();
       }
+      return [];
     } else {
       throw Exception('ไม่สามารถเชื่อมต่อ Server ได้');
     }
@@ -107,11 +126,16 @@ class HarvestService {
 
     if (response.statusCode == 200) {
       final resMap = jsonDecode(response.body);
-      if (resMap['isError'] == false) {
-        return HarvestSummary.fromJson(resMap['data']);
-      } else {
-        throw Exception(resMap['errorMessage'] ?? 'ไม่สามารถดึงข้อมูลสรุปได้');
+      if (resMap is Map) {
+        if (resMap['isError'] == false && resMap['data'] != null) {
+          return HarvestSummary.fromJson(resMap['data']);
+        } else if (resMap['totalQuantityKg'] != null || resMap['total_quantity_kg'] != null) {
+          return HarvestSummary.fromJson(resMap as Map<String, dynamic>);
+        } else {
+          throw Exception(resMap['errorMessage'] ?? 'ไม่สามารถดึงข้อมูลสรุปได้');
+        }
       }
+      throw Exception('ข้อมูลสรุปรูปแบบไม่ถูกต้อง');
     } else {
       throw Exception('ไม่สามารถเชื่อมต่อ Server ได้');
     }
@@ -119,7 +143,7 @@ class HarvestService {
 }
 
 // ==========================================
-// 3. UI SCREEN (คลาสแสดงหน้าจอหลัก)
+// 3. UI SCREEN
 // ==========================================
 
 class HarvestScreen extends StatefulWidget {
@@ -134,6 +158,8 @@ class _HarvestScreenState extends State<HarvestScreen> {
   late Future<HarvestSummary> _summaryFuture;
   late Future<List<HarvestData>> _harvestsFuture;
 
+  String? _selectedMonth;
+
   @override
   void initState() {
     super.initState();
@@ -145,6 +171,19 @@ class _HarvestScreenState extends State<HarvestScreen> {
       _summaryFuture = _service.fetchHarvestSummary();
       _harvestsFuture = _service.fetchHarvestRecords();
     });
+  }
+
+  Future<void> _navigateToAddHarvest() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AddHarvestScreen(),
+      ),
+    );
+
+    if (result == true || result != null) {
+      _refreshData();
+    }
   }
 
   @override
@@ -175,9 +214,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add, color: Colors.white, size: 26),
-            onPressed: () {
-              // TODO: ไปหน้า add_harvest_screen.dart
-            },
+            onPressed: _navigateToAddHarvest,
           )
         ],
       ),
@@ -207,11 +244,19 @@ class _HarvestScreenState extends State<HarvestScreen> {
                   final summary = snapshot.data;
                   if (summary == null) return const SizedBox.shrink();
 
+                  final double displayKg = _selectedMonth != null
+                      ? (summary.last12MonthsProduction[_selectedMonth] ?? 0)
+                      : summary.totalQuantityKg;
+
+                  final String cardTitle = _selectedMonth != null
+                      ? 'ผลผลิตเดือน $_selectedMonth'
+                      : 'ผลผลิตปีนี้';
+
                   return Column(
                     children: [
                       Row(
                         children: [
-                          Expanded(child: _buildSummaryCard('ผลผลิตรวม 1 ปี', summary.totalQuantityKg.toStringAsFixed(0), 'กก.')),
+                          Expanded(child: _buildSummaryCard(cardTitle, displayKg.toStringAsFixed(0), 'กก.')),
                           const SizedBox(width: 8),
                           Expanded(child: _buildSummaryCard('รายได้รวม', summary.totalRevenue.toStringAsFixed(0), 'บาท')),
                           const SizedBox(width: 8),
@@ -219,7 +264,14 @@ class _HarvestScreenState extends State<HarvestScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _buildChartCard(summary.last12MonthsProduction),
+                      _InteractiveChartCard(
+                        monthlyData: summary.last12MonthsProduction,
+                        onHoverMonth: (month) {
+                          setState(() {
+                            _selectedMonth = month;
+                          });
+                        },
+                      ),
                     ],
                   );
                 },
@@ -264,6 +316,8 @@ class _HarvestScreenState extends State<HarvestScreen> {
                     separatorBuilder: (context, index) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final item = items[index];
+                      final bool isSold = item.status == 'sold';
+
                       return Container(
                         padding: const EdgeInsets.all(16.0),
                         decoration: BoxDecoration(
@@ -288,18 +342,19 @@ class _HarvestScreenState extends State<HarvestScreen> {
                                     Text('${item.code} · ${item.plotName}',
                                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                                     const SizedBox(width: 8),
+                                    // 🟠 Badge ปรับสีส้มและข้อความ "รอขาย" ชัดเจน
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFE8F5E9),
-                                        borderRadius: BorderRadius.circular(10),
+                                        color: isSold ? const Color(0xFFE8F5E9) : const Color(0xFFFFE0B2),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(
-                                        item.status == 'sold' ? 'ขายแล้ว' : 'รอดำเนินการ',
-                                        style: const TextStyle(
-                                          color: Color(0xFF2E7D32),
+                                        isSold ? 'ขายแล้ว' : 'รอขาย',
+                                        style: TextStyle(
+                                          color: isSold ? const Color(0xFF2E7D32) : const Color(0xFFE65100),
                                           fontSize: 11,
-                                          fontWeight: FontWeight.w500,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                     )
@@ -316,7 +371,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
                                 const SizedBox(height: 4),
                                 Text(
                                   '${item.quantityKg.toStringAsFixed(0)} กก. × ${item.pricePerKg.toStringAsFixed(1)} บาท',
-                                  style: const TextStyle(color: Colors.black87, fontSize: 13), // แก้ไขเป็น Colors.black87
+                                  style: const TextStyle(color: Colors.black87, fontSize: 13),
                                 ),
                               ],
                             ),
@@ -349,9 +404,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
               elevation: 0,
             ),
-            onPressed: () {
-              // TODO: Action กดปุ่มบันทึกการเก็บเกี่ยว
-            },
+            onPressed: _navigateToAddHarvest,
             icon: const Icon(Icons.add, color: Colors.white),
             label: const Text(
               'บันทึกการเก็บเกี่ยว',
@@ -388,10 +441,40 @@ class _HarvestScreenState extends State<HarvestScreen> {
       ),
     );
   }
+}
 
-  Widget _buildChartCard(Map<String, double> monthlyData) {
-    double maxKg = monthlyData.values.isNotEmpty
-        ? monthlyData.values.reduce((a, b) => a > b ? a : b)
+// ==========================================
+// 4. INTERACTIVE CHART COMPONENT
+// ==========================================
+
+class _InteractiveChartCard extends StatefulWidget {
+  final Map<String, double> monthlyData;
+  final ValueChanged<String?>? onHoverMonth;
+
+  const _InteractiveChartCard({
+    Key? key,
+    required this.monthlyData,
+    this.onHoverMonth,
+  }) : super(key: key);
+
+  @override
+  State<_InteractiveChartCard> createState() => _InteractiveChartCardState();
+}
+
+class _InteractiveChartCardState extends State<_InteractiveChartCard> {
+  String? _hoveredMonth;
+
+  void _updateHover(String? month) {
+    setState(() {
+      _hoveredMonth = month;
+    });
+    widget.onHoverMonth?.call(month);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    double maxKg = widget.monthlyData.values.isNotEmpty
+        ? widget.monthlyData.values.reduce((a, b) => a > b ? a : b)
         : 1.0;
     if (maxKg == 0) maxKg = 1.0;
 
@@ -415,46 +498,82 @@ class _HarvestScreenState extends State<HarvestScreen> {
             'ผลผลิต 12 เดือนล่าสุด (กก.)',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           SizedBox(
-            height: 140,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end, // แก้ไขตรงนี้จาก alignment
-                children: monthlyData.entries.map((entry) {
-                  double heightFactor = (entry.value / maxKg).clamp(0.08, 1.0);
-                  bool hasData = entry.value > 0;
+            height: 150,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: widget.monthlyData.entries.map((entry) {
+                double heightFactor = (entry.value / maxKg).clamp(0.08, 1.0);
+                bool hasData = entry.value > 0;
+                bool isHovered = _hoveredMonth == entry.key;
 
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 6.0),
+                return MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  onEnter: (_) => _updateHover(entry.key),
+                  onExit: (_) => _updateHover(null),
+                  child: GestureDetector(
+                    onTap: () => _updateHover(entry.key),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        if (hasData)
-                          Text(
-                            entry.value.toStringAsFixed(0),
-                            style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold),
+                        AnimatedOpacity(
+                          duration: const Duration(milliseconds: 150),
+                          opacity: (isHovered || (hasData && _hoveredMonth == null)) ? 1.0 : 0.2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                            decoration: isHovered
+                                ? BoxDecoration(
+                                    color: const Color(0xFF1E5631),
+                                    borderRadius: BorderRadius.circular(4),
+                                  )
+                                : null,
+                            child: Text(
+                              entry.value.toStringAsFixed(0),
+                              style: TextStyle(
+                                fontSize: isHovered ? 10 : 9,
+                                color: isHovered ? Colors.white : Colors.grey,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
+                        ),
                         const SizedBox(height: 4),
-                        Container(
-                          width: 22,
-                          height: 90 * heightFactor,
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: isHovered ? 20 : 16,
+                          height: 85 * heightFactor,
                           decoration: BoxDecoration(
-                            color: hasData ? const Color(0xFF1E5631) : const Color(0xFFC8E6C9),
+                            color: isHovered
+                                ? const Color(0xFF143B21)
+                                : (hasData ? const Color(0xFF1E5631) : const Color(0xFFC8E6C9)),
                             borderRadius: BorderRadius.circular(6),
+                            boxShadow: isHovered
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFF1E5631).withOpacity(0.4),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    )
+                                  ]
+                                : [],
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           entry.key,
-                          style: const TextStyle(fontSize: 11, color: Colors.black87), // แก้ไขเป็น Colors.black87
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: isHovered ? FontWeight.bold : FontWeight.normal,
+                            color: isHovered ? const Color(0xFF1E5631) : Colors.black87,
+                          ),
                         ),
                       ],
                     ),
-                  );
-                }).toList(),
-              ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
         ],

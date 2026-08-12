@@ -12,117 +12,122 @@ class ActivityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = _resolveTheme(activity.type);
 
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ActivityDetailScreen(activity: activity),
-        ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
+      child: Material(
+        color: Colors.transparent, // ใช้สีโปร่งใสเพื่อโชว์สีขาวของ Container
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias, // ตัดขอบ Ink Splash ให้โค้งมนตามการ์ด
+        child: InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ActivityDetailScreen(activity: activity),
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // แถบสีด้านซ้าย
-            Container(
-              width: 5,
-              height: 110,
-              decoration: BoxDecoration(
-                color: theme.accentColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  bottomLeft: Radius.circular(16),
+          ),
+          child: Row(
+            children: [
+              // แถบสีด้านซ้าย
+              Container(
+                width: 5,
+                height: 110,
+                decoration: BoxDecoration(
+                  color: theme.accentColor,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 14),
-            // Icon วงกลม
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: theme.iconBg,
-                shape: BoxShape.circle,
+              const SizedBox(width: 14),
+              // Icon วงกลม
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: theme.iconBg,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(theme.emoji, style: const TextStyle(fontSize: 26)),
+                ),
               ),
-              child: Center(
-                child: Text(theme.emoji, style: const TextStyle(fontSize: 26)),
-              ),
-            ),
-            const SizedBox(width: 14),
-            // เนื้อหา
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ActivityTypeBadge(type: activity.type),
-                  const SizedBox(height: 6),
-                  Text(
-                    activity.gardenName,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1F2937),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _buildSubtitle(),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Icon(Icons.calendar_today, size: 12, color: Colors.grey[400]),
-                      const SizedBox(width: 4),
-                      Text(
-                        formatRelativeDate(activity.recordDate),
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              const SizedBox(width: 14),
+              // เนื้อหา
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ActivityTypeBadge(type: activity.type),
+                    const SizedBox(height: 6),
+                    Text(
+                      activity.gardenName,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1F2937),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            // ยอดเงิน / จำนวน + ลูกศร
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    _buildValueText(),
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: theme.valueColor,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Icon(
-                    Icons.chevron_right,
-                    color: Colors.grey[400],
-                    size: 20,
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      _buildSubtitle(),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today, size: 12, color: Colors.grey[400]),
+                        const SizedBox(width: 4),
+                        Text(
+                          formatRelativeDate(activity.recordDate),
+                          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              // ยอดเงิน / จำนวน + ลูกศร
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      _buildValueText(),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: theme.valueColor,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey[400],
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

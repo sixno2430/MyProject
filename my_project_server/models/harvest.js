@@ -1,13 +1,13 @@
 const db = require('../libs/db_pool');
 
-class HarvestModel {
-  // 1. ดึงรายการเก็บเกี่ยวทั้งหมดย้อนหลัง 1 ปี
-  static async getAllHarvests(gardenId = null) {
+const harvest = {
+  // 1. ดึงรายการเก็บเกี่ยวทั้งหมด
+  getAllHarvests: async (gardenId = null) => {
     try {
       let query = `
         SELECT 
           h.harvest_id AS id,
-          COALESCE(h.code, h.harvest_id) AS code,
+          COALESCE(h.code, CAST(h.harvest_id AS CHAR)) AS code,
           COALESCE(g.garden_name, 'แปลงปาล์ม') AS plotName,
           COALESCE(s.shop_name, 'ไม่ระบุร้านรับซื้อ') AS buyer,
           CAST(h.total_quantity AS DOUBLE) AS quantityKg,
@@ -22,28 +22,33 @@ class HarvestModel {
 
       const params = [];
       if (gardenId && gardenId !== 'ALL') {
-        query += ` WHERE h.garden_id = ? AND h.harvest_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)`;
+        query += ` WHERE h.garden_id = ? AND YEAR(h.harvest_date) = YEAR(CURDATE())`;
         params.push(gardenId);
       } else {
-        query += ` WHERE h.harvest_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)`;
+        query += ` WHERE YEAR(h.harvest_date) = YEAR(CURDATE())`;
       }
 
       query += ` ORDER BY h.harvest_date DESC`;
 
-      const [rows] = await db.query(query, params);
-      return { isError: false, data: rows, errorMessage: "" };
+      const rows = await db.query(query, params);
+      const result = Array.isArray(rows) ? rows : (rows ? (rows.data || []) : []);
+
+      return { isError: false, data: result, errorMessage: "" };
     } catch (error) {
       console.error('Error getAllHarvests:', error);
       return { isError: true, data: [], errorMessage: error.message };
     }
-  }
+  },
 
-  // 2. ดึงข้อมูลสรุปผลรวม + กราฟ 12 เดือนย้อนหลัง
-  static async getSummary(gardenId = null) {
+  // 2. ดึงข้อมูลสรุปผลรวม + กราฟ
+  getSummary: async (gardenId = null) => {
     try {
-      let whereClause = `WHERE harvest_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)`;
+      let whereClause = `WHERE YEAR(harvest_date) = YEAR(CURDATE())`;
+      const params = [];
+
       if (gardenId && gardenId !== 'ALL') {
-        whereClause += ` AND garden_id = ${db.escape(gardenId)}`;
+        whereClause += ` AND garden_id = ?`;
+        params.push(gardenId);
       }
 
       const summaryQuery = `
@@ -65,33 +70,41 @@ class HarvestModel {
         ORDER BY month_key ASC
       `;
 
-      const [[summaryResult]] = await db.query(summaryQuery);
-      const [monthlyResult] = await db.query(monthlyQuery);
+      const summaryRes = await db.query(summaryQuery, params);
+      const monthlyRes = await db.query(monthlyQuery, params);
+
+      const summaryRows = Array.isArray(summaryRes) ? summaryRes : (summaryRes ? (summaryRes.data || []) : []);
+      const monthlyRows = Array.isArray(monthlyRes) ? monthlyRes : (monthlyRes ? (monthlyRes.data || []) : []);
+
+      const summaryResult = summaryRows.length > 0 
+        ? summaryRows[0] 
+        : { totalQuantityKg: 0, totalRevenue: 0, averagePrice: 0 };
 
       const dbDataMap = {};
-      monthlyResult.forEach(row => {
-        dbDataMap[row.month_key] = parseFloat(row.total_kg);
+      monthlyRows.forEach(row => {
+        if (row && row.month_key) {
+          dbDataMap[row.month_key] = parseFloat(row.total_kg || 0);
+        }
       });
 
       const last12MonthsProduction = {};
-      const now = new Date();
-      
-      for (let i = 11; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthKey = d.toISOString().slice(0, 7); // Format: YYYY-MM
-        
-        const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-        const monthLabel = thaiMonths[d.getMonth()];
+      const currentYear = new Date().getFullYear();
+      const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
+      for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+        const monthStr = String(monthIndex + 1).padStart(2, '0');
+        const monthKey = `${currentYear}-${monthStr}`;
+
+        const monthLabel = thaiMonths[monthIndex];
         last12MonthsProduction[monthLabel] = dbDataMap[monthKey] || 0;
       }
 
       return {
         isError: false,
         data: {
-          totalQuantityKg: parseFloat(summaryResult.totalQuantityKg),
-          totalRevenue: parseFloat(summaryResult.totalRevenue),
-          averagePrice: parseFloat(summaryResult.averagePrice),
+          totalQuantityKg: parseFloat(summaryResult.totalQuantityKg || 0),
+          totalRevenue: parseFloat(summaryResult.totalRevenue || 0),
+          averagePrice: parseFloat(summaryResult.averagePrice || 0),
           last12MonthsProduction
         },
         errorMessage: ""
@@ -100,7 +113,48 @@ class HarvestModel {
       console.error('Error getSummary:', error);
       return { isError: true, data: null, errorMessage: error.message };
     }
-  }
-}
+  },
 
-module.exports = HarvestModel;
+  // 3. ฟังก์ชันสร้างบันทึกการเก็บเกี่ยวใหม่
+  createHarvest: async (data) => {
+    try {
+      const { garden_id, harvest_date, total_quantity, price_per_kg, total_price, status } = data;
+
+      const maxRows = await db.query(`
+        SELECT MAX(CAST(SUBSTRING(harvest_id, 2) AS UNSIGNED)) AS max_num 
+        FROM harvest 
+        WHERE harvest_id LIKE 'H%'
+      `);
+
+      const rows = Array.isArray(maxRows) ? maxRows : (maxRows ? (maxRows.data || []) : []);
+      const maxNum = (rows.length > 0 && rows[0].max_num !== null) ? parseInt(rows[0].max_num, 10) : 0;
+
+      const newHarvestId = 'H' + String(maxNum + 1).padStart(3, '0');
+
+      const query = `
+        INSERT INTO harvest 
+        (harvest_id, garden_id, harvest_date, total_quantity, price_per_kg, total_price, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `;
+
+      const params = [
+        newHarvestId,
+        garden_id || null,
+        harvest_date,
+        total_quantity || 0,
+        price_per_kg || 0,
+        total_price || 0,
+        status || 'sold'
+      ];
+
+      await db.query(query, params);
+
+      return { isError: false, data: { harvest_id: newHarvestId }, errorMessage: "" };
+    } catch (error) {
+      console.error('Error createHarvest:', error);
+      return { isError: true, data: null, errorMessage: error.message };
+    }
+  }
+};
+
+module.exports = harvest;

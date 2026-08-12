@@ -1,34 +1,42 @@
 const db = require('../libs/db_pool'); // ดึง DB Pool ของโครงการ
 
 const garden = {
-  
-    getGardensByUserId: async (userId) => {
+
+  getGardensByUserId: async (userId) => {
     try {
-      // 1. ดึงรายการสวน
-      const gardenQuery = `
+      // 1. ดึงรายการสวน (ถ้าส่ง 'ALL' มา ดึงทุกสวน)
+      let gardenQuery = `
         SELECT garden_id, user_id, garden_name, area_size, plant_count, plant_year, plant_age, address
         FROM garden
-        WHERE user_id = ?
       `;
-      const gardenResult = await db.query(gardenQuery, [userId]);
+      const params = [];
+
+      if (userId && userId !== 'ALL') {
+        gardenQuery += ` WHERE user_id = ?`;
+        params.push(userId);
+      }
+
+      const gardenResult = await db.query(gardenQuery, params);
       const gardens = Array.isArray(gardenResult[0]) ? gardenResult[0] : (gardenResult.data || gardenResult);
 
       // 2. ดึงพันธุ์ปาล์มของแต่ละสวน แล้วใส่เข้าไปใน object
-      for (let g of gardens) {
-        const varietyQuery = `
-          SELECT gv.variety_id, pv.variety_name, gv.plant_count 
-          FROM garden_variety gv
-          JOIN palm_variety pv ON gv.variety_id = pv.variety_id
-          WHERE gv.garden_id = ?
-        `;
-        const vResult = await db.query(varietyQuery, [g.garden_id]);
-        const varieties = Array.isArray(vResult[0]) ? vResult[0] : (vResult.data || vResult);
-        g.varieties = varieties; // ← ใส่เข้าไปในแต่ละ garden
+      if (Array.isArray(gardens)) {
+        for (let g of gardens) {
+          const varietyQuery = `
+            SELECT gv.variety_id, pv.variety_name, gv.plant_count 
+            FROM garden_variety gv
+            JOIN palm_variety pv ON gv.variety_id = pv.variety_id
+            WHERE gv.garden_id = ?
+          `;
+          const vResult = await db.query(varietyQuery, [g.garden_id]);
+          const varieties = Array.isArray(vResult[0]) ? vResult[0] : (vResult.data || vResult);
+          g.varieties = varieties;
+        }
       }
 
       return {
         isError: false,
-        data: gardens,
+        data: gardens || [],
         errorMessage: ""
       };
 
@@ -42,15 +50,15 @@ const garden = {
     }
   },
 
-    createGarden: async (gardenData) => {
+  createGarden: async (gardenData) => {
     try {
       const { user_id, garden_name, area_size, plant_count, plant_year, address, variety_id } = gardenData;
 
       // 1. Gen garden_id
       const selectQuery = `SELECT garden_id FROM garden ORDER BY garden_id DESC LIMIT 1`;
       const selectResult = await db.query(selectQuery);
-      let rows = selectResult && selectResult.data !== undefined 
-        ? selectResult.data 
+      let rows = selectResult && selectResult.data !== undefined
+        ? selectResult.data
         : (Array.isArray(selectResult[0]) ? selectResult[0] : selectResult);
 
       let newGardenId = 'G001';
@@ -83,10 +91,11 @@ const garden = {
       return { isError: true, data: null, errorMessage: error.message };
     }
   },
-    updateGarden: async (gardenId, gardenData) => {
+
+  updateGarden: async (gardenId, gardenData) => {
     try {
       const { garden_name, address, area_size, plant_year, plant_count } = gardenData;
-      
+
       const query = `
         UPDATE garden 
         SET garden_name = ?, address = ?, area_size = ?, 
@@ -94,31 +103,30 @@ const garden = {
         WHERE garden_id = ?
       `;
       await db.query(query, [garden_name, address, area_size, plant_year, plant_count, gardenId]);
-      
+
       return { isError: false, data: { garden_id: gardenId }, errorMessage: "" };
     } catch (error) {
       console.error("❌ Error in garden.js (updateGarden):", error.message);
       return { isError: true, data: null, errorMessage: error.message };
     }
   },
-    deleteGarden: async (gardenId) => {
+
+  deleteGarden: async (gardenId) => {
     try {
-      // ลบตารางลูกที่อ้างอิง garden_id ก่อน (Foreign Key)
       await db.query("DELETE FROM garden_variety WHERE garden_id = ?", [gardenId]);
       await db.query("DELETE FROM harvest WHERE garden_id = ?", [gardenId]);
       await db.query("DELETE FROM palm_care WHERE garden_id = ?", [gardenId]);
-      // ถ้ามีตารางอื่นอ้างอิง garden เพิ่มอีก ให้ใส่ตรงนี้
 
-      // ลบ garden หลัก
       await db.query("DELETE FROM garden WHERE garden_id = ?", [gardenId]);
-      
+
       return { isError: false, data: { garden_id: gardenId }, errorMessage: "" };
     } catch (error) {
       console.error("❌ Error in garden.js (deleteGarden):", error.message);
       return { isError: true, data: null, errorMessage: error.message };
     }
   },
-    getGardenVarieties: async (gardenId) => {
+
+  getGardenVarieties: async (gardenId) => {
     try {
       const query = `
         SELECT pv.variety_id, pv.variety_name, gv.plant_count, gv.note
@@ -134,8 +142,18 @@ const garden = {
       return { isError: true, data: [], errorMessage: error.message };
     }
   },
+
+  // ✅ แก้ไขแล้ว: ตัดคำว่า static ออกสำหรับ Object Literal
+  getAllGardens: async () => {
+    try {
+      const result = await db.query('SELECT garden_id, garden_name FROM garden ORDER BY garden_name ASC');
+      const rows = Array.isArray(result[0]) ? result[0] : (result.data || result);
+      return { isError: false, data: rows || [], errorMessage: "" };
+    } catch (error) {
+      console.error('Error getAllGardens:', error);
+      return { isError: true, data: [], errorMessage: error.message };
+    }
+  }
 };
-
-
 
 module.exports = garden;

@@ -10,6 +10,7 @@ const garden = require('./models/garden');
 const db = require('./libs/db_pool');
 const care = require('./models/care'); 
 const harvest = require('./models/harvest');
+const finance = require('./models/finance');
 const app = express();
 app.use(bp.json());
 app.use(bp.urlencoded({ extended: true }));
@@ -193,6 +194,24 @@ app.get('/api/gardens/:garden_id/varieties', async (req, res) => {
 });
 const palmVariety = require('./models/palm_variety');
 
+// ✅ เพิ่ม Endpoint ดึงรายชื่อแปลงสวนทั้งหมดสำหรับ Dropdown
+app.get('/api/gardens', async (req, res) => {
+  try {
+    // ดึงทั้งจากตาราง garden และ palm_plot (ถ้ามี)
+    const [rows] = await db.query(`
+      SELECT 
+        g.garden_id AS id, 
+        g.garden_name AS name 
+      FROM garden g
+    `);
+    
+    res.json({ isError: false, data: rows });
+  } catch (error) {
+    console.error('Error fetching gardens:', error);
+    res.status(500).json({ isError: true, data: [], errorMessage: error.message });
+  }
+});
+
 // GET: ดึงรายการพันธุ์ปาล์มทั้งหมด
 app.get('/api/varieties', async (req, res) => {
   const result = await palmVariety.getAll();
@@ -209,6 +228,35 @@ app.get('/api/harvests', async (req, res) => {
 app.get('/api/harvests/summary', async (req, res) => {
   const gardenId = req.query.garden_id;
   const result = await harvest.getSummary(gardenId);
+  res.json(result);
+});
+
+// POST: บันทึกการเก็บเกี่ยว
+app.post('/api/harvests', async (req, res) => {
+  const result = await harvest.createHarvest(req.body);
+  if (result.isError) {
+    return res.status(500).json(result);
+  }
+  res.status(201).json(result);
+});
+
+// GET: /api/finance/summary - ดึงสรุปยอดเงินรายรับ-รายจ่าย
+app.get('/api/finance/summary', async (req, res) => {
+  const { month } = req.query;
+  const result = await finance.getSummary(month);
+  res.json(result);
+});
+
+// GET: /api/finance/transactions - ดึงรายการธุรกรรมประจำเดือน
+app.get('/api/finance/transactions', async (req, res) => {
+  const { month, type } = req.query;
+  const result = await finance.getTransactions(month, type);
+  res.json(result);
+});
+
+// POST: /api/finance/add - บันทึกธุรกรรมใหม่
+app.post('/api/finance/add', async (req, res) => {
+  const result = await finance.createTransaction(req.body);
   res.json(result);
 });
 
