@@ -2,82 +2,54 @@ const http = require('http');
 const express = require('express');
 const bp = require('body-parser');
 const bcrypt = require('bcrypt');
+const cors = require('cors');
+
+// Import Models & Libs
 const userAccount = require('./models/user_account');
 const jwt = require('./libs/jwt');
-// const dateUtil = require('./libs/date_util');
 const dashboard = require('./models/dashboard');
 const garden = require('./models/garden');
 const db = require('./libs/db_pool');
 const care = require('./models/care'); 
 const harvest = require('./models/harvest');
 const finance = require('./models/finance');
+const palmVariety = require('./models/palm_variety');
+
 const app = express();
+app.use(cors());
 app.use(bp.json());
 app.use(bp.urlencoded({ extended: true }));
-const cors = require('cors');
-app.use(cors());
 
 // แก้ปัญหา BigInt ไม่สามารถ serialize เป็น JSON ได้
 BigInt.prototype.toJSON = function() {
   return Number(this);
 };
 
-
-const hostname = '0.0.0.0';  // แก้จาก '127.0.0.1'
-// const hostname = '127.0.0.1';   
+const hostname = '0.0.0.0'; 
 const port = 3000;
 
+// ==========================================
+// USER & AUTHENTICATION API
+// ==========================================
 
 app.get("/api/users", (req, res) => {
-    var response = {
-      isEror: true,
-      data: "You are unauthorized for this data"
-    };
-
-    res.json(JSON.stringify(response));
-});
-
-app.get('/api/gardens/:user_id', async (req, res) => {
-  const userId = req.params.user_id;
-  if (garden && typeof garden.getGardensByUserId === 'function') {
-    const result = await garden.getGardensByUserId(userId);
-    res.json(result);
-  } else {
-    res.json({ isError: true, data: [], errorMessage: "ยังไม่ได้สร้างไฟล์ models/garden.js หรือฟังก์ชัน getGardensByUserId" });
-  }
-});
-
-app.post("/api/multiple_by_2", (req, res) => {
-    var response = {
-        isError: false,
-        data: {
-            no1: req.body.no_1 * 2,
-            no2: req.body.no_2 * 2
-        }
-    };
-
-    res.send(JSON.stringify(response));
-});
-
-app.get('/api/dashboard/:user_id', async (req, res) => {
-  const userId = req.params.user_id;
-  const result = await dashboard.getDashboardSummary(userId);
-  res.json(result);
+  res.status(401).json({
+    isError: true,
+    data: "You are unauthorized for this data"
+  });
 });
 
 app.get('/api/user/:user_id', async (req, res) => {
   const userId = req.params.user_id;
   const response = await userAccount.getUserById(userId);
-  res.send(JSON.stringify(response));
+  res.json(response);
 });
 
-//ตอนสมัครสมาชิก
+// ตอนสมัครสมาชิก
 app.post('/api/register', async (req, res) => {
   const { role_id, full_name, id_card, phone, username, password } = req.body;
-
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // gen user_id อัตโนมัติ เช่น U003 -> U004
   const idResult = await userAccount.getNextUserId();
   if (idResult.isError) {
     return res.json(idResult);
@@ -91,13 +63,12 @@ app.post('/api/register', async (req, res) => {
   res.json(result);
 });
 
-//ตอน login
+// ตอน login
 app.post('/api/authen_request', async (req, res) => {
   const { username, password } = req.body;
-
   const result = await userAccount.getUserByUsername(username);
 
-  if (result.isError || result.data.length === 0) {
+  if (result.isError || !result.data || result.data.length === 0) {
     return res.json({ isError: true, data: "", errorMessage: 'ไม่พบผู้ใช้งาน' });
   }
 
@@ -108,33 +79,100 @@ app.post('/api/authen_request', async (req, res) => {
     return res.json({ isError: true, data: "", errorMessage: 'รหัสผ่านไม่ถูกต้อง' });
   }
   
-  // password ถูกต้อง -> ออก authenToken อายุสั้น (ยืนยันตัวตนชั่วคราว)
   const authenToken = jwt.sign(
     { user_id: user.user_id, username: user.username },
     '5m'
   );
 
-  
   res.json({ isError: false, data: authenToken, errorMessage: "" });
 });
 
-// ขั้นที่ 2: เอา authenToken มาแลก accessToken (อายุยาวขึ้น 1 วัน)
+// แลก accessToken
 app.post('/api/access_request', async (req, res) => {
   const { token } = req.body;
- 
   try {
     const decoded = await jwt.verify(token);
- 
     const accessToken = jwt.sign(
       { user_id: decoded.user_id, username: decoded.username },
       '1d'
     );
- 
     res.json({ isError: false, data: accessToken, errorMessage: "" });
   } catch (error) {
     res.json({ isError: true, data: "", errorMessage: 'Token ไม่ถูกต้องหรือหมดอายุ' });
   }
 });
+
+// ==========================================
+// DASHBOARD API
+// ==========================================
+
+app.get('/api/dashboard/:user_id', async (req, res) => {
+  const userId = req.params.user_id;
+  const result = await dashboard.getDashboardSummary(userId);
+  res.json(result);
+});
+
+// ==========================================
+// GARDEN API
+// ==========================================
+
+// GET: ดึงรายชื่อแปลงสวนทั้งหมด (ปรับปรุงไม่ให้ซ้ำ)
+app.get('/api/gardens', async (req, res) => {
+  try {
+    if (garden && typeof garden.getGardensByUserId === 'function') {
+      const result = await garden.getGardensByUserId('ALL'); 
+      return res.json(result);
+    }
+    
+    const [rows] = await db.query(`SELECT garden_id AS id, garden_name AS name FROM garden`);
+    res.json({ isError: false, data: rows });
+  } catch (error) {
+    console.error('Error fetching gardens:', error);
+    res.status(500).json({ isError: true, data: [], errorMessage: error.message });
+  }
+});
+
+app.get('/api/gardens/:user_id', async (req, res) => {
+  const userId = req.params.user_id;
+  if (garden && typeof garden.getGardensByUserId === 'function') {
+    const result = await garden.getGardensByUserId(userId);
+    res.json(result);
+  } else {
+    res.json({ isError: true, data: [], errorMessage: "ยังไม่ได้สร้างไฟล์ models/garden.js" });
+  }
+});
+
+app.post('/api/gardens', async (req, res) => {
+  if (garden && typeof garden.createGarden === 'function') {
+    const result = await garden.createGarden(req.body);
+    if (result.isError) return res.status(500).json(result);
+    res.status(201).json(result);
+  } else {
+    res.status(500).json({ isError: true, errorMessage: "ไม่พบฟังก์ชัน createGarden ใน models/garden.js" });
+  }
+});
+
+app.put('/api/gardens/:garden_id', async (req, res) => {
+  const { garden_id } = req.params;
+  const result = await garden.updateGarden(garden_id, req.body);
+  res.json(result);
+});
+
+app.delete('/api/gardens/:garden_id', async (req, res) => {
+  const { garden_id } = req.params;
+  const result = await garden.deleteGarden(garden_id);
+  res.json(result);
+});
+
+app.get('/api/gardens/:garden_id/varieties', async (req, res) => {
+  const { garden_id } = req.params;
+  const result = await garden.getGardenVarieties(garden_id);
+  res.json(result);
+});
+
+// ==========================================
+// PALM CARE & VARIETIES API
+// ==========================================
 
 app.get('/api/care-logs', async (req, res) => {
   const result = await care.getCareLogs();
@@ -144,79 +182,19 @@ app.get('/api/care-logs', async (req, res) => {
   res.json(result.data);
 });
 
-// 2. ดึงรายชื่อแปลงสวนทั้งหมด (เรียกผ่าน garden model เดิม)
-app.get('/api/gardens', async (req, res) => {
-  if (garden && typeof garden.getGardensByUserId === 'function') {
-    // กรณีถ้ามีดึงสวนทั้งหมด ให้เรียกใช้ function ของ garden model
-    const result = await garden.getGardensByUserId('ALL'); 
-    res.json(result);
-  } else {
-    res.json({ isError: true, data: [], errorMessage: "ไม่พบฟังก์ชันใน garden model" });
-  }
-});
-
-// POST: บันทึกการดูแลสวนรายการใหม่
 app.post('/api/care-logs', async (req, res) => {
   const result = await care.createCareLog(req.body);
   res.json(result);
 });
 
-// POST: เพิ่มแปลงสวนใหม่
-app.post('/api/gardens', async (req, res) => {
-  if (garden && typeof garden.createGarden === 'function') {
-    const result = await garden.createGarden(req.body);
-    if (result.isError) {
-      return res.status(500).json(result);
-    }
-    res.status(201).json(result);
-  } else {
-    res.status(500).json({ isError: true, errorMessage: "ไม่พบฟังก์ชัน createGarden ใน models/garden.js" });
-  }
-});
-// PUT: อัปเดตแปลงสวน
-app.put('/api/gardens/:garden_id', async (req, res) => {
-  const { garden_id } = req.params;
-  const result = await garden.updateGarden(garden_id, req.body);
-  res.json(result);
-});
-
-// DELETE: ลบแปลงสวน
-app.delete('/api/gardens/:garden_id', async (req, res) => {
-  const { garden_id } = req.params;
-  const result = await garden.deleteGarden(garden_id);
-  res.json(result);
-});
-// GET: ดึงพันธุ์ปาล์มของแปลงสวน
-app.get('/api/gardens/:garden_id/varieties', async (req, res) => {
-  const { garden_id } = req.params;
-  const result = await garden.getGardenVarieties(garden_id);
-  res.json(result);
-});
-const palmVariety = require('./models/palm_variety');
-
-// ✅ เพิ่ม Endpoint ดึงรายชื่อแปลงสวนทั้งหมดสำหรับ Dropdown
-app.get('/api/gardens', async (req, res) => {
-  try {
-    // ดึงทั้งจากตาราง garden และ palm_plot (ถ้ามี)
-    const [rows] = await db.query(`
-      SELECT 
-        g.garden_id AS id, 
-        g.garden_name AS name 
-      FROM garden g
-    `);
-    
-    res.json({ isError: false, data: rows });
-  } catch (error) {
-    console.error('Error fetching gardens:', error);
-    res.status(500).json({ isError: true, data: [], errorMessage: error.message });
-  }
-});
-
-// GET: ดึงรายการพันธุ์ปาล์มทั้งหมด
 app.get('/api/varieties', async (req, res) => {
   const result = await palmVariety.getAll();
   res.json(result);
 });
+
+// ==========================================
+// HARVEST API
+// ==========================================
 
 app.get('/api/harvests', async (req, res) => {
   const gardenId = req.query.garden_id;
@@ -224,14 +202,12 @@ app.get('/api/harvests', async (req, res) => {
   res.json(result);
 });
 
-// GET: /api/harvests/summary - ดึงข้อมูลสรุปผลรวม + กราฟ 12 เดือน
 app.get('/api/harvests/summary', async (req, res) => {
   const gardenId = req.query.garden_id;
   const result = await harvest.getSummary(gardenId);
   res.json(result);
 });
 
-// POST: บันทึกการเก็บเกี่ยว
 app.post('/api/harvests', async (req, res) => {
   const result = await harvest.createHarvest(req.body);
   if (result.isError) {
@@ -240,17 +216,21 @@ app.post('/api/harvests', async (req, res) => {
   res.status(201).json(result);
 });
 
+// ==========================================
+// FINANCE API (รายรับ - รายจ่าย)
+// ==========================================
+
 // GET: /api/finance/summary - ดึงสรุปยอดเงินรายรับ-รายจ่าย
 app.get('/api/finance/summary', async (req, res) => {
-  const { month } = req.query;
-  const result = await finance.getSummary(month);
+  const { month, user_id } = req.query;
+  const result = await finance.getSummary(month, user_id);
   res.json(result);
 });
 
 // GET: /api/finance/transactions - ดึงรายการธุรกรรมประจำเดือน
 app.get('/api/finance/transactions', async (req, res) => {
-  const { month, type } = req.query;
-  const result = await finance.getTransactions(month, type);
+  const { month, type, user_id } = req.query;
+  const result = await finance.getTransactions(month, type, user_id);
   res.json(result);
 });
 
@@ -260,25 +240,8 @@ app.post('/api/finance/add', async (req, res) => {
   res.json(result);
 });
 
-app.listen(port,  () => {
+// ==========================================
+
+app.listen(port, () => {
   console.log(`Server running at http://${hostname}:${port}`);
 });
-
-
-// app.post('/api/register', (req, res) => {
-//   const { role, full_name, id_card, phone, username, password } = req.body;
-  
-//   // 1. ตรวจสอบข้อมูล
-//   if (!username || !password) {
-//     return res.status(400).json({ message: 'กรุณากรอกข้อมูลให้ครบ' });
-//   }
-  
-//   // 2. บันทึกลงฐานข้อมูล
-//   // INSERT INTO users ...
-  
-//   // 3. ตอบกลับ
-//   res.status(201).json({ 
-//     message: 'สมัครสมาชิกสำเร็จ',
-//     user: { id: 1, username: username }
-//   });
-// });

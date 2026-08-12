@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-// ✨ 1. นำเข้าหน้าบันทึกการซื้อขาย (ปรับ path ตามโครงสร้างโฟลเดอร์ของคุณ เช่น 'add_transaction_screen.dart')
 import 'add_transaction_screen.dart';
 
 // ==========================================
@@ -88,6 +87,7 @@ class FinanceScreen extends StatefulWidget {
 }
 
 class _FinanceScreenState extends State<FinanceScreen> {
+  // 💡 ปรับเปลี่ยน IP ตามสภาพแวดล้อมที่ใช้ทดสอบ (Emulator ใช้ 10.0.2.2, Chrome/Web ใช้ localhost)
   final String baseUrl = 'http://localhost:3000/api';
   final Color primaryGreen = const Color(0xFF2D6A4F);
 
@@ -114,7 +114,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
 
     _selectedMonth = _months.firstWhere(
       (m) => m.month == now.month,
-      orElse: () => _months[0],
+      orElse: () => _months[now.month - 1],
     );
   }
 
@@ -126,7 +126,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
     });
   }
 
-  // ✨ 2. ฟังก์ชันเปิดหน้า AddTransactionScreen และดึงข้อมูลใหม่หลังบันทึกสำเร็จ
   Future<void> _navigateToAddTransaction() async {
     final result = await Navigator.push(
       context,
@@ -135,7 +134,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
       ),
     );
 
-    // ถ้าบันทึกสำเร็จและส่งค่ากลับมา ให้ทำการรีเฟรชหน้านี้ทันที
     if (result == true) {
       _refreshData();
     }
@@ -184,6 +182,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     }
   }
 
+  // ✨ เอาปีออก ให้โชว์แค่ชื่อเดือนเพียวๆ
   String _formatMonthLabel(DateTime dt) {
     final months = [
       'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
@@ -201,7 +200,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     if (text.contains('ปุ๋ย')) {
       return '🧪';
     }
-    if (text.contains('แรงงาน') || text.contains('จ้าง')) {
+    if (text.contains('แรงงาน') || text.contains('จ้าง') || text.contains('ดูแล')) {
       return '👷';
     }
     return '📝';
@@ -209,7 +208,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final formatter = NumberFormat("#,##0", "th_TH");
+    final formatter = NumberFormat("#,##0.00", "th_TH");
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -219,7 +218,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
         title: const Text('การเงินและรายรับรายจ่าย', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
         actions: [
-          // ✨ 3. เชื่อมปุ่ม + เข้ากับฟังก์ชัน _navigateToAddTransaction
           IconButton(
             icon: const Icon(Icons.add, color: Colors.white, size: 26),
             onPressed: _navigateToAddTransaction,
@@ -307,7 +305,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                         const SizedBox(height: 8),
                         Text(
                           '${summary.balance >= 0 ? '+' : ''}${formatter.format(summary.balance)} ฿',
-                          style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                          style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 16),
                         Row(
@@ -386,7 +384,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
       children: [
         Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
         const SizedBox(height: 4),
-        Text(value, style: TextStyle(color: valueColor, fontSize: 16, fontWeight: FontWeight.bold)),
+        Text(value, style: TextStyle(color: valueColor, fontSize: 15, fontWeight: FontWeight.bold)),
       ],
     );
   }
