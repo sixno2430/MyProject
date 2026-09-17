@@ -112,9 +112,8 @@ class PalmVarietiesScreen extends StatelessWidget {
                     name: 'เทเนอร่า (Tenera)',
                     scientificName: 'Elaeis guineensis var. tenera',
                     description: 'พันธุ์นิยมปลูกมากที่สุด ได้น้ำมันสูง\nเบลอิบานา · Dura × Pisifera',
-                    usageText: 'ใช้ในสวนของคุณ: 2 แปลง',
+                    usageText: '',
                     usageColor: const Color(0xFF2D6A4F),
-                    badge: 'นิยม',
                   ),
                   _buildVarietyCard(
                     topColor: const Color(0xFFF9A825),
@@ -122,7 +121,7 @@ class PalmVarietiesScreen extends StatelessWidget {
                     name: 'ดูร่าไวน์ (Dura)',
                     scientificName: 'Elaeis guineensis var. dura',
                     description: 'พันธุ์ตั้งต้น เปลือกหนา แข็งแกร่ง',
-                    usageText: 'ใช้ในสวนของคุณ: 1 แปลง',
+                    usageText: '',
                     usageColor: const Color(0xFFF9A825),
                   ),
                   _buildVarietyCard(
@@ -131,7 +130,7 @@ class PalmVarietiesScreen extends StatelessWidget {
                     name: 'คอมแพคท์ (Compact)',
                     scientificName: 'Elaeis guineensis (Compact)',
                     description: 'ต้นเตี้ย เหมาะพื้นที่เล็ก เก็บเกี่ยวง่าย',
-                    usageText: 'ใช้ในสวนของคุณ: 1 แปลง',
+                    usageText: '',
                     usageColor: const Color(0xFF42A5F5),
                   ),
                   _buildVarietyCard(
@@ -140,7 +139,7 @@ class PalmVarietiesScreen extends StatelessWidget {
                     name: 'ปิซิเฟอร่า (Pisifera)',
                     scientificName: 'Elaeis guineensis var. pisifera',
                     description: 'พันธุ์ผู้ ใช้ผสมพันธุ์เพื่อผลิต Tenera',
-                    usageText: 'ไม่ได้ใช้ในสวนของคุณ',
+                    usageText: '',
                     usageColor: const Color(0xFFAB47BC),
                   ),
                 ],
