@@ -1,11 +1,88 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/services/dashboard_service.dart';
+import 'package:flutter_myproject/services/profile_service.dart';
+import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 import 'package:flutter_myproject/widgets/dashboard_widget/stat_item.dart';
 
-class DashboardHeader extends StatelessWidget {
+class DashboardHeader extends StatefulWidget {
   final DashboardData data;
   const DashboardHeader({super.key, required this.data});
+
+  @override
+  State<DashboardHeader> createState() => _DashboardHeaderState();
+}
+
+class _DashboardHeaderState extends State<DashboardHeader> {
+  String _displayName = 'กำลังโหลด...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final userId = await AuthService.getUserId();
+      debugPrint('🔎 [DEBUG] User ID ที่อ่านได้: $userId');
+
+      if (userId == null || userId.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _displayName = 'ไม่ได้เข้าสู่ระบบ';
+          });
+        }
+        return;
+      }
+
+      final profileRes = await ProfileService.getProfile(userId);
+      debugPrint('🔎 [DEBUG] Response จาก API: $profileRes');
+
+      // 1. ตรวจสอบว่าห่ออยู่ใน 'data' หรือไม่
+      dynamic rawData = profileRes;
+      if (profileRes.containsKey('data') && profileRes['data'] != null) {
+        rawData = profileRes['data'];
+      }
+
+      // 2. กรณีที่ API ส่งกลับมาเป็น List (Array) เช่น [{"full_name": "..."}]
+      if (rawData is List && rawData.isNotEmpty) {
+        rawData = rawData[0];
+      }
+
+      // 3. กรณีที่ซ้อนอยู่ในคีย์ย่อย เช่น data['user'] หรือ data['profile']
+      if (rawData is Map<String, dynamic>) {
+        if (rawData['user'] is Map<String, dynamic>) {
+          rawData = rawData['user'];
+        } else if (rawData['profile'] is Map<String, dynamic>) {
+          rawData = rawData['profile'];
+        }
+      }
+
+      // 4. ดึงชื่อจากฟิลด์ full_name (ตามคอลัมน์ใน Database)
+      String? foundName;
+      if (rawData is Map<String, dynamic>) {
+        foundName = rawData['full_name'] ??
+            rawData['name'] ??
+            rawData['fullname'] ??
+            rawData['username'] ??
+            rawData['user_name'];
+      }
+
+      if (mounted) {
+        setState(() {
+          _displayName = foundName?.toString() ?? 'ไม่พบชื่อ ($userId)';
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ [DEBUG] โหลดโปรไฟล์ผิดพลาด: $e');
+      if (mounted) {
+        setState(() {
+          _displayName = 'เกิดข้อผิดพลาด';
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,19 +120,19 @@ class DashboardHeader extends StatelessWidget {
                 children: [
                   _buildAvatar(),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'สมชาย มีทรัพย์',
-                          style: TextStyle(
+                          _displayName, // แสดงชื่อจริงตามฐานข้อมูล
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Text(
+                        const Text(
                           'เกษตรกร · สวนปาล์มน้ำมัน',
                           style: TextStyle(color: Colors.white70, fontSize: 12),
                         ),
@@ -134,15 +211,15 @@ class DashboardHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          StatItem(value: '${data.gardenCount}', label: 'แปลงสวน\nจำนวน'),
+          StatItem(value: '${widget.data.gardenCount}', label: 'แปลงสวน\nจำนวน'),
           Container(width: 1, height: 40, color: Colors.grey[200]),
           StatItem(
-            value: formatNumber(data.monthlyProduction),
+            value: formatNumber(widget.data.monthlyProduction),
             label: 'กก.\nผลผลิต/เดือน',
           ),
           Container(width: 1, height: 40, color: Colors.grey[200]),
           StatItem(
-            value: formatNumber(data.monthlyIncome),
+            value: formatNumber(widget.data.monthlyIncome),
             label: 'บาท\nรายรับเดือนนี้',
           ),
         ],

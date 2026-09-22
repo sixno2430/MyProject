@@ -1,57 +1,67 @@
 const db = require('../libs/db_pool');
 
 class FinanceModel {
-  // 1. ดึงสรุปยอดเงินรายรับ-รายจ่ายประจำเดือน (รวมจาก harvest + palm_care + finance)
-  static async getSummary(month, userId = 'U002') {
+  // 1. ดึงสรุปยอดเงิน
+  static async getSummary(month, userId) {
     try {
-      let whereClause = '';
+      let conditions = [];
       const params = [];
 
-      // ถ้าระบุ month เช่น '2026-08'
       if (month) {
-        whereClause = `WHERE DATE_FORMAT(date, '%Y-%m') = ?`;
+        conditions.push(`DATE_FORMAT(date, '%Y-%m') = ?`);
         params.push(month);
       }
 
-      // ดึง UNION รวมข้อมูล 3 ตารางสดๆ จาก Database
+      if (userId && userId !== 'ALL') {
+        conditions.push(`user_id = ?`);
+        params.push(userId);
+      }
+
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
       const query = `
         SELECT 
           COALESCE(SUM(CASE WHEN UPPER(type) = 'INCOME' THEN amount ELSE 0 END), 0) AS totalIncome,
           COALESCE(SUM(CASE WHEN UPPER(type) = 'EXPENSE' THEN amount ELSE 0 END), 0) AS totalExpense
         FROM (
-          -- 1. รายรับจากตาราง harvest (เก็บเกี่ยว/ขายผลผลิต)
+          -- 1. รายรับจาก harvest (แก้เงื่อนไข: เอายอดเงินที่มีทั้งหมด ไม่ว่าจะ sold หรือ pending)
           SELECT 
-            total_price AS amount, 
+            h.total_price AS amount, 
             'INCOME' AS type, 
-            harvest_date AS date 
-          FROM harvest 
-          WHERE total_price > 0 AND (status = 'sold' OR status IS NULL)
+            h.harvest_date AS date,
+            COALESCE(g.user_id, 'U002') AS user_id
+          FROM harvest h
+          LEFT JOIN garden g ON h.garden_id = g.garden_id
+          WHERE h.total_price > 0
 
           UNION ALL
 
-          -- 2. รายจ่ายจากตาราง palm_care (ดูแลรักษา/ใส่ปุ๋ย)
+          -- 2. รายจ่ายจาก palm_care
           SELECT 
-            cost AS amount, 
+            c.cost AS amount, 
             'EXPENSE' AS type, 
-            record_date AS date 
-          FROM palm_care 
-          WHERE cost > 0
+            c.record_date AS date,
+            COALESCE(g.user_id, 'U002') AS user_id
+          FROM palm_care c
+          LEFT JOIN garden g ON c.garden_id = g.garden_id
+          WHERE c.cost > 0
 
           UNION ALL
 
-          -- 3. รายรับ-รายจ่ายทั่วไปจากตาราง finance
+          -- 3. รายการจาก finance
           SELECT 
-            amount, 
-            record_type AS type, 
-            record_date AS date 
-          FROM finance
+            fn.amount, 
+            fn.record_type AS type, 
+            fn.record_date AS date,
+            fn.user_id
+          FROM finance fn
+          WHERE fn.ref_care_id IS NULL AND fn.ref_purchase_id IS NULL
         ) AS all_transactions
         ${whereClause}
       `;
 
-      const result = await db.query(query, params);
-      const rows = Array.isArray(result[0]) ? result[0] : (Array.isArray(result) ? result : []);
-      const data = rows.length > 0 ? rows[0] : { totalIncome: 0, totalExpense: 0 };
+      const [rows] = await db.query(query, params);
+      const data = rows && rows.length > 0 ? rows[0] : { totalIncome: 0, totalExpense: 0 };
 
       const totalIncome = parseFloat(data.totalIncome || 0);
       const totalExpense = parseFloat(data.totalExpense || 0);
@@ -75,8 +85,8 @@ class FinanceModel {
     }
   }
 
-  // 2. ดึงรายการธุรกรรมประจำเดือนแบบละเอียด (รวมจาก harvest + palm_care + finance)
-  static async getTransactions(month, type, userId = 'U002') {
+  // 2. ดึงรายการธุรกรรมแบบละเอียด
+  static async getTransactions(month, type, userId) {
     try {
       let conditions = [];
       const params = [];
@@ -84,6 +94,11 @@ class FinanceModel {
       if (month) {
         conditions.push(`DATE_FORMAT(t.date, '%Y-%m') = ?`);
         params.push(month);
+      }
+
+      if (userId && userId !== 'ALL') {
+        conditions.push(`t.user_id = ?`);
+        params.push(userId);
       }
 
       if (type && type !== 'all') {
@@ -103,7 +118,7 @@ class FinanceModel {
           COALESCE(g.garden_name, 'ไม่ระบุสวน') AS gardenName,
           DATE_FORMAT(t.date, '%Y-%m-%d') AS date
         FROM (
-          -- 1. ดึงจากตาราง harvest
+          -- 1. harvest: เอาเงื่อนไข status = 'sold' ออก เพื่อให้รายการรอขายขึ้นด้วย
           SELECT 
             h.harvest_id AS id,
             CONCAT('ขายผลผลิตปาล์ม (', FORMAT(h.total_quantity, 0), ' กก.)') AS title,
@@ -111,13 +126,15 @@ class FinanceModel {
             h.total_price AS amount,
             'ขายผลผลิต' AS category,
             h.garden_id,
+            COALESCE(g.user_id, 'U002') AS user_id,
             h.harvest_date AS date
           FROM harvest h
-          WHERE h.total_price > 0 AND (h.status = 'sold' OR h.status IS NULL)
+          LEFT JOIN garden g ON h.garden_id = g.garden_id
+          WHERE h.total_price > 0
 
           UNION ALL
 
-          -- 2. ดึงจากตาราง palm_care
+          -- 2. palm_care: ดูแลรักษา
           SELECT 
             c.care_id AS id,
             CASE 
@@ -130,14 +147,16 @@ class FinanceModel {
             c.cost AS amount,
             IF(c.fertilizer_id IS NOT NULL, 'ค่าปุ๋ย', 'ค่าดูแลรักษา') AS category,
             c.garden_id,
+            COALESCE(g.user_id, 'U002') AS user_id,
             c.record_date AS date
           FROM palm_care c
           LEFT JOIN fertilizer f ON c.fertilizer_id = f.fertilizer_id
+          LEFT JOIN garden g ON c.garden_id = g.garden_id
           WHERE c.cost > 0
 
           UNION ALL
 
-          -- 3. ดึงจากตาราง finance
+          -- 3. finance ทั่วไป
           SELECT 
             fn.finance_id AS id,
             COALESCE(fn.description, fn.expense_category, 'รายการทั่วไป') AS title,
@@ -145,37 +164,38 @@ class FinanceModel {
             fn.amount,
             COALESCE(fn.expense_category, 'ทั่วไป') AS category,
             fn.garden_id,
+            fn.user_id,
             fn.record_date AS date
           FROM finance fn
+          WHERE fn.ref_care_id IS NULL AND fn.ref_purchase_id IS NULL
         ) AS t
         LEFT JOIN garden g ON t.garden_id = g.garden_id
         ${whereClause}
         ORDER BY t.date DESC, t.id DESC
       `;
 
-      const result = await db.query(query, params);
-      const rows = Array.isArray(result[0]) ? result[0] : (Array.isArray(result) ? result : []);
-
-      return { isError: false, data: rows, errorMessage: "" };
+      const [rows] = await db.query(query, params);
+      return { isError: false, data: rows || [], errorMessage: "" };
     } catch (error) {
       console.error('Error in FinanceModel.getTransactions:', error);
       return { isError: true, data: [], errorMessage: error.message };
     }
   }
 
-  // 3. ฟังก์ชันบันทึกการซื้อขาย/รายรับ-รายจ่ายทั่วไปเข้าตาราง finance
+  // 3. บันทึกธุรกรรมตรง
   static async createTransaction(data) {
     try {
       const { user_id, garden_id, record_type, amount, expense_category, description, record_date } = data;
 
-      const maxRows = await db.query(`
+      const [rows] = await db.query(`
         SELECT MAX(CAST(SUBSTRING(finance_id, 3) AS UNSIGNED)) AS max_num 
         FROM finance 
         WHERE finance_id LIKE 'FN%'
       `);
 
-      const rows = Array.isArray(maxRows) ? maxRows : (maxRows ? (maxRows.data || []) : []);
-      const maxNum = (rows.length > 0 && rows[0].max_num !== null) ? parseInt(rows[0].max_num, 10) : 0;
+      const maxNum = (rows && rows.length > 0 && rows[0].max_num !== null) 
+        ? parseInt(rows[0].max_num, 10) 
+        : 0;
       const newFinanceId = 'FN' + String(maxNum + 1).padStart(3, '0');
 
       const query = `
@@ -196,7 +216,6 @@ class FinanceModel {
       ];
 
       await db.query(query, params);
-
       return { isError: false, data: { finance_id: newFinanceId }, errorMessage: "" };
     } catch (error) {
       console.error('Error createTransaction:', error);

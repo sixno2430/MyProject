@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_myproject/services/profile_service.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -25,8 +26,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadUserId() async {
     final userId = await AuthService.getUserId();
 
-    // 🔧 ถ้ายังไม่มีใน SharedPreferences (ยังไม่ได้ login ผ่านระบบใหม่)
-    // ให้ใช้ค่า default ชั่วคราว หรือแก้ให้ login เก็บ user_id ก่อน
     if (userId == null) {
       setState(() {
         errorMessage = 'กรุณาเข้าสู่ระบบใหม่';
@@ -65,6 +64,183 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// หน้าต่าง Modal Bottom Sheet สำหรับแก้ไขข้อมูลส่วนตัว
+  void _showEditProfileSheet() {
+    if (profile == null) return;
+
+    final nameController =
+        TextEditingController(text: profile!['full_name'] ?? '');
+    final phoneController =
+        TextEditingController(text: profile!['phone'] ?? '');
+    bool isSaving = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(
+            top: 24,
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'แก้ไขข้อมูลส่วนตัว',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const Divider(height: 1),
+              const SizedBox(height: 20),
+
+              // ช่องกรอกชื่อ-นามสกุล
+              const Text(
+                'ชื่อ-นามสกุล',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  hintText: 'กรอกชื่อและนามสกุล',
+                  filled: true,
+                  fillColor: const Color(0xFFF9F9F9),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // ช่องกรอกเบอร์โทรศัพท์
+              const Text(
+                'เบอร์โทรศัพท์',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  hintText: 'กรอกเบอร์โทรศัพท์',
+                  filled: true,
+                  fillColor: const Color(0xFFF9F9F9),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // ปุ่มบันทึก
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final newName = nameController.text.trim();
+                          final newPhone = phoneController.text.trim();
+
+                          if (newName.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('กรุณากรอกชื่อ-นามสกุล')),
+                            );
+                            return;
+                          }
+
+                          setModalState(() => isSaving = true);
+
+                          final updateRes = await ProfileService.updateProfile(
+                            currentUserId!,
+                            {
+                              'full_name': newName,
+                              'phone': newPhone,
+                            },
+                          );
+
+                          setModalState(() => isSaving = false);
+
+                          if (updateRes['success'] == true) {
+                            if (context.mounted) Navigator.pop(context);
+                            _loadProfile(); // โหลดข้อมูลใหม่มาแสดงทันที
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว'),
+                                  backgroundColor: Color(0xFF4A7C59),
+                                ),
+                              );
+                            }
+                          } else {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(updateRes['message'] ??
+                                      'เกิดข้อผิดพลาดในการบันทึก'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4A7C59),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: isSaving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text(
+                          'บันทึกข้อมูล',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -92,7 +268,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     final p = profile!;
-    final role = p['role'];
+    final role = p['role'] ?? {'role_name': 'ผู้ใช้'};
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -172,7 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildInfoRow('ชื่อ-นามสกุล', p['full_name']),
                         _buildInfoRow('เบอร์โทร', p['phone']),
                         _buildInfoRow('เลขบัตรประชาชน', p['citizen_id']),
-                        _buildInfoRowWithBadge('บทบาท', role['role_name']),
+                        _buildInfoRowWithBadge('บทบาท', role['role_name'] ?? '-'),
                         _buildInfoRow('สมาชิกตั้งแต่', p['member_since']),
                         _buildInfoRow('ชื่อผู้ใช้', p['username']),
                       ],
@@ -187,9 +363,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      // TODO: ไปหน้าแก้ไขโปรไฟล์
-                    },
+                    onPressed: _showEditProfileSheet,
                     icon: const Icon(Icons.edit, color: Colors.white),
                     label: const Text(
                       'แก้ไขข้อมูลส่วนตัว',
@@ -256,14 +430,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () async {
-                    await AuthService.clear();
-                    if (mounted) {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
-                      );
-                    }
-                  },
+                      await AuthService.clear();
+                      if (mounted) {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const LoginScreen()),
+                        );
+                      }
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red[400],
                       padding: const EdgeInsets.symmetric(vertical: 16),
