@@ -14,6 +14,8 @@ const care = require('./models/care');
 const harvest = require('./models/harvest');
 const finance = require('./models/finance');
 const palmVariety = require('./models/palm_variety');
+const report = require('./models/report');
+const shop = require('./models/shop');
 
 const app = express();
 app.use(cors());
@@ -95,6 +97,12 @@ app.post('/api/access_request', async (req, res) => {
 app.get('/api/dashboard/:user_id', async (req, res) => {
   const userId = req.params.user_id;
   const result = await dashboard.getDashboardSummary(userId);
+  res.json(result);
+});
+
+// GET: /api/activities/:user_id - ประวัติกิจกรรมทั้งหมด (เก็บเกี่ยว / ดูแล / รายรับ / รายจ่าย)
+app.get('/api/activities/:user_id', async (req, res) => {
+  const result = await dashboard.getActivities(req.params.user_id, req.query.limit);
   res.json(result);
 });
 
@@ -185,8 +193,24 @@ app.delete('/api/care-logs/:care_id', async (req, res) => {
   res.json(result);
 });
 
+// ?user_id=U001 จะได้จำนวนต้น/แปลงที่ user นั้นปลูกแต่ละพันธุ์มาด้วย
 app.get('/api/varieties', async (req, res) => {
-  const result = await palmVariety.getAll();
+  const result = await palmVariety.getAll(req.query.user_id);
+  res.json(result);
+});
+
+app.post('/api/varieties', async (req, res) => {
+  const result = await palmVariety.create(req.body);
+  res.json(result);
+});
+
+app.put('/api/varieties/:variety_id', async (req, res) => {
+  const result = await palmVariety.update(req.params.variety_id, req.body);
+  res.json(result);
+});
+
+app.delete('/api/varieties/:variety_id', async (req, res) => {
+  const result = await palmVariety.remove(req.params.variety_id);
   res.json(result);
 });
 
@@ -269,6 +293,27 @@ app.put('/api/user/:user_id/password', async (req, res) => {
     return res.json({ isError: true, errorMessage: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัว' });
   }
   const result = await userAccount.changePassword(req.params.user_id, old_password, new_password);
+  res.json(result);
+});
+
+// ==========================================
+// SHOP API (ร้านรับซื้อ)
+// ==========================================
+
+// GET: /api/shops?user_id=U002 - รายชื่อร้าน + ราคาล่าสุด + ประวัติที่ user เคยขายให้
+app.get('/api/shops', async (req, res) => {
+  const result = await shop.getShops(req.query.user_id);
+  res.json(result);
+});
+
+// ==========================================
+// REPORT API
+// ==========================================
+
+// GET: /api/report/:user_id?year=2026 - รายงานสรุปประจำปี
+app.get('/api/report/:user_id', async (req, res) => {
+  const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+  const result = await report.getYearlyReport(req.params.user_id, year);
   res.json(result);
 });
 

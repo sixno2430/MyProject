@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_myproject/main.dart';
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
+import 'package:flutter_myproject/screens/auth/splash_screen.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -76,10 +76,20 @@ void main() {
     });
   });
 
-  testWidgets('ยังไม่ล็อกอิน เปิดแอปแล้วเจอหน้า Login', (tester) async {
+  testWidgets('เปิดแอป: เจอ Splash ก่อน แล้วไปหน้า Login ภายใน 3 วินาที', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(const MyApp(loggedIn: false));
+    await tester.pumpWidget(const MyApp());
+
+    expect(find.byType(SplashScreen), findsOneWidget);
+    expect(find.byType(LoginScreen), findsNothing);
+
+    // ครึ่งทาง ยังอยู่หน้า Splash
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(LoginScreen), findsNothing);
+
+    // ครบเวลาอนิเมชัน + เปลี่ยนหน้า
+    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 3));
     expect(find.byType(LoginScreen), findsOneWidget);
-    expect(find.byType(MaterialApp), findsOneWidget);
+    expect(find.byType(SplashScreen), findsNothing);
   });
 }

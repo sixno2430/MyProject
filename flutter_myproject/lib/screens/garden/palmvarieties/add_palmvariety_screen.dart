@@ -1,7 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_myproject/config/app_config.dart';
+import 'palm_variety.dart';
 
 class AddPalmVarietyScreen extends StatefulWidget {
-  const AddPalmVarietyScreen({super.key});
+  /// ข้อมูลเดิม (ส่งมา = โหมดแก้ไข, ไม่ส่ง = เพิ่มใหม่)
+  final PalmVariety? existing;
+
+  const AddPalmVarietyScreen({super.key, this.existing});
 
   @override
   State<AddPalmVarietyScreen> createState() => _AddPalmVarietyScreenState();
@@ -10,19 +17,67 @@ class AddPalmVarietyScreen extends StatefulWidget {
 class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
   final Color primaryGreen = const Color(0xFF2D6A4F);
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _scientificController = TextEditingController();
+  bool _isSubmitting = false;
 
-  // ตัวเลือกสีแถบประจำพันธุ์
-  final List<Color> _varietyColors = [
-    const Color(0xFF2D6A4F), // เขียว (Tenera)
-    const Color(0xFFF9A825), // เหลือง (Dura)
-    const Color(0xFF42A5F5), // ฟ้า (Compact)
-    const Color(0xFFAB47BC), // ม่วง (Pisifera)
-    const Color(0xFFEF5350), // แดง
-    const Color(0xFF8D6E63), // น้ำตาล
-  ];
+  bool get _isEdit => widget.existing != null;
 
-  int _selectedColorIndex = 0;
-  bool _isPopular = false;
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _nameController.text = e.varietyName;
+      _scientificController.text = e.scientificName ?? '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _scientificController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSubmitting = true);
+
+    final body = jsonEncode({
+      'variety_name': _nameController.text.trim(),
+      'scientific_name': _scientificController.text.trim(),
+    });
+    const headers = {'Content-Type': 'application/json'};
+
+    try {
+      final response = _isEdit
+          ? await http.put(
+              Uri.parse('${AppConfig.apiBaseUri}/varieties/${widget.existing!.varietyId}'),
+              headers: headers,
+              body: body,
+            )
+          : await http.post(
+              Uri.parse('${AppConfig.apiBaseUri}/varieties'),
+              headers: headers,
+              body: body,
+            );
+      final res = jsonDecode(response.body);
+      if (res['isError'] == true) throw Exception(res['errorMessage']);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_isEdit ? 'แก้ไขพันธุ์ปาล์มแล้ว' : 'เพิ่มพันธุ์ปาล์มแล้ว')),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,21 +85,11 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
         elevation: 0,
-        leading: GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: Container(
-            margin: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-          ),
-        ),
-        title: const Text(
-          'เพิ่มพันธุ์ปาล์ม',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        title: Text(
+          _isEdit ? 'แก้ไขพันธุ์ปาล์ม' : 'เพิ่มพันธุ์ปาล์ม',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
@@ -55,145 +100,19 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ชื่อพันธุ์ปาล์ม
               _buildTextField(
                 label: 'ชื่อพันธุ์ปาล์ม *',
-                hint: 'เช่น เทเนอร่า (Tenera)',
-                icon: Icons.label_outline,
+                hint: 'เช่น เทเนอรา (Tenera)',
+                controller: _nameController,
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'กรุณากรอกชื่อพันธุ์' : null,
               ),
               const SizedBox(height: 16),
-
-              // ชื่อวิทยาศาสตร์
               _buildTextField(
                 label: 'ชื่อวิทยาศาสตร์',
                 hint: 'เช่น Elaeis guineensis var. tenera',
-                icon: Icons.science_outlined,
-              ),
-              const SizedBox(height: 16),
-
-              // คำอธิบาย
-              _buildTextField(
-                label: 'คำอธิบาย *',
-                hint: 'เช่น พันธุ์นิยมปลูกมากที่สุด ได้น้ำมันสูง...',
-                maxLines: 3,
-                icon: Icons.description_outlined,
-              ),
-              const SizedBox(height: 16),
-
-              // ลักษณะเด่น
-              _buildTextField(
-                label: 'ลักษณะเด่น',
-                hint: 'เช่น เปลือกบาง น้ำมันสูง โตเร็ว',
-                icon: Icons.star_border,
-              ),
-              const SizedBox(height: 24),
-
-              // เลือกสีแถบประจำพันธุ์
-              const Text(
-                'สีแถบประจำพันธุ์ *',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: List.generate(_varietyColors.length, (index) {
-                  final isSelected = _selectedColorIndex == index;
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedColorIndex = index;
-                      });
-                    },
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: _varietyColors[index],
-                        shape: BoxShape.circle,
-                        border: isSelected
-                            ? Border.all(color: Colors.white, width: 3)
-                            : null,
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: _varietyColors[index].withValues(alpha: 0.4),
-                                  blurRadius: 8,
-                                  spreadRadius: 2,
-                                ),
-                              ]
-                            : [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.05),
-                                  blurRadius: 4,
-                                ),
-                              ],
-                      ),
-                      child: isSelected
-                          ? const Icon(Icons.check, color: Colors.white, size: 24)
-                          : null,
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 24),
-
-              // สถานะนิยม
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F5E9),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.local_fire_department,
-                        color: Color(0xFF2D6A4F),
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'พันธุ์ยอดนิยม',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            'แสดง Badge "นิยม" บนการ์ดพันธุ์ปาล์ม',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Switch(
-                      value: _isPopular,
-                      onChanged: (value) {
-                        setState(() {
-                          _isPopular = value;
-                        });
-                      },
-                      activeThumbColor: primaryGreen,
-                    ),
-                  ],
-                ),
+                controller: _scientificController,
               ),
               const SizedBox(height: 32),
-
-              // ปุ่มบันทึก
               Row(
                 children: [
                   Expanded(
@@ -202,9 +121,7 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.grey[700],
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         side: BorderSide(color: Colors.grey[300]!),
                       ),
                       child: const Text('ยกเลิก', style: TextStyle(fontSize: 16)),
@@ -214,13 +131,14 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
                   Expanded(
                     flex: 2,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          // TODO: บันทึกข้อมูล
-                          Navigator.pop(context);
-                        }
-                      },
-                      icon: const Icon(Icons.save, size: 20),
+                      onPressed: _isSubmitting ? null : _save,
+                      icon: _isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save, size: 20),
                       label: const Text(
                         'บันทึก',
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -229,16 +147,13 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
                         backgroundColor: primaryGreen,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -249,43 +164,35 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
   Widget _buildTextField({
     required String label,
     required String hint,
-    required IconData icon,
-    int maxLines = 1,
+    required TextEditingController controller,
+    String? Function(String?)? validator,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        ),
+        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         TextFormField(
-          maxLines: maxLines,
-          validator: (value) {
-            if (label.contains('*') && (value == null || value.isEmpty)) {
-              return 'กรุณากรอก$label';
-            }
-            return null;
-          },
+          controller: controller,
+          validator: validator,
           decoration: InputDecoration(
             hintText: hint,
-            prefixIcon: Icon(icon, color: Colors.grey[400], size: 22),
+            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
             filled: true,
             fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[200]!),
+              borderSide: BorderSide(color: Colors.grey[300]!),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[200]!),
+              borderSide: BorderSide(color: Colors.grey[300]!),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: primaryGreen, width: 1.5),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
       ],

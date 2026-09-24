@@ -5,6 +5,7 @@ import 'package:flutter_myproject/screens/garden/harvest/harvest_screen.dart';
 import 'package:flutter_myproject/screens/main/report/report_screen.dart';
 import 'package:flutter_myproject/screens/garden/palmvarieties/palmvarieties_screen.dart';
 import 'package:flutter_myproject/screens/finance/finance_screen.dart';
+import 'package:flutter_myproject/screens/store/store_screen.dart';
 import 'package:flutter_myproject/widgets/dashboard_widget/menu_item.dart';
 
 class MenuGrid extends StatelessWidget {
@@ -82,7 +83,10 @@ class MenuGrid extends StatelessWidget {
                 label: 'ร้านรับซื้อ',
                 bgColor: const Color(0xFFFFF3E0),
                 labelColor: const Color(0xFFE65100),
-                onTap: () {},
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StoreScreen()),
+                ),
               ),
               MenuItem(
                 emoji: '🌱',

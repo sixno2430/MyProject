@@ -6,7 +6,11 @@ import 'package:flutter_myproject/utils/formatters.dart';
 
 class ActivityCard extends StatelessWidget { 
   final ActivityItem activity;
-  const ActivityCard({super.key, required this.activity});
+
+  /// เรียกเมื่อรายการถูกแก้ไข/ลบในหน้ารายละเอียด เพื่อให้หน้าแม่โหลดข้อมูลใหม่
+  final VoidCallback? onChanged;
+
+  const ActivityCard({super.key, required this.activity, this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -30,12 +34,15 @@ class ActivityCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias, // ตัดขอบ Ink Splash ให้โค้งมนตามการ์ด
         child: InkWell(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ActivityDetailScreen(activity: activity),
-            ),
-          ),
+          onTap: () async {
+            final changed = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ActivityDetailScreen(activity: activity),
+              ),
+            );
+            if (changed == true) onChanged?.call();
+          },
           child: Row(
             children: [
               // แถบสีด้านซ้าย

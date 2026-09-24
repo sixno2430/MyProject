@@ -1,4 +1,15 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart' show DateFormat;
+import 'package:flutter_myproject/config/app_config.dart';
+import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/widgets/item_actions.dart';
+import 'package:flutter_myproject/screens/garden/harvest/harvest_screen.dart' show HarvestData;
+import 'package:flutter_myproject/screens/garden/harvest/add_harvest_screen.dart';
+import 'package:flutter_myproject/screens/garden/gardencare/add_gardencare_screen.dart';
+import 'package:flutter_myproject/screens/finance/finance_screen.dart' show TransactionItem;
+import 'package:flutter_myproject/screens/finance/add_transaction_screen.dart';
 import 'package:flutter_myproject/widgets/activity_widgets/activity_type_badge.dart';
 import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
@@ -6,6 +17,92 @@ import 'package:flutter_myproject/utils/formatters.dart';
 class ActivityDetailScreen extends StatelessWidget {
   final ActivityItem activity;
   const ActivityDetailScreen({super.key, required this.activity});
+
+  double _num(dynamic v) => double.tryParse(v?.toString() ?? '') ?? 0;
+
+  // เปิดฟอร์มแก้ไขให้ตรงประเภท โดยแปลงข้อมูลกิจกรรมเป็นรูปแบบที่ฟอร์มนั้นรับ
+  Widget _buildEditForm() {
+    final raw = activity.raw;
+    final dateStr = DateFormat('yyyy-MM-dd').format(activity.recordDate);
+    switch (activity.type) {
+      case 'harvest':
+        return AddHarvestScreen(
+          existing: HarvestData(
+            id: activity.id,
+            gardenId: activity.gardenId,
+            code: raw['code']?.toString() ?? activity.id,
+            plotName: activity.gardenName,
+            buyer: '',
+            quantityKg: activity.quantity ?? 0,
+            pricePerKg: _num(raw['price_per_kg']),
+            totalPrice: activity.amount ?? 0,
+            date: dateStr,
+            status: raw['status']?.toString() ?? 'sold',
+          ),
+        );
+      case 'care':
+        return AddGardenCareScreen(
+          existing: {
+            'care_id': activity.id,
+            'garden_id': activity.gardenId,
+            'fertilizer_id': raw['fertilizer_id'],
+            'action_type': raw['action_type'],
+            'quantity': activity.quantity,
+            'cost': activity.amount,
+            'record_date': dateStr,
+            'note': raw['note'],
+          },
+        );
+      default: // income / expense
+        return AddTransactionScreen(
+          existing: TransactionItem(
+            id: activity.id,
+            title: activity.description ?? raw['category']?.toString() ?? '',
+            type: activity.type,
+            amount: activity.amount ?? 0,
+            category: raw['category']?.toString() ?? '',
+            gardenName: activity.gardenName,
+            gardenId: activity.gardenId,
+            date: dateStr,
+          ),
+        );
+    }
+  }
+
+  Future<void> _edit(BuildContext context) async {
+    final saved = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => _buildEditForm()),
+    );
+    // แก้ไขแล้ว: ปิดหน้านี้พร้อมบอกหน้าก่อนหน้าให้โหลดใหม่ (ข้อมูลในหน้านี้เก่าแล้ว)
+    if (saved == true && context.mounted) Navigator.pop(context, true);
+  }
+
+  Future<void> _delete(BuildContext context) async {
+    if (!await confirmDelete(context, 'กิจกรรม ${activity.gardenName}')) return;
+
+    final userId = await AuthService.getUserId();
+    final path = switch (activity.type) {
+      'harvest' => 'harvests',
+      'care' => 'care-logs',
+      _ => 'finance',
+    };
+    try {
+      final response = await http.delete(
+        Uri.parse('${AppConfig.apiBaseUri}/$path/${activity.id}?user_id=$userId'),
+      );
+      final body = jsonDecode(response.body);
+      if (body['isError'] == true) throw Exception(body['errorMessage']);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบรายการแล้ว')));
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,11 +123,11 @@ class ActivityDetailScreen extends StatelessWidget {
             actions: [
               IconButton(
                 icon: const Icon(Icons.edit, color: Colors.white),
-                onPressed: () {},
+                onPressed: () => _edit(context),
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, color: Colors.white),
-                onPressed: () {},
+                onPressed: () => _delete(context),
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
@@ -136,7 +233,7 @@ class ActivityDetailScreen extends StatelessWidget {
                     _buildDetailRow(
                       Icons.scale_outlined,
                       'จำนวน',
-                      '${formatNumber(activity.quantity!)} กิโลกรัม',
+                      '${formatNumber(activity.quantity!)} ${activity.raw['quantity_type'] ?? 'กิโลกรัม'}',
                     ),
                   if (activity.amount != null)
                     _buildDetailRow(
@@ -158,7 +255,7 @@ class ActivityDetailScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () {},
+                          onPressed: () => _edit(context),
                           icon: const Icon(Icons.edit, size: 18),
                           label: const Text('แก้ไข'),
                           style: OutlinedButton.styleFrom(
@@ -174,7 +271,7 @@ class ActivityDetailScreen extends StatelessWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () {},
+                          onPressed: () => _delete(context),
                           icon: const Icon(Icons.delete_outline, size: 18),
                           label: const Text('ลบ'),
                           style: ElevatedButton.styleFrom(

@@ -3,6 +3,10 @@ import 'package:flutter_myproject/widgets/activity_widgets/activity_card.dart';
 import 'package:flutter_myproject/widgets/activity_widgets/activity_empty_state.dart';
 import 'package:flutter_myproject/widgets/activity_widgets/activity_filter_bar.dart';
 import 'package:flutter_myproject/services/dashboard_service.dart';
+import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/screens/garden/harvest/add_harvest_screen.dart';
+import 'package:flutter_myproject/screens/garden/gardencare/add_gardencare_screen.dart';
+import 'package:flutter_myproject/screens/finance/add_transaction_screen.dart';
 
 class ActivityScreen extends StatefulWidget {
   const ActivityScreen({super.key});
@@ -15,21 +19,72 @@ class _ActivityScreenState extends State<ActivityScreen> {
   String _selectedFilter = 'all';
   late Future<List<ActivityItem>> _activitiesFuture;
 
-  //@override
-  // void initState() {
-  //   super.initState();
-  //   _loadActivities();
-  // }
+  @override
+  void initState() {
+    super.initState();
+    // เดิม initState ถูก comment ไว้ ทำให้ _activitiesFuture (late) ไม่เคยถูกกำหนดค่า -> เปิดหน้าแล้ว crash
+    _activitiesFuture = _fetch();
+  }
 
-  // void _loadActivities() {
-  //   // TODO: เปลี่ยนเป็น service จริงที่ดึงจาก API/DB
-  //   _activitiesFuture = DashboardService().fetchActivities();
-  // }
+  Future<List<ActivityItem>> _fetch() async {
+    final userId = await AuthService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      throw Exception('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่');
+    }
+    return DashboardService().fetchActivities(userId);
+  }
 
-  // Future<void> _onRefresh() async {
-  //   setState(_loadActivities);
-  //   await _activitiesFuture;
-  // }
+  void _reload() {
+    setState(() => _activitiesFuture = _fetch());
+  }
+
+  Future<void> _onRefresh() async {
+    _reload();
+    try {
+      await _activitiesFuture;
+    } catch (_) {}
+  }
+
+  // ปุ่ม "เพิ่มกิจกรรม": เลือกประเภทก่อน แล้วเปิดฟอร์มของประเภทนั้น
+  Future<void> _addActivity() async {
+    final page = await showModalBottomSheet<Widget>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('เพิ่มกิจกรรม', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            ListTile(
+              leading: const Text('🧺', style: TextStyle(fontSize: 24)),
+              title: const Text('บันทึกการเก็บเกี่ยว'),
+              onTap: () => Navigator.pop(context, const AddHarvestScreen()),
+            ),
+            ListTile(
+              leading: const Text('💊', style: TextStyle(fontSize: 24)),
+              title: const Text('บันทึกการดูแลสวน / ใส่ปุ๋ย'),
+              onTap: () => Navigator.pop(context, const AddGardenCareScreen()),
+            ),
+            ListTile(
+              leading: const Text('💵', style: TextStyle(fontSize: 24)),
+              title: const Text('บันทึกรายรับ-รายจ่าย'),
+              onTap: () => Navigator.pop(context, const AddTransactionScreen()),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (page == null || !mounted) return;
+    final saved = await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    if (saved == true) _reload();
+  }
 
   List<ActivityItem> _filterList(List<ActivityItem> list) {
     if (_selectedFilter == 'all') return list;
@@ -56,11 +111,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   const SizedBox(height: 12),
                   Text('โหลดข้อมูลไม่สำเร็จ', style: TextStyle(color: Colors.grey[700])),
                   const SizedBox(height: 8),
-                  // TextButton.icon(
-                  //   onPressed: _onRefresh,
-                  //   icon: const Icon(Icons.refresh),
-                  //   label: const Text('ลองใหม่'),
-                  // ),
+                  TextButton.icon(
+                    onPressed: _reload,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('ลองใหม่'),
+                  ),
                 ],
               ),
             );
@@ -69,13 +124,16 @@ class _ActivityScreenState extends State<ActivityScreen> {
           final allActivities = snapshot.data ?? [];
           final filtered = _filterList(allActivities);
 
-          return CustomScrollView(
+          return RefreshIndicator(
+            onRefresh: _onRefresh,
+            child: CustomScrollView(
             slivers: [
               // AppBar
               SliverAppBar(
                 expandedHeight: 120,
                 pinned: true,
                 backgroundColor: const Color(0xFF2D6A4F),
+                foregroundColor: Colors.white,
                 flexibleSpace: FlexibleSpaceBar(
                   titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
                   title: const Text(
@@ -92,12 +150,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
                     ),
                   ),
                 ),
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.search, color: Colors.white),
-                    onPressed: () {},
-                  ),
-                ],
               ),
 
               // Filter Chips
@@ -149,7 +201,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
-                      (context, index) => ActivityCard(activity: filtered[index]),
+                      (context, index) => ActivityCard(
+                        activity: filtered[index],
+                        onChanged: _reload,
+                      ),
                       childCount: filtered.length,
                     ),
                   ),
@@ -157,13 +212,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
+            ),
           );
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: ไปหน้าเพิ่มกิจกรรม
-        },
+        onPressed: _addActivity,
         backgroundColor: const Color(0xFF2D6A4F),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('เพิ่มกิจกรรม', style: TextStyle(color: Colors.white)),

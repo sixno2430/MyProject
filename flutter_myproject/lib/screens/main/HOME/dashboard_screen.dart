@@ -76,7 +76,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SliverToBoxAdapter(child: MenuGrid()),
                       const SliverToBoxAdapter(child: SizedBox(height: 24)),
                       SliverToBoxAdapter(
-                        child: ActivityList(activities: data.activities),
+                        child: ActivityList(
+                          activities: data.activities,
+                          onChanged: _loadDashboard,
+                        ),
                       ),
                       const SliverToBoxAdapter(child: SizedBox(height: 24)),
                     ],

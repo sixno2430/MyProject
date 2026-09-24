@@ -1,14 +1,125 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_myproject/config/app_config.dart';
+import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/widgets/item_actions.dart';
+import 'add_palmvariety_screen.dart';
+import 'palm_variety.dart';
 
-class PalmVarietiesScreen extends StatelessWidget {
+class PalmVarietiesScreen extends StatefulWidget {
   const PalmVarietiesScreen({super.key});
 
+  @override
+  State<PalmVarietiesScreen> createState() => _PalmVarietiesScreenState();
+}
+
+class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
   final Color primaryGreen = const Color(0xFF2D6A4F);
+
+  // สีแถบของการ์ด วนใช้ตามลำดับ
+  static const List<Color> _cardColors = [
+    Color(0xFF2D6A4F),
+    Color(0xFFF9A825),
+    Color(0xFF42A5F5),
+    Color(0xFFAB47BC),
+    Color(0xFFEF5350),
+    Color(0xFF8D6E63),
+  ];
+
+  List<PalmVariety> _varieties = [];
+  String _query = '';
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchVarieties();
+  }
+
+  Future<void> _fetchVarieties() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final userId = await AuthService.getUserId();
+      final response = await http.get(
+        Uri.parse('${AppConfig.apiBaseUri}/varieties?user_id=${userId ?? ''}'),
+      );
+      final body = jsonDecode(response.body);
+      if (body['isError'] == true) throw Exception(body['errorMessage']);
+      final list = (body['data'] as List).map((e) => PalmVariety.fromJson(e)).toList();
+      if (!mounted) return;
+      setState(() {
+        _varieties = list;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'โหลดข้อมูลไม่สำเร็จ: ${e.toString().replaceFirst('Exception: ', '')}';
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<PalmVariety> get _filtered {
+    if (_query.isEmpty) return _varieties;
+    final q = _query.toLowerCase();
+    return _varieties
+        .where((v) =>
+            v.varietyName.toLowerCase().contains(q) ||
+            (v.scientificName ?? '').toLowerCase().contains(q))
+        .toList();
+  }
+
+  Future<void> _openForm({PalmVariety? existing}) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => AddPalmVarietyScreen(existing: existing)),
+    );
+    if (result == true) _fetchVarieties();
+  }
+
+  Future<void> _onLongPress(PalmVariety v) async {
+    final action = await showItemActionsSheet(context);
+    if (action == null || !mounted) return;
+
+    if (action == ItemAction.edit) {
+      _openForm(existing: v);
+      return;
+    }
+
+    if (!await confirmDelete(context, v.varietyName)) return;
+    try {
+      final response = await http.delete(
+        Uri.parse('${AppConfig.apiBaseUri}/varieties/${v.varietyId}'),
+      );
+      final body = jsonDecode(response.body);
+      if (body['isError'] == true) throw Exception(body['errorMessage']);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบพันธุ์ปาล์มแล้ว')));
+      _fetchVarieties();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
+        onPressed: () => _openForm(),
+        child: const Icon(Icons.add),
+      ),
       body: Column(
         children: [
           // ====== Header สีเขียว ======
@@ -49,12 +160,12 @@ class PalmVarietiesScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 36), // บалансกับปุ่มย้อนกลับ
+                        const SizedBox(width: 36), // ให้สมดุลกับปุ่มย้อนกลับ
                       ],
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'ข้อมูลพันธุ์ปาล์ม 4 สายพันธุ์',
+                      _isLoading ? 'กำลังโหลด...' : 'ข้อมูลพันธุ์ปาล์ม ${_varieties.length} สายพันธุ์',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.8),
                         fontSize: 14,
@@ -68,80 +179,50 @@ class PalmVarietiesScreen extends StatelessWidget {
 
           // ====== เนื้อหา ======
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
+            child: RefreshIndicator(
+              onRefresh: _fetchVarieties,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
                 children: [
-                  // ช่องค้นหา
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.search, color: Colors.grey[400], size: 22),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            decoration: InputDecoration(
-                              hintText: 'ค้นหาพันธุ์ปาล์ม...',
-                              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildSearchBox(),
                   const SizedBox(height: 16),
-
-                  // รายการพันธุ์ปาล์ม
-                  _buildVarietyCard(
-                    topColor: const Color(0xFF2D6A4F),
-                    iconBgColor: const Color(0xFFE8F5E9),
-                    name: 'เทเนอร่า (Tenera)',
-                    scientificName: 'Elaeis guineensis var. tenera',
-                    description: 'พันธุ์นิยมปลูกมากที่สุด ได้น้ำมันสูง\nเบลอิบานา · Dura × Pisifera',
-                    usageText: '',
-                    usageColor: const Color(0xFF2D6A4F),
-                  ),
-                  _buildVarietyCard(
-                    topColor: const Color(0xFFF9A825),
-                    iconBgColor: const Color(0xFFFFF8E1),
-                    name: 'ดูร่าไวน์ (Dura)',
-                    scientificName: 'Elaeis guineensis var. dura',
-                    description: 'พันธุ์ตั้งต้น เปลือกหนา แข็งแกร่ง',
-                    usageText: '',
-                    usageColor: const Color(0xFFF9A825),
-                  ),
-                  _buildVarietyCard(
-                    topColor: const Color(0xFF42A5F5),
-                    iconBgColor: const Color(0xFFE3F2FD),
-                    name: 'คอมแพคท์ (Compact)',
-                    scientificName: 'Elaeis guineensis (Compact)',
-                    description: 'ต้นเตี้ย เหมาะพื้นที่เล็ก เก็บเกี่ยวง่าย',
-                    usageText: '',
-                    usageColor: const Color(0xFF42A5F5),
-                  ),
-                  _buildVarietyCard(
-                    topColor: const Color(0xFFAB47BC),
-                    iconBgColor: const Color(0xFFF3E5F5),
-                    name: 'ปิซิเฟอร่า (Pisifera)',
-                    scientificName: 'Elaeis guineensis var. pisifera',
-                    description: 'พันธุ์ผู้ ใช้ผสมพันธุ์เพื่อผลิต Tenera',
-                    usageText: '',
-                    usageColor: const Color(0xFFAB47BC),
-                  ),
+                  if (_isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (_errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+                          const SizedBox(height: 12),
+                          ElevatedButton(onPressed: _fetchVarieties, child: const Text('ลองใหม่')),
+                        ],
+                      ),
+                    )
+                  else if (_filtered.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Center(
+                        child: Text(
+                          _query.isEmpty ? 'ยังไม่มีข้อมูลพันธุ์ปาล์ม' : 'ไม่พบพันธุ์ที่ค้นหา',
+                          style: TextStyle(color: Colors.grey[500]),
+                        ),
+                      ),
+                    )
+                  else ...[
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8, left: 4),
+                      child: Text(
+                        'กดค้างที่การ์ดเพื่อแก้ไขหรือลบ',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                      ),
+                    ),
+                    for (final v in _filtered)
+                      _buildVarietyCard(v, _cardColors[_varieties.indexOf(v) % _cardColors.length]),
+                  ],
                 ],
               ),
             ),
@@ -151,21 +232,12 @@ class PalmVarietiesScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildVarietyCard({
-    required Color topColor,
-    required Color iconBgColor,
-    required String name,
-    required String scientificName,
-    required String description,
-    required String usageText,
-    required Color usageColor,
-    String? badge,
-  }) {
+  Widget _buildSearchBox() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -174,111 +246,117 @@ class PalmVarietiesScreen extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
+      child: Row(
         children: [
-          // แถบสีด้านบน
-          Container(
-            height: 4,
-            decoration: BoxDecoration(
-              color: topColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ไอคอน
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: iconBgColor,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Center(
-                        child: Text('🌿', style: TextStyle(fontSize: 24)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                name,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (badge != null) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE8F5E9),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    badge,
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF2D6A4F),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            scientificName,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[500],
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[700],
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text('🌴 ', style: const TextStyle(fontSize: 14)),
-                    Text(
-                      usageText,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: usageColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          Icon(Icons.search, color: Colors.grey[400], size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              onChanged: (v) => setState(() => _query = v.trim()),
+              decoration: InputDecoration(
+                hintText: 'ค้นหาพันธุ์ปาล์ม...',
+                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVarietyCard(PalmVariety v, Color color) {
+    final isUsed = v.plantCount > 0;
+    return GestureDetector(
+      onLongPress: () => _onLongPress(v),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // แถบสีด้านบน
+            Container(
+              height: 4,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Center(child: Text('🌿', style: TextStyle(fontSize: 24))),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              v.varietyName,
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
+                            if ((v.scientificName ?? '').isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                v.scientificName!,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[500],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Text(v.varietyId, style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Text('🌴 ', style: TextStyle(fontSize: 14)),
+                      Text(
+                        isUsed
+                            ? 'สวนของคุณปลูก ${v.plantCount} ต้น · ${v.gardenCount} แปลง'
+                            : 'ยังไม่ได้ปลูกในสวนของคุณ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isUsed ? color : Colors.grey[500],
+                          fontWeight: isUsed ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
