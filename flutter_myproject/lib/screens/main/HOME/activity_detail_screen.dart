@@ -39,7 +39,7 @@ class ActivityDetailScreen extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [theme.appBarColor, theme.appBarColor.withOpacity(0.8)],
+                    colors: [theme.appBarColor, theme.appBarColor.withValues(alpha: 0.8)],
                   ),
                 ),
                 child: SafeArea(
@@ -62,7 +62,7 @@ class ActivityDetailScreen extends StatelessWidget {
                         Text(
                           formatThaiDate(activity.recordDate),
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.85),
+                            color: Colors.white.withValues(alpha: 0.85),
                             fontSize: 14,
                           ),
                         ),
@@ -89,7 +89,7 @@ class ActivityDetailScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
+                          color: Colors.black.withValues(alpha: 0.04),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -240,7 +240,7 @@ class ActivityDetailScreen extends StatelessWidget {
     switch (activity.type) {
       case 'harvest':
       case 'care':
-        return '${formatNumber(activity.quantity ?? 0)}';
+        return formatNumber(activity.quantity ?? 0);
       case 'income':
         return '+${formatNumber(activity.amount ?? 0)}';
       case 'expense':

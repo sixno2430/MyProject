@@ -1,14 +1,15 @@
 import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/config/app_config.dart';
 
 class AddGardenCareScreen extends StatefulWidget {
-  final String userId;
+  /// ข้อมูลเดิมจาก API (ส่งมา = โหมดแก้ไข, ไม่ส่ง = เพิ่มใหม่)
+  final Map<String, dynamic>? existing;
 
-  const AddGardenCareScreen({super.key, this.userId = 'U002'});
+  const AddGardenCareScreen({super.key, this.existing});
 
   @override
   State<AddGardenCareScreen> createState() => _AddGardenCareScreenState();
@@ -18,11 +19,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
   final Color primaryGreen = const Color(0xFF2D6A4F);
   final _formKey = GlobalKey<FormState>();
 
-  String get apiUrl {
-    if (kIsWeb) return 'http://localhost:3000/api';
-    if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
-    return 'http://localhost:3000/api';
-  }
+  String get apiUrl => AppConfig.apiBaseUri;
 
   String? _selectedGardenId;
   List<Map<String, dynamic>> _plots = [];
@@ -46,15 +43,45 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
     {'label': 'อื่นๆ', 'icon': '🛠️', 'color': const Color(0xFF607D8B), 'type': 'other', 'unit': 'รายการ'},
   ];
 
+  bool get _isEdit => widget.existing != null;
+
   @override
   void initState() {
     super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _selectedGardenId = e['garden_id']?.toString();
+      _selectedDate = DateTime.tryParse(e['record_date']?.toString() ?? '')?.toLocal() ?? DateTime.now();
+      final hasFertilizer = e['fertilizer_id'] != null && e['fertilizer_id'].toString().isNotEmpty;
+      _selectedType = hasFertilizer
+          ? 'ใส่ปุ๋ย'
+          : _careTypes.firstWhere(
+              (t) => t['type'] == e['action_type'],
+              orElse: () => _careTypes.last,
+            )['label'];
+      _detailController.text = e['note']?.toString() ?? '';
+      _amountController.text = _numText(e['quantity']);
+      _costController.text = _numText(e['cost']);
+    }
     _fetchPlotsFromBackend();
   }
 
+  // แปลงตัวเลขจาก DB เป็นข้อความ เช่น 40.00 -> "40"
+  String _numText(dynamic v) {
+    final n = double.tryParse(v?.toString() ?? '');
+    if (n == null || n == 0) return '';
+    return n % 1 == 0 ? n.toInt().toString() : n.toString();
+  }
+
   Future<void> _fetchPlotsFromBackend() async {
+    final userId = await AuthService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      setState(() => _isLoadingPlots = false);
+      return;
+    }
+
     try {
-      final response = await http.get(Uri.parse('$apiUrl/gardens/${widget.userId}'));
+      final response = await http.get(Uri.parse('$apiUrl/gardens/$userId'));
       if (response.statusCode == 200) {
         final resBody = jsonDecode(response.body);
         final List<dynamic> data = (resBody is Map && resBody.containsKey('data'))
@@ -67,7 +94,9 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
             'name': e['garden_name'].toString(),
           }).toList();
 
-          if (_plots.isNotEmpty) {
+          // โหมดแก้ไขให้คงแปลงเดิมไว้ ถ้าไม่มีค่อยเลือกแปลงแรก
+          final keepCurrent = _plots.any((p) => p['id'] == _selectedGardenId);
+          if (!keepCurrent && _plots.isNotEmpty) {
             _selectedGardenId = _plots.first['id'];
           }
           _isLoadingPlots = false;
@@ -111,10 +140,22 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
       return;
     }
 
+    final userId = await AuthService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่')),
+        );
+      }
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
-      String careId = 'C${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
+      String careId = _isEdit
+          ? widget.existing!['care_id'].toString()
+          : 'C${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
       String formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
 
       // ดึงข้อมูลประเภทกิจกรรมและหน่วยนับที่เลือก
@@ -146,18 +187,30 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
         'cost': costVal,
         'record_date': formattedDate,
         'note': fullDetail, // บันทึกรายละเอียดลง DB
+        'user_id': userId,
       };
 
-      final response = await http.post(
-        Uri.parse('$apiUrl/care-logs'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(bodyData),
-      );
+      final response = _isEdit
+          ? await http.put(
+              Uri.parse('$apiUrl/care-logs/$careId'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(bodyData),
+            )
+          : await http.post(
+              Uri.parse('$apiUrl/care-logs'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(bodyData),
+            );
+
+      final resBody = jsonDecode(response.body);
+      if (resBody is Map && resBody['isError'] == true) {
+        throw Exception(resBody['errorMessage'] ?? 'บันทึกไม่สำเร็จ');
+      }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('บันทึกการดูแลรักษาสวนเรียบร้อยแล้ว')),
+            SnackBar(content: Text(_isEdit ? 'แก้ไขรายการเรียบร้อยแล้ว' : 'บันทึกการดูแลรักษาสวนเรียบร้อยแล้ว')),
           );
           Navigator.pop(context, true);
         }
@@ -187,17 +240,17 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
           child: Container(
             margin: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
           ),
         ),
-        title: const Column(
+        title: Column(
           children: [
-            Text('การดูแลรักษาสวน', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-            SizedBox(height: 2),
-            Text('บันทึกการดูแล / การใส่ปุ๋ย', style: TextStyle(fontSize: 12, color: Colors.white70)),
+            const Text('การดูแลรักษาสวน', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+            const SizedBox(height: 2),
+            Text(_isEdit ? 'แก้ไขรายการ' : 'บันทึกการดูแล / การใส่ปุ๋ย', style: const TextStyle(fontSize: 12, color: Colors.white70)),
           ],
         ),
         centerTitle: true,
@@ -255,7 +308,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             decoration: BoxDecoration(
-                              color: isSelected ? (type['color'] as Color).withOpacity(0.15) : Colors.white,
+                              color: isSelected ? (type['color'] as Color).withValues(alpha: 0.15) : Colors.white,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: isSelected ? type['color'] as Color : Colors.grey[300]!,
@@ -357,7 +410,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                   : const Text('🛠️', style: TextStyle(fontSize: 18)),
               label: Text(
-                _isSubmitting ? 'กำลังบันทึก...' : 'บันทึกการดูแล',
+                _isSubmitting ? 'กำลังบันทึก...' : (_isEdit ? 'บันทึกการแก้ไข' : 'บันทึกการดูแล'),
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
               ),
               style: ElevatedButton.styleFrom(

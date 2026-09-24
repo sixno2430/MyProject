@@ -2,11 +2,12 @@ const db = require('../libs/db_pool');
 
 const harvest = {
   // 1. ดึงรายการเก็บเกี่ยวทั้งหมด
-  getAllHarvests: async (gardenId = null) => {
+  getAllHarvests: async (gardenId = null, userId = null) => {
     try {
       let query = `
         SELECT 
           h.harvest_id AS id,
+          h.garden_id AS gardenId,
           COALESCE(h.code, CAST(h.harvest_id AS CHAR)) AS code,
           COALESCE(g.garden_name, 'แปลงปาล์ม') AS plotName,
           COALESCE(s.shop_name, 'ไม่ระบุร้านรับซื้อ') AS buyer,
@@ -28,6 +29,11 @@ const harvest = {
         query += ` WHERE YEAR(h.harvest_date) = YEAR(CURDATE())`;
       }
 
+      if (userId) {
+        query += ` AND g.user_id = ?`;
+        params.push(userId);
+      }
+
       query += ` ORDER BY h.harvest_date DESC`;
 
       const rows = await db.query(query, params);
@@ -41,7 +47,7 @@ const harvest = {
   },
 
   // 2. ดึงข้อมูลสรุปผลรวม + กราฟ
-  getSummary: async (gardenId = null) => {
+  getSummary: async (gardenId = null, userId = null) => {
     try {
       let whereClause = `WHERE YEAR(harvest_date) = YEAR(CURDATE())`;
       const params = [];
@@ -49,6 +55,11 @@ const harvest = {
       if (gardenId && gardenId !== 'ALL') {
         whereClause += ` AND garden_id = ?`;
         params.push(gardenId);
+      }
+
+      if (userId) {
+        whereClause += ` AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?)`;
+        params.push(userId);
       }
 
       const summaryQuery = `
@@ -153,6 +164,44 @@ const harvest = {
     } catch (error) {
       console.error('Error createHarvest:', error);
       return { isError: true, data: null, errorMessage: error.message };
+    }
+  },
+
+  // 4. แก้ไขบันทึกการเก็บเกี่ยว (เฉพาะสวนของ userId)
+  updateHarvest: async (harvestId, userId, data) => {
+    try {
+      const { garden_id, harvest_date, total_quantity, price_per_kg, total_price, status } = data;
+      const query = `
+        UPDATE harvest
+        SET garden_id = ?, harvest_date = ?, total_quantity = ?, price_per_kg = ?, total_price = ?, status = ?
+        WHERE harvest_id = ? AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?) AND ? IN (SELECT garden_id FROM garden WHERE user_id = ?)
+      `;
+      const result = await db.query(query, [
+        garden_id, harvest_date, total_quantity || 0, price_per_kg || 0, total_price || 0, status || 'sold',
+        harvestId, userId, garden_id, userId
+      ]);
+      if (!result.affectedRows) {
+        return { isError: true, data: null, errorMessage: 'ไม่พบรายการ หรือไม่มีสิทธิ์แก้ไข' };
+      }
+      return { isError: false, data: null, errorMessage: "" };
+    } catch (error) {
+      console.error('Error updateHarvest:', error);
+      return { isError: true, data: null, errorMessage: 'แก้ไขรายการไม่สำเร็จ' };
+    }
+  },
+
+  // 5. ลบบันทึกการเก็บเกี่ยว (เฉพาะสวนของ userId)
+  deleteHarvest: async (harvestId, userId) => {
+    try {
+      const query = `DELETE FROM harvest WHERE harvest_id = ? AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?)`;
+      const result = await db.query(query, [harvestId, userId]);
+      if (!result.affectedRows) {
+        return { isError: true, data: null, errorMessage: 'ไม่พบรายการ หรือไม่มีสิทธิ์ลบ' };
+      }
+      return { isError: false, data: null, errorMessage: "" };
+    } catch (error) {
+      console.error('Error deleteHarvest:', error);
+      return { isError: true, data: null, errorMessage: 'ลบรายการไม่สำเร็จ' };
     }
   }
 };

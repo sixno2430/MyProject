@@ -45,24 +45,6 @@ app.get('/api/user/:user_id', async (req, res) => {
   res.json(response);
 });
 
-// ตอนสมัครสมาชิก
-app.post('/api/register', async (req, res) => {
-  const { role_id, full_name, id_card, phone, username, password } = req.body;
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  const idResult = await userAccount.getNextUserId();
-  if (idResult.isError) {
-    return res.json(idResult);
-  }
-  const userId = idResult.data;
-
-  const result = await userAccount.createUser(
-    userId, role_id, id_card, full_name, phone, username, hashedPassword
-  );
-
-  res.json(result);
-});
-
 // ตอน login
 app.post('/api/authen_request', async (req, res) => {
   const { username, password } = req.body;
@@ -181,7 +163,7 @@ app.get('/api/gardens/:garden_id/varieties', async (req, res) => {
 // ==========================================
 
 app.get('/api/care-logs', async (req, res) => {
-  const result = await care.getCareLogs();
+  const result = await care.getCareLogs(req.query.user_id);
   if (result.isError) {
     return res.status(500).json({ message: 'Error fetching care logs', error: result.errorMessage });
   }
@@ -190,6 +172,16 @@ app.get('/api/care-logs', async (req, res) => {
 
 app.post('/api/care-logs', async (req, res) => {
   const result = await care.createCareLog(req.body);
+  res.json(result);
+});
+
+app.put('/api/care-logs/:care_id', async (req, res) => {
+  const result = await care.updateCareLog(req.params.care_id, req.body.user_id, req.body);
+  res.json(result);
+});
+
+app.delete('/api/care-logs/:care_id', async (req, res) => {
+  const result = await care.deleteCareLog(req.params.care_id, req.query.user_id);
   res.json(result);
 });
 
@@ -203,14 +195,14 @@ app.get('/api/varieties', async (req, res) => {
 // ==========================================
 
 app.get('/api/harvests', async (req, res) => {
-  const gardenId = req.query.garden_id;
-  const result = await harvest.getAllHarvests(gardenId);
+  const { garden_id: gardenId, user_id: userId } = req.query;
+  const result = await harvest.getAllHarvests(gardenId, userId);
   res.json(result);
 });
 
 app.get('/api/harvests/summary', async (req, res) => {
-  const gardenId = req.query.garden_id;
-  const result = await harvest.getSummary(gardenId);
+  const { garden_id: gardenId, user_id: userId } = req.query;
+  const result = await harvest.getSummary(gardenId, userId);
   res.json(result);
 });
 
@@ -220,6 +212,16 @@ app.post('/api/harvests', async (req, res) => {
     return res.status(500).json(result);
   }
   res.status(201).json(result);
+});
+
+app.put('/api/harvests/:harvest_id', async (req, res) => {
+  const result = await harvest.updateHarvest(req.params.harvest_id, req.body.user_id, req.body);
+  res.json(result);
+});
+
+app.delete('/api/harvests/:harvest_id', async (req, res) => {
+  const result = await harvest.deleteHarvest(req.params.harvest_id, req.query.user_id);
+  res.json(result);
 });
 
 // ==========================================
@@ -246,6 +248,30 @@ app.post('/api/finance/add', async (req, res) => {
   res.json(result);
 });
 
+// PUT/DELETE: แก้ไข/ลบธุรกรรมทั่วไป (เฉพาะรายการ FN... ที่บันทึกเอง)
+app.put('/api/finance/:finance_id', async (req, res) => {
+  const result = await finance.updateTransaction(req.params.finance_id, req.body.user_id, req.body);
+  res.json(result);
+});
+
+app.delete('/api/finance/:finance_id', async (req, res) => {
+  const result = await finance.deleteTransaction(req.params.finance_id, req.query.user_id);
+  res.json(result);
+});
+
+// เปลี่ยนรหัสผ่าน
+app.put('/api/user/:user_id/password', async (req, res) => {
+  const { old_password, new_password } = req.body;
+  if (!old_password || !new_password) {
+    return res.json({ isError: true, errorMessage: 'กรุณากรอกรหัสผ่านให้ครบ' });
+  }
+  if (new_password.length < 8) {
+    return res.json({ isError: true, errorMessage: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัว' });
+  }
+  const result = await userAccount.changePassword(req.params.user_id, old_password, new_password);
+  res.json(result);
+});
+
 //api โปรไฟล์ผู้ใช้
 app.use('/api/profile', require('./routes/profile_routes'));
 
@@ -264,6 +290,18 @@ app.post('/api/register', async (req, res) => {
   }
 
   try {
+    // 🔥 เช็กว่า username / เลขบัตรซ้ำหรือไม่
+    const dupResult = await userAccount.checkDuplicate(username, id_card);
+    if (dupResult.isError) {
+      return res.json(dupResult);
+    }
+    if (dupResult.data.usernameTaken) {
+      return res.json({ isError: true, errorMessage: 'Username นี้ถูกใช้แล้ว', data: null });
+    }
+    if (dupResult.data.citizenIdTaken) {
+      return res.json({ isError: true, errorMessage: 'เลขบัตรประชาชนนี้ถูกลงทะเบียนแล้ว', data: null });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const idResult = await userAccount.getNextUserId();

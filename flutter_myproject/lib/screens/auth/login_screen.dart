@@ -117,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
           await AuthService.setUserId(userId);  // ← เก็บ user_id
           await AuthService.setToken(result.data);  // ← เก็บ token
 
-          print("Login success! user_id: $userId, access_token: ${result.data}");  // ← เอา \ ออก
+          debugPrint("Login success! user_id: $userId");  // ไม่ log token
 
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -137,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      print("เกิดข้อผิดพลาดตอน login: $e");  // ← เอา \ ออก
+      debugPrint("เกิดข้อผิดพลาดตอน login: $e");
       if (context.mounted) {
         showDialog(
           context: context,

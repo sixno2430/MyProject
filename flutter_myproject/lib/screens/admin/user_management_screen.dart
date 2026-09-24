@@ -105,13 +105,13 @@ class UserManagementScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8)],
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: color.withOpacity(0.15),
+            backgroundColor: color.withValues(alpha: 0.15),
             child: Text(name[0], style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18)),
           ),
           const SizedBox(width: 14),
@@ -130,7 +130,7 @@ class UserManagementScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(role, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_myproject/config/app_config.dart';
 
 /// ข้อมูลกิจกรรมล่าสุด 1 รายการ (เก็บเกี่ยว / ใส่ปุ๋ย / รับเงิน)
 class ActivityItem {
@@ -63,14 +64,10 @@ class DashboardData {
 }
 
 class DashboardService {
-  // TODO: เปลี่ยนตามที่รันจริง
-  // - รันบน Chrome/Web หรือ iOS Simulator: ใช้ localhost ได้เลย
-  // - รันบน Android Emulator: ต้องใช้ 10.0.2.2 แทน localhost
-  // - รันบนมือถือจริง: ต้องใช้ IP เครื่อง server เช่น 192.168.x.x
-  static const String baseUrl = 'http://localhost:3000';
+  static String get baseUrl => AppConfig.apiBaseUri;
 
   Future<DashboardData> fetchDashboard(String userId) async {
-    final uri = Uri.parse('$baseUrl/api/dashboard/$userId');
+    final uri = Uri.parse('$baseUrl/dashboard/$userId');
     final response = await http.get(uri);
 
     if (response.statusCode != 200) {

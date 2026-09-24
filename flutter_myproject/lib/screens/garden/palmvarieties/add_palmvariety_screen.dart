@@ -36,7 +36,7 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
           child: Container(
             margin: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
@@ -117,14 +117,14 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
-                                  color: _varietyColors[index].withOpacity(0.4),
+                                  color: _varietyColors[index].withValues(alpha: 0.4),
                                   blurRadius: 8,
                                   spreadRadius: 2,
                                 ),
                               ]
                             : [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
+                                  color: Colors.black.withValues(alpha: 0.05),
                                   blurRadius: 4,
                                 ),
                               ],
@@ -186,7 +186,7 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
                           _isPopular = value;
                         });
                       },
-                      activeColor: primaryGreen,
+                      activeThumbColor: primaryGreen,
                     ),
                   ],
                 ),

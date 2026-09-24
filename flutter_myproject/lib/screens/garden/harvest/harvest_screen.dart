@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_myproject/config/app_config.dart';
 import 'add_harvest_screen.dart';
+import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/widgets/item_actions.dart';
 
 // ==========================================
 // 1. MODELS
@@ -9,6 +12,7 @@ import 'add_harvest_screen.dart';
 
 class HarvestData {
   final String id;
+  final String gardenId;
   final String code;
   final String plotName;
   final String buyer;
@@ -20,6 +24,7 @@ class HarvestData {
 
   HarvestData({
     required this.id,
+    this.gardenId = '',
     required this.code,
     required this.plotName,
     required this.buyer,
@@ -33,6 +38,7 @@ class HarvestData {
   factory HarvestData.fromJson(Map<String, dynamic> json) {
     return HarvestData(
       id: json['id']?.toString() ?? '',
+      gardenId: json['gardenId']?.toString() ?? '',
       code: json['code'] ?? '',
       plotName: json['plotName'] ?? json['plot_name'] ?? '',
       buyer: json['buyer'] ?? '',
@@ -77,11 +83,23 @@ class HarvestSummary {
 // ==========================================
 
 class HarvestService {
-  static const String baseUrl = 'http://localhost:3000/api';
+  static String get baseUrl => AppConfig.apiBaseUri;
+
+  // สร้าง query ที่มี user_id ของคนที่ล็อกอินอยู่เสมอ (+ garden_id ถ้ามี)
+  Future<Map<String, String>> _buildQuery(String? gardenId) async {
+    final userId = await AuthService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      throw Exception('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่');
+    }
+    return {
+      'user_id': userId,
+      'garden_id': ?gardenId,
+    };
+  }
 
   Future<List<HarvestData>> fetchHarvestRecords({String? gardenId}) async {
     final uri = Uri.parse('$baseUrl/harvests').replace(
-      queryParameters: gardenId != null ? {'garden_id': gardenId} : null,
+      queryParameters: await _buildQuery(gardenId),
     );
 
     final response = await http.get(uri);
@@ -119,7 +137,7 @@ class HarvestService {
 
   Future<HarvestSummary> fetchHarvestSummary({String? gardenId}) async {
     final uri = Uri.parse('$baseUrl/harvests/summary').replace(
-      queryParameters: gardenId != null ? {'garden_id': gardenId} : null,
+      queryParameters: await _buildQuery(gardenId),
     );
 
     final response = await http.get(uri);
@@ -147,7 +165,7 @@ class HarvestService {
 // ==========================================
 
 class HarvestScreen extends StatefulWidget {
-  const HarvestScreen({Key? key}) : super(key: key);
+  const HarvestScreen({super.key});
 
   @override
   State<HarvestScreen> createState() => _HarvestScreenState();
@@ -171,6 +189,39 @@ class _HarvestScreenState extends State<HarvestScreen> {
       _summaryFuture = _service.fetchHarvestSummary();
       _harvestsFuture = _service.fetchHarvestRecords();
     });
+  }
+
+  // กดค้างที่รายการ -> เลือกแก้ไข / ลบ
+  Future<void> _onHarvestLongPress(HarvestData item) async {
+    final action = await showItemActionsSheet(context);
+    if (action == null || !mounted) return;
+
+    if (action == ItemAction.edit) {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => AddHarvestScreen(existing: item)),
+      );
+      if (result == true) _refreshData();
+      return;
+    }
+
+    if (!await confirmDelete(context, '${item.code} · ${item.plotName}')) return;
+    final userId = await AuthService.getUserId();
+    try {
+      final response = await http.delete(
+        Uri.parse('${HarvestService.baseUrl}/harvests/${item.id}?user_id=$userId'),
+      );
+      final body = jsonDecode(response.body);
+      if (body['isError'] == true) throw Exception(body['errorMessage']);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบรายการแล้ว')));
+      _refreshData();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   Future<void> _navigateToAddHarvest() async {
@@ -318,14 +369,16 @@ class _HarvestScreenState extends State<HarvestScreen> {
                       final item = items[index];
                       final bool isSold = item.status == 'sold';
 
-                      return Container(
+                      return GestureDetector(
+                        onLongPress: () => _onHarvestLongPress(item),
+                        child: Container(
                         padding: const EdgeInsets.all(16.0),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.03),
+                              color: Colors.black.withValues(alpha: 0.03),
                               blurRadius: 6,
                               offset: const Offset(0, 2),
                             )
@@ -381,6 +434,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
                             ),
                           ],
                         ),
+                      ),
                       );
                     },
                   );
@@ -424,7 +478,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 6,
             offset: const Offset(0, 2),
           )
@@ -452,10 +506,9 @@ class _InteractiveChartCard extends StatefulWidget {
   final ValueChanged<String?>? onHoverMonth;
 
   const _InteractiveChartCard({
-    Key? key,
     required this.monthlyData,
     this.onHoverMonth,
-  }) : super(key: key);
+  });
 
   @override
   State<_InteractiveChartCard> createState() => _InteractiveChartCardState();
@@ -485,7 +538,7 @@ class _InteractiveChartCardState extends State<_InteractiveChartCard> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 6,
             offset: const Offset(0, 2),
           )
@@ -552,7 +605,7 @@ class _InteractiveChartCardState extends State<_InteractiveChartCard> {
                             boxShadow: isHovered
                                 ? [
                                     BoxShadow(
-                                      color: const Color(0xFF1E5631).withOpacity(0.4),
+                                      color: const Color(0xFF1E5631).withValues(alpha: 0.4),
                                       blurRadius: 6,
                                       offset: const Offset(0, 2),
                                     )

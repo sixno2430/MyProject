@@ -68,7 +68,7 @@ class NotificationsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: isRead ? Colors.white : const Color(0xFFE8F5E9),
         borderRadius: BorderRadius.circular(12),
-        border: isRead ? null : Border.all(color: const Color(0xFF2D6A4F).withOpacity(0.2)),
+        border: isRead ? null : Border.all(color: const Color(0xFF2D6A4F).withValues(alpha: 0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
