@@ -124,7 +124,9 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _fetchShops());
+    setState(() {
+      _future = _fetchShops();
+    });
     try {
       await _future;
     } catch (_) {}

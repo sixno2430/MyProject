@@ -35,7 +35,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
   }
 
   void _reload() {
-    setState(() => _activitiesFuture = _fetch());
+    setState(() {
+      _activitiesFuture = _fetch();
+    });
   }
 
   Future<void> _onRefresh() async {

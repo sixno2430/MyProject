@@ -132,7 +132,9 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   void _load() {
-    setState(() => _future = ReportService.fetchYearly(_year));
+    setState(() {
+      _future = ReportService.fetchYearly(_year);
+    });
   }
 
   void _changeYear(int delta) {
