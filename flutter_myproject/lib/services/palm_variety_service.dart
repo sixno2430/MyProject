@@ -21,20 +21,19 @@ class PalmVarietyService {
 
       if (res.statusCode == 200) {
         final dynamic decoded = jsonDecode(res.body);
-
         List<dynamic> list = [];
 
-        // กรณีที่ 1: ส่งมาแบบ { isError: false, data: [...] }
         if (decoded is Map<String, dynamic>) {
           if (decoded['isError'] == true) {
             throw Exception(decoded['errorMessage'] ?? 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์');
           }
-          if (decoded['data'] is List) {
-            list = decoded['data'] as List;
+          final raw = decoded['data'];
+          if (raw is List) {
+            list = raw;
+          } else if (raw is Map<String, dynamic>) {
+            list = [raw];
           }
-        } 
-        // กรณีที่ 2: ส่งมาเป็น List ตรงๆ [ {...}, {...} ]
-        else if (decoded is List) {
+        } else if (decoded is List) {
           list = decoded;
         }
 
@@ -43,7 +42,7 @@ class PalmVarietyService {
         throw Exception('Server error: ${res.statusCode}');
       }
     } catch (e) {
-      debugPrint('Error fetching varieties: $e');
+      debugPrint('Error getVarieties: $e');
       rethrow;
     }
   }

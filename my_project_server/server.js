@@ -53,7 +53,6 @@ app.get('/api/user/:user_id', async (req, res) => {
 app.post('/api/register', async (req, res) => {
   const { role_id, full_name, id_card, phone, username, password } = req.body;
 
-  // Validate ข้อมูลก่อน
   if (!role_id || !full_name || !id_card || !phone || !username || !password) {
     return res.json({
       isError: true,
@@ -250,7 +249,7 @@ app.post('/api/care-logs', async (req, res) => {
   }
 });
 
-// API สำหรับดึงข้อมูลพันธุ์ปาล์มน้ำมัน
+// API พันธุ์ปาล์มน้ำมัน
 app.get('/api/varieties', async (req, res) => {
   try {
     const result = await palmVariety.getAll();

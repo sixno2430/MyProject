@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/screens/garden/palmplot/palmplot_screen.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/gardencare_screen.dart';
-import 'package:flutter_myproject/screens/garden/havest/harvest_screen.dart';
+import 'package:flutter_myproject/screens/garden/harvest/harvest_screen.dart';
 import 'package:flutter_myproject/screens/main/report/report_screen.dart';
 import 'package:flutter_myproject/screens/garden/plamvarieties/palmvarieties_screen.dart';
 import 'package:flutter_myproject/screens/finance/finance_screen.dart';
@@ -10,6 +10,15 @@ import 'package:flutter_myproject/widgets/dashboard_widget/menu_item.dart';
 class MenuGrid extends StatelessWidget {
   final String token;
   const MenuGrid({super.key, required this.token});
+
+  void _showComingSoon(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('กำลังพัฒนาฟังก์ชันร้านรับซื้อ'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,8 +32,8 @@ class MenuGrid extends StatelessWidget {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          
-          // แถวที่ 1 (4 เมนู)
+
+          // แถวที่ 1
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -73,7 +82,7 @@ class MenuGrid extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // แถวที่ 2 (3 หรือ 4 เมนู)
+          // แถวที่ 2
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -92,11 +101,7 @@ class MenuGrid extends StatelessWidget {
                 label: 'ร้านรับซื้อ',
                 bgColor: const Color(0xFFFFF3E0),
                 labelColor: const Color(0xFFE65100),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('กำลังพัฒนาฟังก์ชันร้านรับซื้อ')),
-                  );
-                },
+                onTap: () => _showComingSoon(context),
               ),
               MenuItem(
                 emoji: '📈',
@@ -108,8 +113,7 @@ class MenuGrid extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const ReportScreen()),
                 ),
               ),
-              // ใช้ SizedBox กว้างเท่าปุ่ม เพื่อรักษาการจัดช่องว่างให้ตรงแนวกับแถวบน
-              const SizedBox(width: 64), 
+              const SizedBox(width: 64),
             ],
           ),
         ],
