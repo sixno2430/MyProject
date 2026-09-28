@@ -10,8 +10,8 @@ class PalmVariety {
   });
 
   factory PalmVariety.fromJson(Map<String, dynamic> json) => PalmVariety(
-        varietyId: json['variety_id'] as String,
-        varietyName: json['variety_name'] as String,
-        scientificName: json['scientific_name'] as String?,
+        varietyId: (json['variety_id'] ?? '').toString(),
+        varietyName: (json['variety_name'] ?? '').toString(),
+        scientificName: json['scientific_name']?.toString(),
       );
 }

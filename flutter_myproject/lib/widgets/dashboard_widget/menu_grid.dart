@@ -8,7 +8,8 @@ import 'package:flutter_myproject/screens/finance/finance_screen.dart';
 import 'package:flutter_myproject/widgets/dashboard_widget/menu_item.dart';
 
 class MenuGrid extends StatelessWidget {
-  const MenuGrid({super.key});
+  final String token;
+  const MenuGrid({super.key, required this.token});
 
   @override
   Widget build(BuildContext context) {
@@ -22,8 +23,10 @@ class MenuGrid extends StatelessWidget {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
+          
+          // แถวที่ 1 (4 เมนู)
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               MenuItem(
                 emoji: '🗺️',
@@ -44,13 +47,6 @@ class MenuGrid extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const GardenCareScreen()),
                 ),
               ),
-              // MenuItem(
-              //   emoji: '💊',
-              //   label: 'ใส่ปุ๋ย',
-              //   bgColor: const Color(0xFFFFEBEE),
-              //   labelColor: Colors.red,
-              //   onTap: () {},
-              // ),
               MenuItem(
                 emoji: '🧺',
                 label: 'เก็บเกี่ยว',
@@ -61,11 +57,25 @@ class MenuGrid extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const HarvestScreen()),
                 ),
               ),
+              MenuItem(
+                emoji: '🌱',
+                label: 'พันธุ์ปาล์ม',
+                bgColor: const Color(0xFFE8F5E9),
+                labelColor: const Color(0xFF2D6A4F),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PalmVarietiesScreen(token: token),
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
+
+          // แถวที่ 2 (3 หรือ 4 เมนู)
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               MenuItem(
                 emoji: '💵',
@@ -82,17 +92,11 @@ class MenuGrid extends StatelessWidget {
                 label: 'ร้านรับซื้อ',
                 bgColor: const Color(0xFFFFF3E0),
                 labelColor: const Color(0xFFE65100),
-                onTap: () {},
-              ),
-              MenuItem(
-                emoji: '🌱',
-                label: 'พันธุ์ปาล์ม',
-                bgColor: const Color(0xFFE8F5E9),
-                labelColor: const Color(0xFF2D6A4F),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PalmVarietiesScreen()),
-                ),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('กำลังพัฒนาฟังก์ชันร้านรับซื้อ')),
+                  );
+                },
               ),
               MenuItem(
                 emoji: '📈',
@@ -104,6 +108,8 @@ class MenuGrid extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const ReportScreen()),
                 ),
               ),
+              // ใช้ SizedBox กว้างเท่าปุ่ม เพื่อรักษาการจัดช่องว่างให้ตรงแนวกับแถวบน
+              const SizedBox(width: 64), 
             ],
           ),
         ],

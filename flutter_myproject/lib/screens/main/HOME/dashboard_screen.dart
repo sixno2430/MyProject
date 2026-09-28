@@ -4,7 +4,15 @@ import 'package:flutter_myproject/widgets/dashboard_widget/dashboard_header.dart
 import 'package:flutter_myproject/widgets/dashboard_widget/error_view.dart';
 import 'package:flutter_myproject/widgets/dashboard_widget/menu_grid.dart';
 import 'package:flutter_myproject/services/dashboard_service.dart';
-import 'package:flutter_myproject/services/auth_server.dart'; // เรียกใช้ AuthService
+import 'package:flutter_myproject/services/auth_server.dart';
+
+// โมเดลชั่วคราวเพื่อห่อหุ้ม Data + Token เข้าด้วยกันอย่างปลอดภัย
+class _DashboardScreenData {
+  final DashboardData dashboard;
+  final String token;
+
+  _DashboardScreenData({required this.dashboard, required this.token});
+}
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -14,7 +22,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  Future<DashboardData>? _dashboardFuture;
+  Future<_DashboardScreenData>? _dashboardFuture;
 
   @override
   void initState() {
@@ -28,21 +36,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  Future<DashboardData> _fetchDashboardWithAuth() async {
-    // 1. ดึง user_id ของคนที่ล็อกอินอยู่จริงจาก AuthService
+  Future<_DashboardScreenData> _fetchDashboardWithAuth() async {
+    // 1. ดึง user_id และ token พร้อมกัน
     final userId = await AuthService.getUserId();
-    
+
     if (userId == null || userId.isEmpty) {
       throw Exception('ไม่พบข้อมูลการเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
     }
 
-    // 2. ส่ง userId จริงไปดึงข้อมูลแดชบอร์ด
-    return await DashboardService().fetchDashboard(userId);
+    final token = await AuthService.getToken() ?? '';
+
+    // 2. ดึงข้อมูลแดชบอร์ด
+    final dashboardData = await DashboardService().fetchDashboard(userId);
+
+    // 3. ส่งข้อมูลกลับไปพร้อม token เสมอ
+    return _DashboardScreenData(
+      dashboard: dashboardData,
+      token: token,
+    );
   }
 
   Future<void> _onRefresh() async {
     _loadDashboard();
-    await _dashboardFuture;
+    try {
+      await _dashboardFuture;
+    } catch (_) {
+      // ป้องกัน exception หลุดออกมาตอนดึงรีเฟรชหน้าจอ
+    }
   }
 
   @override
@@ -51,7 +71,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: const Color(0xFFF5F5F5),
       body: _dashboardFuture == null
           ? const Center(child: CircularProgressIndicator())
-          : FutureBuilder<DashboardData>(
+          : FutureBuilder<_DashboardScreenData>(
               future: _dashboardFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -65,15 +85,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   );
                 }
 
-                final data = snapshot.data!;
+                final screenData = snapshot.data!;
+                final data = screenData.dashboard;
+                final token = screenData.token;
 
                 return RefreshIndicator(
                   onRefresh: _onRefresh,
                   child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(), // ให้ดึง Refresh ได้แม้เนื้อหาไม่ล้นจอ
                     slivers: [
                       SliverToBoxAdapter(child: DashboardHeader(data: data)),
                       const SliverToBoxAdapter(child: SizedBox(height: 56)),
-                      const SliverToBoxAdapter(child: MenuGrid()),
+                      // ส่ง token ที่โหลดมาพร้อมกับข้อมูลอย่างแน่นอน
+                      SliverToBoxAdapter(child: MenuGrid(token: token)),
                       const SliverToBoxAdapter(child: SizedBox(height: 24)),
                       SliverToBoxAdapter(
                         child: ActivityList(activities: data.activities),

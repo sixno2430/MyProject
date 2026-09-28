@@ -1,16 +1,15 @@
+// models/palm_variety.js
 const db = require('../libs/db_pool');
 
-const palmVariety = {
-  getAll: async () => {
-    try {
-      const query = `SELECT variety_id, variety_name, scientific_name FROM palm_variety ORDER BY variety_id`;
-      const result = await db.query(query);
-      const rows = Array.isArray(result[0]) ? result[0] : (result.data || result);
-      return { isError: false, data: rows, errorMessage: "" };
-    } catch (error) {
-      return { isError: true, data: [], errorMessage: error.message };
-    }
+async function getAll() {
+  try {
+    const [rows] = await db.query('SELECT * FROM palm_variety');
+    // ต้อง return เป็น { isError: false, data: rows }
+    return { isError: false, data: rows };
+  } catch (error) {
+    console.error('Error in getAll varieties:', error);
+    return { isError: true, errorMessage: error.message, data: [] };
   }
-};
+}
 
-module.exports = palmVariety;
+module.exports = { getAll };
