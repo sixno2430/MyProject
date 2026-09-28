@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/screens/garden/palmplot/palmplot_screen.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/gardencare_screen.dart';
-import 'package:flutter_myproject/screens/garden/havest/harvest_screen.dart';
+import 'package:flutter_myproject/screens/garden/harvest/harvest_screen.dart';
 import 'package:flutter_myproject/screens/main/report/report_screen.dart';
 import 'package:flutter_myproject/screens/garden/plamvarieties/palmvarieties_screen.dart';
 import 'package:flutter_myproject/screens/finance/finance_screen.dart';
