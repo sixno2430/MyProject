@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '../../../config/app_config.dart'; // ← ใช้ config ที่มีอยู่
+import 'package:flutter_myproject/services/auth_server.dart';
 
 class AddPlotScreen extends StatefulWidget {
-  final String userId;
-  const AddPlotScreen({super.key, this.userId = 'U002'});
+  const AddPlotScreen({super.key});
 
   @override
   State<AddPlotScreen> createState() => _AddPlotScreenState();
@@ -77,13 +77,23 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
       return;
     }
 
+    final userId = await AuthService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่')),
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       final response = await http.post(
         Uri.parse('$apiUrl/gardens'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'user_id': widget.userId,
+          'user_id': userId,
           'garden_name': _nameCtrl.text.trim(),
           'area_size': double.tryParse(_areaCtrl.text.trim()) ?? 0.0,
           'plant_count': int.tryParse(_treeCtrl.text.trim()) ?? 0,
@@ -162,7 +172,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
                         )
                       : DropdownButtonHideUnderline(
                           child: DropdownButtonFormField<String>(
-                            value: _selectedVarietyId,
+                            initialValue: _selectedVarietyId,
                             decoration: const InputDecoration(
                               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                               border: InputBorder.none,

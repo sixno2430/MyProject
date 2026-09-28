@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'add_transaction_screen.dart';
+import 'package:flutter_myproject/widgets/item_actions.dart';
 
 // ==========================================
 // 1. MODELS
@@ -46,7 +48,12 @@ class TransactionItem {
   final double amount;
   final String category;
   final String gardenName;
+  final String gardenId;
   final String date;
+
+  /// รายการที่บันทึกเองในหน้าการเงิน (รหัส FN...) แก้ไข/ลบได้ที่นี่
+  /// ส่วนรายการจากผลผลิต (H...) และการดูแลสวน (C...) ต้องไปแก้ที่หน้านั้นๆ
+  bool get isManualEntry => id.startsWith('FN');
 
   TransactionItem({
     required this.id,
@@ -55,6 +62,7 @@ class TransactionItem {
     required this.amount,
     required this.category,
     required this.gardenName,
+    this.gardenId = '',
     required this.date,
   });
 
@@ -84,6 +92,7 @@ class TransactionItem {
       amount: parseAmount(json['amount'] ?? json['total_price'] ?? json['cost']),
       category: cat.isNotEmpty ? cat : (txType == 'income' ? 'เก็บเกี่ยว/ขายผลผลิต' : 'ดูแลรักษา'),
       gardenName: json['gardenName'] ?? json['garden_name'] ?? '',
+      gardenId: json['gardenId']?.toString() ?? '',
       date: json['date'] ?? json['record_date'] ?? json['created_at'] ?? '',
     );
   }
@@ -102,7 +111,7 @@ class FinanceScreen extends StatefulWidget {
 }
 
 class _FinanceScreenState extends State<FinanceScreen> {
-  final String baseUrl = 'http://localhost:3000/api';
+  String get baseUrl => AppConfig.apiBaseUri;
   final Color primaryGreen = const Color(0xFF2D6A4F);
 
   late List<DateTime> _months;
@@ -214,6 +223,47 @@ class _FinanceScreenState extends State<FinanceScreen> {
     return [];
   }
 
+  // กดค้างที่รายการ -> เลือกแก้ไข / ลบ
+  Future<void> _onTransactionLongPress(TransactionItem item) async {
+    if (!item.isManualEntry) {
+      final where = item.id.startsWith('H') ? 'บันทึกการเก็บเกี่ยว' : 'การดูแลรักษาสวน';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('รายการนี้มาจากหน้า$where กรุณาแก้ไขที่หน้านั้น')),
+      );
+      return;
+    }
+
+    final action = await showItemActionsSheet(context);
+    if (action == null || !mounted) return;
+
+    if (action == ItemAction.edit) {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => AddTransactionScreen(existing: item)),
+      );
+      if (result == true) _refreshData();
+      return;
+    }
+
+    if (!await confirmDelete(context, item.title)) return;
+    final userId = await AuthService.getUserId();
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/finance/${item.id}?user_id=$userId'),
+      );
+      final body = jsonDecode(response.body);
+      if (body['isError'] == true) throw Exception(body['errorMessage']);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบรายการแล้ว')));
+      _refreshData();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
   Future<void> _navigateToAddTransaction() async {
     final result = await Navigator.push(
       context,
@@ -304,7 +354,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 2))
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 4, offset: const Offset(0, 2))
                   ],
                 ),
                 child: Row(
@@ -353,7 +403,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     )
@@ -417,6 +467,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     final isIncome = item.type == 'income';
 
                     return _buildTransactionItem(
+                      onLongPress: () => _onTransactionLongPress(item),
                       title: item.title,
                       gardenName: item.gardenName,
                       date: _formatThaiDate(item.date),
@@ -476,6 +527,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
   }
 
   Widget _buildTransactionItem({
+    VoidCallback? onLongPress,
     required String title,
     required String gardenName,
     required String date,
@@ -483,7 +535,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
     required bool isIncome,
     required String icon,
   }) {
-    return Container(
+    return GestureDetector(
+      onLongPress: onLongPress,
+      child: Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -491,7 +545,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 4,
             offset: const Offset(0, 2),
           )
@@ -532,6 +586,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 }

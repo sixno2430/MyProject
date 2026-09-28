@@ -155,7 +155,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
               Text(
                 formatThaiDate(DateTime.now()),
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withValues(alpha: 0.8),
                   fontSize: 14,
                 ),
               ),
@@ -172,9 +172,9 @@ class _DashboardHeaderState extends State<DashboardHeader> {
       height: 50,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.white.withOpacity(0.2),
+        color: Colors.white.withValues(alpha: 0.2),
         border: Border.all(
-          color: Colors.white.withOpacity(0.3),
+          color: Colors.white.withValues(alpha: 0.3),
           width: 2,
         ),
       ),
@@ -188,7 +188,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white.withValues(alpha: 0.15),
         shape: BoxShape.circle,
       ),
       child: const Text('🔔', style: TextStyle(fontSize: 18)),
@@ -203,7 +203,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

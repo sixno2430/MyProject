@@ -1,10 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
+import 'harvest_screen.dart' show HarvestData;
+import 'package:flutter_myproject/services/auth_server.dart';
 
 class AddHarvestScreen extends StatefulWidget {
-  const AddHarvestScreen({Key? key}) : super(key: key);
+  /// ข้อมูลเดิม (ส่งมา = โหมดแก้ไข, ไม่ส่ง = เพิ่มใหม่)
+  final HarvestData? existing;
+
+  const AddHarvestScreen({super.key, this.existing});
 
   @override
   State<AddHarvestScreen> createState() => _AddHarvestScreenState();
@@ -12,7 +18,7 @@ class AddHarvestScreen extends StatefulWidget {
 
 class _AddHarvestScreenState extends State<AddHarvestScreen> {
   final _formKey = GlobalKey<FormState>();
-  final String baseUrl = 'http://localhost:3000/api';
+  String get baseUrl => AppConfig.apiBaseUri;
 
   // State สำหรับ Dropdown แปลงสวน
   String? _selectedGardenId;
@@ -32,9 +38,19 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
   String _status = 'sold'; 
   bool _isSubmitting = false;
 
+  bool get _isEdit => widget.existing != null;
+
   @override
   void initState() {
     super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _selectedGardenId = e.gardenId.isNotEmpty ? e.gardenId : null;
+      _selectedDate = DateTime.tryParse(e.date) ?? DateTime.now();
+      _quantityController.text = _numText(e.quantityKg);
+      _pricePerKgController.text = _numText(e.pricePerKg);
+      _status = e.status == 'pending' ? 'pending' : 'sold';
+    }
     _updateDateDisplay();
     _fetchGardens();
 
@@ -56,6 +72,9 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
 
   // ดึงรายชื่อแปลงสวนจาก Backend
   Future<void> _fetchGardens() async {
+    final userId = await AuthService.getUserId();
+    if (userId == null || userId.isEmpty) return;
+
     try {
       // 1. ลองดึงจาก /plots ก่อน (ถ้ามี)
       var response = await http.get(Uri.parse('$baseUrl/plots'));
@@ -70,7 +89,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
 
       // 2. ถ้าไม่มี /plots หรือได้ค่าว่าง ให้ลองดึงจาก /gardens
       if (list.isEmpty) {
-        response = await http.get(Uri.parse('$baseUrl/gardens'));
+        response = await http.get(Uri.parse('$baseUrl/gardens/$userId'));
         if (response.statusCode == 200) {
           final resMap = jsonDecode(response.body);
           if (resMap is Map && resMap['data'] != null) {
@@ -103,7 +122,10 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       if (parsedGardens.isNotEmpty) {
         setState(() {
           _gardens = parsedGardens;
-          _selectedGardenId = _gardens.first['id'];
+          // โหมดแก้ไขให้คงแปลงเดิมไว้ ถ้าไม่มีค่อยเลือกแปลงแรก
+          if (!_gardens.any((g) => g['id'] == _selectedGardenId)) {
+            _selectedGardenId = _gardens.first['id'];
+          }
           _isLoadingGardens = false;
         });
         return;
@@ -111,21 +133,22 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
 
       _useFallbackGardens();
     } catch (e) {
-      print('Error fetching gardens: $e');
+      debugPrint('Error fetching gardens: $e');
       _useFallbackGardens();
     }
   }
 
+  // โหลดแปลงไม่ได้ / ยังไม่มีแปลง: ปล่อยว่างไว้ (ห้ามใส่แปลงปลอม เพราะจะบันทึกเข้าแปลงที่ไม่มีจริง)
   void _useFallbackGardens() {
+    if (!mounted) return;
     setState(() {
-      _gardens = [
-        {'id': '1', 'name': 'แปลง A — บ้านหนองกวาง'},
-        {'id': '2', 'name': 'แปลง B — สวนปาล์มใหญ่'},
-      ];
-      _selectedGardenId = '1';
+      _gardens = [];
+      _selectedGardenId = null;
       _isLoadingGardens = false;
     });
   }
+
+  String _numText(double n) => n % 1 == 0 ? n.toInt().toString() : n.toString();
 
   // คำนวณราคารวมอัตโนมัติ
   void _calculateTotal() {
@@ -177,6 +200,22 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
   // ส่งข้อมูลไปบันทึกที่ Backend
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedGardenId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณาเพิ่มแปลงสวนก่อนบันทึกผลผลิต')),
+      );
+      return;
+    }
+
+    final userId = await AuthService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่')),
+        );
+      }
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
@@ -193,19 +232,34 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       'buyer': _buyerController.text.trim(),
       'note': _noteController.text.trim(),
       'status': _status, // ส่งค่า 'sold' หรือ 'pending'
+      'user_id': userId,
     };
 
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/harvests'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(bodyData),
-      );
+      final response = _isEdit
+          ? await http.put(
+              Uri.parse('$baseUrl/harvests/${widget.existing!.id}'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(bodyData),
+            )
+          : await http.post(
+              Uri.parse('$baseUrl/harvests'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(bodyData),
+            );
+
+      final resBody = jsonDecode(response.body);
+      if (resBody is Map && resBody['isError'] == true) {
+        throw Exception(resBody['errorMessage'] ?? 'บันทึกไม่สำเร็จ');
+      }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('บันทึกข้อมูลการเก็บเกี่ยวเรียบร้อย'), backgroundColor: Color(0xFF1E5631)),
+            SnackBar(
+              content: Text(_isEdit ? 'แก้ไขรายการเรียบร้อย' : 'บันทึกข้อมูลการเก็บเกี่ยวเรียบร้อย'),
+              backgroundColor: const Color(0xFF1E5631),
+            ),
           );
           Navigator.pop(context, true); // คืนค่า true เพื่อให้หน้าหลัก Refresh ข้อมูล
         }
@@ -230,9 +284,9 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E5631),
         elevation: 0,
-        title: const Text(
-          'บันทึกการเก็บเกี่ยว',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
+        title: Text(
+          _isEdit ? 'แก้ไขการเก็บเกี่ยว' : 'บันทึกการเก็บเกี่ยว',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
         ),
         centerTitle: true,
         leading: IconButton(
@@ -252,7 +306,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
               _isLoadingGardens
                   ? const SizedBox(height: 50, child: Center(child: CircularProgressIndicator()))
                   : DropdownButtonFormField<String>(
-                      value: _selectedGardenId,
+                      initialValue: _selectedGardenId,
                       isExpanded: true,
                       decoration: _buildInputDecoration(),
                       items: _gardens.map((g) {
@@ -441,7 +495,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: isSelected ? activeColor.withOpacity(0.1) : Colors.white,
+          color: isSelected ? activeColor.withValues(alpha: 0.1) : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? activeColor : Colors.black26,

@@ -93,7 +93,7 @@ class AdminDashboardScreen extends StatelessWidget {
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: roleColor.withOpacity(0.2),
+            backgroundColor: roleColor.withValues(alpha: 0.2),
             child: Text(name[0], style: TextStyle(color: roleColor, fontWeight: FontWeight.bold)),
           ),
           const SizedBox(width: 12),
@@ -109,7 +109,7 @@ class AdminDashboardScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
+              color: Colors.green.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(status, style: const TextStyle(fontSize: 12, color: Colors.green)),

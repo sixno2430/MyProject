@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/widgets/dashboard_widget/recent_activity_card.dart';
+import 'package:flutter_myproject/screens/main/HOME/activity_screen.dart';
 
 class ActivityList extends StatelessWidget {
   final List<ActivityItem> activities;
-  const ActivityList({super.key, required this.activities});
+
+  /// ให้ Dashboard โหลดข้อมูลใหม่ เมื่อมีการแก้ไข/ลบกิจกรรม
+  final VoidCallback? onChanged;
+
+  const ActivityList({super.key, required this.activities, this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -21,10 +26,13 @@ class ActivityList extends StatelessWidget {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               GestureDetector(
-                onTap: () {
-                  // TODO: ไปหน้า ActivityScreen (รายการทั้งหมด)
-                  // import 'package:flutter_myproject/screens/activity/activity_screen.dart';
-                  // Navigator.push(context, MaterialPageRoute(builder: (_) => const ActivityScreen()));
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ActivityScreen()),
+                  );
+                  // กลับมาแล้วโหลดใหม่ เผื่อมีการแก้ไข/ลบในหน้านั้น
+                  onChanged?.call();
                 },
                 child: const Row(
                   children: [
@@ -54,7 +62,7 @@ class ActivityList extends StatelessWidget {
               ),
             )
           else
-            ...activities.map((a) => RecentActivityCard(activity: a)),
+            ...activities.map((a) => RecentActivityCard(activity: a, onChanged: onChanged)),
         ],
       ),
     );

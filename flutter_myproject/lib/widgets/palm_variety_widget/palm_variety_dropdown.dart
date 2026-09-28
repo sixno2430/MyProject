@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_myproject/screens/garden/plamvarieties/palm_variety.dart';
+import 'package:flutter_myproject/screens/garden/palmvarieties/palm_variety.dart';
 /// Dropdown เลือกพันธุ์ปาล์ม
 ///
 /// ใช้งาน 2 แบบ:
@@ -102,7 +102,7 @@ class _PalmVarietyDropdownState extends State<PalmVarietyDropdown> {
 
     // Dropdown ปกติ
     return DropdownButtonFormField<String>(
-      value: widget.value,
+      initialValue: widget.value,
       hint: Text(widget.hintText),
       isExpanded: true,
       icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF2D6A4F)),

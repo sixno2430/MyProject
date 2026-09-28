@@ -1,17 +1,23 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
+import 'finance_screen.dart' show TransactionItem;
+import 'package:flutter_myproject/services/auth_server.dart';
 
 class AddTransactionScreen extends StatefulWidget {
-  const AddTransactionScreen({super.key});
+  /// ข้อมูลเดิม (ส่งมา = โหมดแก้ไข, ไม่ส่ง = เพิ่มใหม่)
+  final TransactionItem? existing;
+
+  const AddTransactionScreen({super.key, this.existing});
 
   @override
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
 }
 
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
-  final String baseUrl = 'http://localhost:3000/api';
+  String get baseUrl => AppConfig.apiBaseUri;
   
   // 🟢 ปรับเปลี่ยนสีธีมหลักเป็นสีเขียวเข้มของแอป
   final Color primaryGreen = const Color(0xFF2D6A4F);
@@ -35,16 +41,30 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   // Gardens List
   List<Map<String, String>> _gardens = [];
 
+  bool get _isEdit => widget.existing != null;
+
   @override
   void initState() {
     super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _recordType = e.type == 'income' ? 'INCOME' : 'EXPENSE';
+      _selectedCategory = e.category;
+      _selectedGardenId = e.gardenId.isNotEmpty ? e.gardenId : null;
+      _selectedDate = DateTime.tryParse(e.date) ?? DateTime.now();
+      _titleController.text = e.title;
+      _amountController.text = e.amount % 1 == 0 ? e.amount.toInt().toString() : e.amount.toString();
+    }
     _fetchGardens();
   }
 
   // ดึงแปลงสวนจาก Backend
   Future<void> _fetchGardens() async {
+    final userId = await AuthService.getUserId();
+    if (userId == null || userId.isEmpty) return;
+
     try {
-      final response = await http.get(Uri.parse('$baseUrl/gardens'));
+      final response = await http.get(Uri.parse('$baseUrl/gardens/$userId'));
       if (response.statusCode == 200) {
         final resMap = jsonDecode(response.body);
         final data = resMap['data'] ?? resMap;
@@ -104,10 +124,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
+    final userId = await AuthService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่')),
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     final payload = {
-      "user_id": "U002",
+      "user_id": userId,
       "garden_id": _selectedGardenId,
       "record_type": _recordType,
       "amount": double.parse(amountText),
@@ -117,17 +147,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     };
 
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/finance/add'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(payload),
-      );
+      final response = _isEdit
+          ? await http.put(
+              Uri.parse('$baseUrl/finance/${widget.existing!.id}'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(payload),
+            )
+          : await http.post(
+              Uri.parse('$baseUrl/finance/add'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(payload),
+            );
 
       if (response.statusCode == 200) {
         final resMap = jsonDecode(response.body);
         if (resMap['isError'] == false) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกข้อมูลเรียบร้อยแล้ว')));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(_isEdit ? 'แก้ไขรายการเรียบร้อยแล้ว' : 'บันทึกข้อมูลเรียบร้อยแล้ว')),
+            );
             Navigator.pop(context, true);
           }
           return;
@@ -158,7 +196,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       appBar: AppBar(
         backgroundColor: primaryGreen, // 🟢 เปลี่ยน AppBar เป็นสีเขียว
         elevation: 0,
-        title: const Text('บันทึกการซื้อขาย', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+        title: Text(_isEdit ? 'แก้ไขรายการ' : 'บันทึกการซื้อขาย', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
@@ -284,7 +322,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             _buildDropdownContainer(
               child: DropdownButton<String?>(
                 isExpanded: true,
-                value: _selectedGardenId,
+                // กันจอแดง: ค่าที่เลือกต้องมีอยู่ในรายการ (ตอนแก้ไข รายการแปลงอาจยังโหลดไม่เสร็จ)
+                value: _gardens.any((g) => g['id'] == _selectedGardenId) ? _selectedGardenId : null,
                 hint: const Text('ไม่ระบุแปลง'),
                 items: [
                   const DropdownMenuItem<String?>(value: null, child: Text('ไม่ระบุแปลง')),

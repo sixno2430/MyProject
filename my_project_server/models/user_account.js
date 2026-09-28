@@ -1,4 +1,5 @@
 const pool = require('../libs/db_pool');
+const bcrypt = require('bcrypt');
 
 module.exports = {
   // ดึงข้อมูล user ทีละคนด้วย user_id
@@ -80,6 +81,35 @@ module.exports = {
     }
   },
 
+  // เช็กว่า username หรือเลขบัตรประชาชนถูกใช้ไปแล้วหรือยัง (ใช้ตอนสมัครสมาชิก)
+  checkDuplicate: async (username, citizenId) => {
+    let conn;
+    let result;
+    try {
+      conn = await pool.getConnection();
+
+      var sql = "SELECT username, citizen_id FROM user WHERE username = ? OR citizen_id = ?";
+
+      var rows = await conn.query(sql, [username, citizenId]);
+
+      result = {
+        isError: false,
+        data: {
+          usernameTaken: rows.some(r => String(r.username) === String(username)),
+          citizenIdTaken: rows.some(r => String(r.citizen_id) === String(citizenId))
+        }
+      };
+    } catch (error) {
+      result = {
+        isError: true,
+        errorMessage: error.message
+      }
+    } finally {
+      if (conn) conn.release();
+      return result;
+    }
+  },
+
   // หา user_id ตัวถัดไป เช่น U003 -> U004
   getNextUserId: async () => {
     let conn;
@@ -131,10 +161,44 @@ module.exports = {
         data: rows
       };
     } catch (error) {
+      // ไม่ส่ง error SQL ดิบกลับไป เพราะมี parameters (รวม password hash) ติดไปด้วย
+      console.error('createUser error:', error.message);
+      var message = 'สมัครสมาชิกไม่สำเร็จ กรุณาลองใหม่';
+      if (error.errno === 1062) {
+        if (error.message.includes('citizen_id')) message = 'เลขบัตรประชาชนนี้ถูกลงทะเบียนแล้ว';
+        else if (error.message.includes('username')) message = 'Username นี้ถูกใช้แล้ว';
+        else message = 'ข้อมูลนี้ถูกใช้ลงทะเบียนแล้ว';
+      }
       result = {
         isError: true,
-        errorMessage: error.message
+        errorMessage: message
       }
+    } finally {
+      if (conn) conn.release();
+      return result;
+    }
+  },
+
+  // เปลี่ยนรหัสผ่าน: ต้องยืนยันรหัสเดิมให้ถูกก่อน
+  changePassword: async (userId, oldPassword, newPassword) => {
+    let conn;
+    let result;
+    try {
+      conn = await pool.getConnection();
+
+      var rows = await conn.query("SELECT password FROM user WHERE user_id = ?", [userId]);
+      if (rows.length === 0) {
+        result = { isError: true, errorMessage: "ไม่พบข้อมูลผู้ใช้" };
+      } else if (!(await bcrypt.compare(oldPassword, rows[0].password))) {
+        result = { isError: true, errorMessage: "รหัสผ่านเดิมไม่ถูกต้อง" };
+      } else {
+        var hashed = await bcrypt.hash(newPassword, 10);
+        await conn.query("UPDATE user SET password = ? WHERE user_id = ?", [hashed, userId]);
+        result = { isError: false, data: null };
+      }
+    } catch (error) {
+      console.error('changePassword error:', error.message);
+      result = { isError: true, errorMessage: "เปลี่ยนรหัสผ่านไม่สำเร็จ" };
     } finally {
       if (conn) conn.release();
       return result;

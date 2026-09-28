@@ -7,19 +7,24 @@ import 'package:flutter_myproject/screens/main/HOME/activity_detail_screen.dart'
 /// แตกต่างจาก ActivityCard ในหน้า Activity ตรงที่ดีไซน์กะทัดรัดกว่า
 class RecentActivityCard extends StatelessWidget {
   final ActivityItem activity;
-  const RecentActivityCard({super.key, required this.activity});
+  final VoidCallback? onChanged;
+
+  const RecentActivityCard({super.key, required this.activity, this.onChanged});
 
   @override
   Widget build(BuildContext context) {
     final theme = _resolveTheme(activity.type);
 
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ActivityDetailScreen(activity: activity),
-        ),
-      ),
+      onTap: () async {
+        final changed = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ActivityDetailScreen(activity: activity),
+          ),
+        );
+        if (changed == true) onChanged?.call();
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
@@ -28,7 +33,7 @@ class RecentActivityCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),

@@ -1,9 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_myproject/screens/garden/palmplot/add_plot_screen.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/config/app_config.dart';
+
 
 // ==========================================
 // 1. MODEL (เพิ่ม address + detailText)
@@ -30,6 +32,7 @@ class PalmVariety {
     );
   }
 }
+
 class Garden {
   final String gardenId;
   final String userId;
@@ -54,7 +57,6 @@ class Garden {
   });
 
   factory Garden.fromJson(Map<String, dynamic> json) {
-    
     List<PalmVariety>? varietyList;
     if (json['varieties'] != null && json['varieties'] is List) {
       varietyList = (json['varieties'] as List)
@@ -67,8 +69,12 @@ class Garden {
       gardenName: json['garden_name'] ?? 'ไม่ระบุชื่อแปลง',
       areaSize: double.tryParse(json['area_size']?.toString() ?? '0') ?? 0.0,
       plantCount: int.tryParse(json['plant_count']?.toString() ?? '0') ?? 0,
-      plantYear: json['plant_year'] != null ? int.tryParse(json['plant_year'].toString()) : null,
-      plantAge: json['plant_age'] != null ? int.tryParse(json['plant_age'].toString()) : null,
+      plantYear: json['plant_year'] != null
+          ? int.tryParse(json['plant_year'].toString())
+          : null,
+      plantAge: json['plant_age'] != null
+          ? int.tryParse(json['plant_age'].toString())
+          : null,
       address: json['address']?.toString(), // ← เพิ่ม
       varieties: varietyList,
     );
@@ -78,7 +84,11 @@ class Garden {
   String get detailText {
     final parts = <String>[];
     if (plantAge != null) parts.add('$plantAge ปี');
-    if (areaSize > 0) parts.add('${areaSize.toStringAsFixed(areaSize.truncateToDouble() == areaSize ? 0 : 2)} ไร่');
+    if (areaSize > 0) {
+      parts.add(
+        '${areaSize.toStringAsFixed(areaSize.truncateToDouble() == areaSize ? 0 : 2)} ไร่',
+      );
+    }
     if (plantCount > 0) parts.add('$plantCount ต้น');
     return parts.join(' · ');
   }
@@ -103,32 +113,49 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
   String errorMessage = '';
   final TextEditingController searchController = TextEditingController();
 
-  String get baseUrl {
-    if (kIsWeb) return 'http://127.0.0.1:3000';
-    if (Platform.isAndroid) return 'http://10.0.2.2:3000';
-    return 'http://127.0.0.1:3000';
-  }
+  String get baseUrl => AppConfig.apiBaseUri;
 
   @override
   void initState() {
     super.initState();
     fetchGardens();
   }
+
   Future<void> _deleteGarden(Garden garden) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('ยืนยันการลบ'),
-        content: Text('ต้องการลบ "${garden.gardenName}" ใช่หรือไม่?'),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'ยืนยันการลบ',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1F2937),
+          ),
+        ),
+        content: Text(
+          'ต้องการลบ "${garden.gardenName}" ใช่หรือไม่?\nข้อมูลที่ลบแล้วจะกู้คืนไม่ได้',
+          style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.4),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('ยกเลิก'),
+            child: Text('ยกเลิก', style: TextStyle(color: Colors.grey[700])),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD32F2F),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('ลบ', style: TextStyle(color: Colors.white)),
+            child: const Text('ลบ'),
           ),
         ],
       ),
@@ -139,28 +166,38 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     setState(() => isLoading = true);
     try {
       final response = await http.delete(
-        Uri.parse('$baseUrl/api/gardens/${garden.gardenId}'),
+        Uri.parse('$baseUrl/gardens/${garden.gardenId}'),
       );
       final body = json.decode(response.body);
+      if (!mounted) return;
       if (body['isError'] == false) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ลบสำเร็จ')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('ลบสำเร็จ')));
         fetchGardens();
       } else {
         throw Exception(body['errorMessage']);
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('ลบไม่สำเร็จ: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('ลบไม่สำเร็จ: $e')));
     }
   }
 
   Future<void> fetchGardens() async {
-    const String userId = 'U002';
-    final url = Uri.parse('$baseUrl/api/gardens/$userId');
+    final userId = await AuthService.getUserId();
+    if (userId == null || userId.isEmpty) {
+      setState(() {
+        errorMessage = 'ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่';
+        isLoading = false;
+      });
+      return;
+    }
+
+    final url = Uri.parse('$baseUrl/gardens/$userId');
 
     try {
       final response = await http.get(url);
@@ -176,7 +213,8 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
           });
         } else {
           setState(() {
-            errorMessage = body['errorMessage'] ?? 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
+            errorMessage =
+                body['errorMessage'] ?? 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
             isLoading = false;
           });
         }
@@ -200,7 +238,9 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
         filteredGardens = gardens;
       } else {
         filteredGardens = gardens
-            .where((g) => g.gardenName.toLowerCase().contains(query.toLowerCase()))
+            .where(
+              (g) => g.gardenName.toLowerCase().contains(query.toLowerCase()),
+            )
             .toList();
       }
     });
@@ -210,148 +250,73 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
   Future<void> _editGarden(Garden garden) async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => _EditGardenDialog(garden: garden, primaryGreen: primaryGreen),
+      builder: (context) =>
+          _EditGardenDialog(garden: garden, primaryGreen: primaryGreen),
     );
 
     if (result != null) {
       setState(() => isLoading = true);
       try {
         final response = await http.put(
-          Uri.parse('$baseUrl/api/gardens/${garden.gardenId}'),
+          Uri.parse('$baseUrl/gardens/${garden.gardenId}'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode(result),
         );
         final body = json.decode(response.body);
+        if (!mounted) return;
         if (body['isError'] == false) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('แก้ไขสำเร็จ')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('แก้ไขสำเร็จ')));
           fetchGardens();
         } else {
           throw Exception(body['errorMessage']);
         }
       } catch (e) {
+        if (!mounted) return;
         setState(() => isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('แก้ไขไม่สำเร็จ: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('แก้ไขไม่สำเร็จ: $e')));
       }
     }
   }
 
   int get totalPlants => gardens.fold(0, (sum, item) => sum + item.plantCount);
+  double get totalArea => gardens.fold(0.0, (sum, item) => sum + item.areaSize);
+
+  static const Color _bgColor = Color(0xFFF5F5F5);
+  static const Color _textDark = Color(0xFF1F2937);
+  static const Color _lightGreen = Color(0xFFE8F5E9);
+
+  String _formatArea(double v) =>
+      v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 2);
+
+  void _openAddPlot() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddPlotScreen()),
+    ).then((_) => fetchGardens());
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      appBar: AppBar(
-        backgroundColor: primaryGreen,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'แปลงสวนของฉัน',
-          style: TextStyle(fontSize: 18, color: Colors.white),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AddPlotScreen()),
-              ).then((_) => fetchGardens());
-            },
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: fetchGardens,
-        color: primaryGreen,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ช่องค้นหา
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: TextField(
-                  controller: searchController,
-                  onChanged: _filterGardens,
-                  decoration: const InputDecoration(
-                    hintText: 'ค้นหาแปลงสวน...',
-                    hintStyle: TextStyle(color: Colors.grey),
-                    prefixIcon: Icon(Icons.search, color: Colors.grey),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // สถิติ
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildSummary('${gardens.length}', 'แปลงสวน'),
-                    const SizedBox(width: 60),
-                    _buildSummary('$totalPlants', 'ต้นปาล์ม'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // รายการ
-              if (isLoading)
-                const Center(child: CircularProgressIndicator(color: Color(0xFF2D6A4F)))
-              else if (errorMessage.isNotEmpty)
-                Center(
-                  child: Column(
-                    children: [
-                      Text(errorMessage, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: () { setState(() => isLoading = true); fetchGardens(); },
-                        child: const Text('ลองใหม่'),
-                      ),
-                    ],
-                  ),
-                )
-              else if (filteredGardens.isEmpty)
-                const Center(child: Text('ไม่พบข้อมูลแปลงสวน', style: TextStyle(color: Colors.grey)))
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filteredGardens.length,
-                  itemBuilder: (context, index) {
-                    final garden = filteredGardens[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      // ← แก้ตรงนี้: ส่ง garden + onEdit
-                      child: _buildPlotCard(
-                        garden: garden,
-                        onEdit: () => _editGarden(garden),
-                        onDelete: () => _deleteGarden(garden),
-                      ),
-                    );
-                  },
-                ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: _bgColor,
+        body: RefreshIndicator(
+          onRefresh: fetchGardens,
+          color: primaryGreen,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(child: _buildHeader()),
+              const SliverToBoxAdapter(child: SizedBox(height: 56)),
+              SliverToBoxAdapter(child: _buildSearchBar()),
+              SliverToBoxAdapter(child: _buildListTitle()),
+              _buildListSliver(),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
             ],
           ),
         ),
@@ -359,137 +324,449 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     );
   }
 
-  Widget _buildSummary(String value, String label) {
-    return Column(
+  // ส่วนหัวสีเขียว + การ์ดสถิติลอยทับ (แบบเดียวกับหน้าหลัก)
+  Widget _buildHeader() {
+    // หน้านี้เป็นทั้งแท็บในแถบล่างและหน้าที่ push มาจากเมนู → แสดงปุ่มย้อนกลับเฉพาะตอนที่ย้อนได้
+    final canPop = Navigator.of(context).canPop();
+
+    return Stack(
+      clipBehavior: Clip.none,
       children: [
-        Text(
-          value,
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: primaryGreen),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: primaryGreen,
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(24),
+              bottomRight: Radius.circular(24),
+            ),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 72),
+              child: Row(
+                children: [
+                  if (canPop) ...[
+                    _buildHeaderButton(
+                      icon: Icons.arrow_back,
+                      onTap: () => Navigator.pop(context),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'แปลงสวนของฉัน 🌴',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'จัดการข้อมูลแปลงปาล์มน้ำมัน',
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildHeaderButton(icon: Icons.add, onTap: _openAddPlot),
+                ],
+              ),
+            ),
+          ),
         ),
-        Text(label, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+        Positioned(bottom: -40, left: 16, right: 16, child: _buildStatsCard()),
       ],
     );
   }
 
-  // ==========================================
-  // ← แก้ตรงนี้: UI การ์ดใหม่ (เหมือนรูปแรก)
-  // ==========================================
+  Widget _buildHeaderButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.15),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(icon, color: Colors.white, size: 22),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _buildSummary('${gardens.length}', 'แปลงสวน\nทั้งหมด'),
+          Container(width: 1, height: 40, color: Colors.grey[200]),
+          _buildSummary(_formatArea(totalArea), 'ไร่\nพื้นที่รวม'),
+          Container(width: 1, height: 40, color: Colors.grey[200]),
+          _buildSummary('$totalPlants', 'ต้น\nปาล์มทั้งหมด'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummary(String value, String label) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: TextField(
+          controller: searchController,
+          onChanged: _filterGardens,
+          decoration: InputDecoration(
+            hintText: 'ค้นหาแปลงสวน...',
+            hintStyle: TextStyle(color: Colors.grey[500]),
+            prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListTitle() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+      child: Row(
+        children: [
+          const Text(
+            'รายการแปลงสวน',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: _textDark,
+            ),
+          ),
+          const Spacer(),
+          if (!isLoading && errorMessage.isEmpty)
+            Text(
+              '${filteredGardens.length} แปลง',
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListSliver() {
+    if (isLoading) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 40),
+          child: Center(child: CircularProgressIndicator(color: primaryGreen)),
+        ),
+      );
+    }
+
+    if (errorMessage.isNotEmpty) {
+      return SliverToBoxAdapter(
+        child: _buildMessageState(
+          emoji: '⚠️',
+          title: 'โหลดข้อมูลไม่สำเร็จ',
+          subtitle: errorMessage,
+          buttonLabel: 'ลองใหม่',
+          onPressed: () {
+            setState(() {
+              isLoading = true;
+              errorMessage = '';
+            });
+            fetchGardens();
+          },
+        ),
+      );
+    }
+
+    if (filteredGardens.isEmpty) {
+      final isSearching = searchController.text.isNotEmpty;
+      return SliverToBoxAdapter(
+        child: _buildMessageState(
+          emoji: isSearching ? '🔍' : '🌱',
+          title: isSearching ? 'ไม่พบแปลงสวนที่ค้นหา' : 'ยังไม่มีแปลงสวน',
+          subtitle: isSearching
+              ? 'ลองค้นหาด้วยชื่ออื่น'
+              : 'เพิ่มแปลงสวนแรกของคุณเพื่อเริ่มบันทึกข้อมูล',
+          buttonLabel: isSearching ? null : 'เพิ่มแปลงสวน',
+          onPressed: isSearching ? null : _openAddPlot,
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList.builder(
+        itemCount: filteredGardens.length,
+        itemBuilder: (context, index) {
+          final garden = filteredGardens[index];
+          return _buildPlotCard(
+            garden: garden,
+            onEdit: () => _editGarden(garden),
+            onDelete: () => _deleteGarden(garden),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMessageState({
+    required String emoji,
+    required String title,
+    required String subtitle,
+    String? buttonLabel,
+    VoidCallback? onPressed,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 40)),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _textDark,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+          ),
+          if (buttonLabel != null) ...[
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: onPressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryGreen,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(buttonLabel),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // การ์ดแปลงสวน: สไตล์เดียวกับการ์ดกิจกรรมในหน้าหลัก
   Widget _buildPlotCard({
     required Garden garden,
     required VoidCallback onEdit,
     required VoidCallback onDelete,
   }) {
     return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(14, 14, 4, 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: primaryGreen, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            // รูปปาล์มซ้าย
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F5E9),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.park,
-                color: Color(0xFF2D6A4F),
-                size: 32,
-              ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: _lightGreen,
+              borderRadius: BorderRadius.circular(12),
             ),
-            const SizedBox(width: 16),
-            // ข้อมูลตรงกลาง
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ชื่อแปลง
-                  Text(
-                    garden.gardenName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
+            child: const Center(
+              child: Text('🌴', style: TextStyle(fontSize: 24)),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  garden.gardenName,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: _textDark,
                   ),
-                  const SizedBox(height: 6),
-                  // รายละเอียด: 5 ปี · 12 ไร่ · 330 ต้น
+                ),
+                if (garden.detailText.isNotEmpty) ...[
+                  const SizedBox(height: 2),
                   Text(
                     garden.detailText,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   ),
-                  const SizedBox(height: 6),
-                  if (garden.varieties != null && garden.varieties!.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: garden.varieties!.map((v) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8F5E9),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '🌿 ${v.varietyName} (${v.plantCount} ต้น)',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF2D6A4F),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      )).toList(),
-                    ),
-                  
-                  const SizedBox(height: 6),
-                  // ที่อยู่
-                  if (garden.address != null && garden.address!.isNotEmpty)
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on,
-                          color: Colors.redAccent,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            garden.address!,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ),
-                      ],
-                    ),
                 ],
+                if (garden.varieties != null &&
+                    garden.varieties!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: garden.varieties!
+                        .map(
+                          (v) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _lightGreen,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '🌿 ${v.varietyName} · ${v.plantCount} ต้น',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: primaryGreen,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ],
+                if (garden.address != null && garden.address!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Text('📍', style: TextStyle(fontSize: 12)),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          garden.address!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[500],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: Colors.grey[400], size: 20),
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            onSelected: (value) => value == 'edit' ? onEdit() : onDelete(),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_outlined, size: 18, color: primaryGreen),
+                    const SizedBox(width: 10),
+                    const Text('แก้ไข'),
+                  ],
+                ),
               ),
-            ),
-                        // ปากกาแก้ไข
-            IconButton(
-              onPressed: onEdit,
-              icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
-              splashRadius: 20,
-            ),
-            // ถังขยะลบ
-            IconButton(
-              onPressed: onDelete,
-              icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
-              splashRadius: 20,
-            ),
-          ],
-        ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Color(0xFFD32F2F),
+                    ),
+                    SizedBox(width: 10),
+                    Text('ลบ', style: TextStyle(color: Color(0xFFD32F2F))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -521,14 +798,28 @@ class _EditGardenDialogState extends State<_EditGardenDialog> {
     _nameCtrl = TextEditingController(text: widget.garden.gardenName);
     _addressCtrl = TextEditingController(text: widget.garden.address ?? '');
     _areaCtrl = TextEditingController(text: widget.garden.areaSize.toString());
-    _yearCtrl = TextEditingController(text: widget.garden.plantYear?.toString() ?? '');
-    _countCtrl = TextEditingController(text: widget.garden.plantCount.toString());
+    _yearCtrl = TextEditingController(
+      text: widget.garden.plantYear?.toString() ?? '',
+    );
+    _countCtrl = TextEditingController(
+      text: widget.garden.plantCount.toString(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('แก้ไขแปลงสวน'),
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'แก้ไขแปลงสวน',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF1F2937),
+        ),
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -544,10 +835,17 @@ class _EditGardenDialogState extends State<_EditGardenDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('ยกเลิก'),
+          child: Text('ยกเลิก', style: TextStyle(color: Colors.grey[700])),
         ),
         ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: widget.primaryGreen),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: widget.primaryGreen,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
           onPressed: () {
             Navigator.pop(context, {
               'garden_name': _nameCtrl.text.trim(),
@@ -557,24 +855,39 @@ class _EditGardenDialogState extends State<_EditGardenDialog> {
               'plant_count': int.tryParse(_countCtrl.text.trim()) ?? 0,
             });
           },
-          child: const Text('บันทึก', style: TextStyle(color: Colors.white)),
+          child: const Text('บันทึก'),
         ),
       ],
     );
   }
 
-  Widget _buildField(String label, TextEditingController ctrl, [TextInputType? type]) {
+  Widget _buildField(
+    String label,
+    TextEditingController ctrl, [
+    TextInputType? type,
+  ]) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: ctrl,
         keyboardType: type,
+        cursorColor: widget.primaryGreen,
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
+          labelStyle: TextStyle(color: Colors.grey[600]),
+          floatingLabelStyle: TextStyle(color: widget.primaryGreen),
+          filled: true,
+          fillColor: const Color(0xFFF9FAFB),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: widget.primaryGreen, width: 1.5),
+          ),
         ),
       ),
     );
   }
-  
 }

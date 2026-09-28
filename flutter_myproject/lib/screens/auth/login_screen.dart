@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/screens/auth/register_screen.dart';
+import 'package:flutter_myproject/screens/auth/splash_screen.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
@@ -29,6 +31,9 @@ class _LoginScreenState extends State<LoginScreen> {
     {'label': 'ร้านค้า', 'icon': Icons.store},
   ];
 
+  // ถ้าเซิร์ฟเวอร์ไม่ตอบภายในเวลานี้ ให้แจ้ง error แทนการหมุนค้างไปเรื่อยๆ
+  static const _requestTimeout = Duration(seconds: 10);
+
   // 🔥 แก้: return user_id ด้วย
   Future<(bool, String, String, String)> _authenRequest() async {
     final username = _usernameController.text;
@@ -43,7 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
         'username': username,
         'password': password,
       }),
-    );
+    ).timeout(_requestTimeout);
 
     final json = jsonDecode(response.body);
 
@@ -64,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
         'Content-Type': 'application/json; charset=UTF-8',
       },
       body: jsonEncode(<String, String>{'token': token}),
-    );
+    ).timeout(_requestTimeout);
 
     final json = jsonDecode(response.body);
 
@@ -117,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
           await AuthService.setUserId(userId);  // ← เก็บ user_id
           await AuthService.setToken(result.data);  // ← เก็บ token
 
-          print("Login success! user_id: $userId, access_token: ${result.data}");  // ← เอา \ ออก
+          debugPrint("Login success! user_id: $userId");  // ไม่ log token
 
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -137,12 +142,15 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      print("เกิดข้อผิดพลาดตอน login: $e");  // ← เอา \ ออก
+      debugPrint("เกิดข้อผิดพลาดตอน login: $e");
       if (context.mounted) {
         showDialog(
           context: context,
           builder: (context) {
-            return AlertDialog(content: Text("เกิดข้อผิดพลาด: $e"));  // ← เอา \ ออก
+            final message = e is TimeoutException
+                ? 'เซิร์ฟเวอร์ไม่ตอบกลับ กรุณาตรวจสอบว่าเปิดเซิร์ฟเวอร์ไว้แล้ว'
+                : 'เกิดข้อผิดพลาด: $e';
+            return AlertDialog(content: Text(message));
           },
         );
       }
@@ -173,20 +181,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 40),
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: const Center(
-                    child: Text('🌴', style: TextStyle(fontSize: 40)),
-                  ),
-                ),
+                // Hero tag เดียวกับหน้า Splash -> โลโก้ลอยจากกลางจอขึ้นมาตรงนี้
+                const Hero(tag: SplashScreen.logoHeroTag, child: AppLogo()),
                 const SizedBox(height: 12),
                 const Text(
                   'PalmTrack',

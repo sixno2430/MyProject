@@ -29,7 +29,7 @@ class FinanceModel {
             h.total_price AS amount, 
             'INCOME' AS type, 
             h.harvest_date AS date,
-            COALESCE(g.user_id, 'U002') AS user_id
+            g.user_id AS user_id
           FROM harvest h
           LEFT JOIN garden g ON h.garden_id = g.garden_id
           WHERE h.total_price > 0
@@ -41,7 +41,7 @@ class FinanceModel {
             c.cost AS amount, 
             'EXPENSE' AS type, 
             c.record_date AS date,
-            COALESCE(g.user_id, 'U002') AS user_id
+            g.user_id AS user_id
           FROM palm_care c
           LEFT JOIN garden g ON c.garden_id = g.garden_id
           WHERE c.cost > 0
@@ -60,7 +60,7 @@ class FinanceModel {
         ${whereClause}
       `;
 
-      const [rows] = await db.query(query, params);
+      const rows = await db.query(query, params);
       const data = rows && rows.length > 0 ? rows[0] : { totalIncome: 0, totalExpense: 0 };
 
       const totalIncome = parseFloat(data.totalIncome || 0);
@@ -115,6 +115,7 @@ class FinanceModel {
           LOWER(t.type) AS type,
           t.amount,
           t.category,
+          t.garden_id AS gardenId,
           COALESCE(g.garden_name, 'ไม่ระบุสวน') AS gardenName,
           DATE_FORMAT(t.date, '%Y-%m-%d') AS date
         FROM (
@@ -126,7 +127,7 @@ class FinanceModel {
             h.total_price AS amount,
             'ขายผลผลิต' AS category,
             h.garden_id,
-            COALESCE(g.user_id, 'U002') AS user_id,
+            g.user_id AS user_id,
             h.harvest_date AS date
           FROM harvest h
           LEFT JOIN garden g ON h.garden_id = g.garden_id
@@ -147,7 +148,7 @@ class FinanceModel {
             c.cost AS amount,
             IF(c.fertilizer_id IS NOT NULL, 'ค่าปุ๋ย', 'ค่าดูแลรักษา') AS category,
             c.garden_id,
-            COALESCE(g.user_id, 'U002') AS user_id,
+            g.user_id AS user_id,
             c.record_date AS date
           FROM palm_care c
           LEFT JOIN fertilizer f ON c.fertilizer_id = f.fertilizer_id
@@ -174,7 +175,7 @@ class FinanceModel {
         ORDER BY t.date DESC, t.id DESC
       `;
 
-      const [rows] = await db.query(query, params);
+      const rows = await db.query(query, params);
       return { isError: false, data: rows || [], errorMessage: "" };
     } catch (error) {
       console.error('Error in FinanceModel.getTransactions:', error);
@@ -186,8 +187,11 @@ class FinanceModel {
   static async createTransaction(data) {
     try {
       const { user_id, garden_id, record_type, amount, expense_category, description, record_date } = data;
+      if (!user_id) {
+        return { isError: true, data: null, errorMessage: 'ไม่พบข้อมูลผู้ใช้' };
+      }
 
-      const [rows] = await db.query(`
+      const rows = await db.query(`
         SELECT MAX(CAST(SUBSTRING(finance_id, 3) AS UNSIGNED)) AS max_num 
         FROM finance 
         WHERE finance_id LIKE 'FN%'
@@ -206,7 +210,7 @@ class FinanceModel {
 
       const params = [
         newFinanceId,
-        user_id || 'U002',
+        user_id,
         garden_id || null,
         (record_type || 'INCOME').toUpperCase(),
         parseFloat(amount) || 0,
@@ -220,6 +224,50 @@ class FinanceModel {
     } catch (error) {
       console.error('Error createTransaction:', error);
       return { isError: true, data: null, errorMessage: error.message };
+    }
+  }
+
+  // 4. แก้ไขธุรกรรมทั่วไป (เฉพาะตาราง finance และเป็นของ userId)
+  static async updateTransaction(financeId, userId, data) {
+    try {
+      const { garden_id, record_type, amount, expense_category, description, record_date } = data;
+      const result = await db.query(`
+        UPDATE finance
+        SET garden_id = ?, record_type = ?, amount = ?, expense_category = ?, description = ?, record_date = ?
+        WHERE finance_id = ? AND user_id = ?
+      `, [
+        garden_id || null,
+        (record_type || 'INCOME').toUpperCase(),
+        parseFloat(amount) || 0,
+        expense_category || 'ทั่วไป',
+        description || '',
+        record_date,
+        financeId, userId
+      ]);
+      if (!result.affectedRows) {
+        return { isError: true, data: null, errorMessage: 'ไม่พบรายการ หรือไม่มีสิทธิ์แก้ไข' };
+      }
+      return { isError: false, data: null, errorMessage: "" };
+    } catch (error) {
+      console.error('Error updateTransaction:', error);
+      return { isError: true, data: null, errorMessage: 'แก้ไขรายการไม่สำเร็จ' };
+    }
+  }
+
+  // 5. ลบธุรกรรมทั่วไป (เฉพาะตาราง finance และเป็นของ userId)
+  static async deleteTransaction(financeId, userId) {
+    try {
+      const result = await db.query(
+        `DELETE FROM finance WHERE finance_id = ? AND user_id = ?`,
+        [financeId, userId]
+      );
+      if (!result.affectedRows) {
+        return { isError: true, data: null, errorMessage: 'ไม่พบรายการ หรือไม่มีสิทธิ์ลบ' };
+      }
+      return { isError: false, data: null, errorMessage: "" };
+    } catch (error) {
+      console.error('Error deleteTransaction:', error);
+      return { isError: true, data: null, errorMessage: 'ลบรายการไม่สำเร็จ' };
     }
   }
 }

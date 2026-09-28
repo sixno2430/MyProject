@@ -37,7 +37,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final url = Uri.parse('${AppConfig.apiBaseUri}/register');
       
       // 🔥 เพิ่มบรรทัดนี้เพื่อดู URL จริง
-      print('🌐 URL: $url');
+      debugPrint('🌐 URL: $url');
 
       final bodyData = {
         'role_id': roles[selectedRole]['role_id'],
@@ -48,7 +48,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'password': _passwordController.text,
       };
 
-      print('📤 ส่งข้อมูล: $bodyData');
+      // ไม่ log bodyData เพราะมีรหัสผ่านและเลขบัตรประชาชน
 
       final response = await http.post(
         url,
@@ -60,8 +60,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       // 🔥 เพิ่มบรรทัดนี้เพื่อดูว่าเซิร์ฟเวอร์ตอบอะไร
-      print('📥 Status: ${response.statusCode}');
-      print('📥 Body: ${response.body}');
+      debugPrint('📥 Status: ${response.statusCode}');
 
       // 🔥 ตรวจสอบก่อนว่า response เป็น JSON จริงๆ
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -77,11 +76,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return true;
 
     } catch (e) {
-      print('❌ Error: $e');
-      if (context.mounted) {
+      debugPrint('❌ Error: $e');
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('เกิดข้อผิดพลาด: $e'),
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
             backgroundColor: Colors.red,
           ),
         );

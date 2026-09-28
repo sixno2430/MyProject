@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_myproject/services/profile_service.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
+import 'package:flutter_myproject/screens/main/profile/change_password_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -192,7 +193,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             if (context.mounted) Navigator.pop(context);
                             _loadProfile(); // โหลดข้อมูลใหม่มาแสดงทันที
                             if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              ScaffoldMessenger.of(this.context).showSnackBar(
                                 const SnackBar(
                                   content: Text('บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว'),
                                   backgroundColor: Color(0xFF4A7C59),
@@ -201,7 +202,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             }
                           } else {
                             if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              ScaffoldMessenger.of(this.context).showSnackBar(
                                 SnackBar(
                                   content: Text(updateRes['message'] ??
                                       'เกิดข้อผิดพลาดในการบันทึก'),
@@ -394,7 +395,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _buildMenuItem(
                         icon: Icons.lock,
                         title: 'เปลี่ยนรหัสผ่าน',
-                        onTap: () {},
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const ChangePasswordScreen()),
+                        ),
                       ),
                       const Divider(height: 1),
                       _buildMenuItem(
@@ -431,11 +436,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: ElevatedButton(
                     onPressed: () async {
                       await AuthService.clear();
-                      if (mounted) {
-                        Navigator.pushReplacement(
+                      if (context.mounted) {
+                        Navigator.pushAndRemoveUntil(
                           context,
                           MaterialPageRoute(
                               builder: (context) => const LoginScreen()),
+                          (route) => false,
                         );
                       }
                     },
