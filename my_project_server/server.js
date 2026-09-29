@@ -68,7 +68,6 @@ app.get('/api/user/:user_id', async (req, res) => {
 app.post('/api/register', async (req, res) => {
   const { role_id, full_name, id_card, phone, username, password } = req.body;
 
-  // Validate ข้อมูลก่อน
   if (!role_id || !full_name || !id_card || !phone || !username || !password) {
     return res.json({
       isError: true,

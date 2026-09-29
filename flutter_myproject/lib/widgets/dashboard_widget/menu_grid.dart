@@ -19,6 +19,15 @@ class MenuGrid extends StatelessWidget {
   final String token;
   const MenuGrid({super.key, required this.token});
 
+  void _showComingSoon(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('กำลังพัฒนาฟังก์ชันร้านรับซื้อ'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -110,11 +119,7 @@ class MenuGrid extends StatelessWidget {
                 label: 'ร้านรับซื้อ',
                 bgColor: const Color(0xFFFFF3E0),
                 labelColor: const Color(0xFFE65100),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('กำลังพัฒนาฟังก์ชันร้านรับซื้อ')),
-                  );
-                },
+                onTap: () => _showComingSoon(context),
               ),
               MenuItem(
                 emoji: '📈',
