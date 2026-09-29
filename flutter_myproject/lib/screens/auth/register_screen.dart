@@ -36,6 +36,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // 🔥 เพิ่ม role_id ให้ตรงกับ database
   final List<Map<String, dynamic>> roles = [
+    // ในตาราง role: R001 = แอดมิน, R002 = เกษตรกร, R003 = ร้านรับซื้อ (ดู sql/001_setup_roles.sql)
     {'label': 'เกษตรกร', 'icon': Icons.agriculture, 'role_id': 'R002'},
     {'label': 'ร้านรับซื้อ', 'icon': Icons.store, 'role_id': 'R003'},
   ];

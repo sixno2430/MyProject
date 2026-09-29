@@ -12,21 +12,13 @@ import 'package:flutter_myproject/screens/garden/harvest/harvest_screen.dart';
 import 'package:flutter_myproject/screens/main/report/report_screen.dart';
 import 'package:flutter_myproject/screens/garden/plamvarieties/palmvarieties_screen.dart';
 import 'package:flutter_myproject/screens/finance/finance_screen.dart';
+import 'package:flutter_myproject/screens/store/store_screen.dart';
 import 'package:flutter_myproject/widgets/dashboard_widget/menu_item.dart';
 
 /// ตารางเมนูหลัก (ต้องส่ง token ไปให้หน้าพันธุ์ปาล์ม)
 class MenuGrid extends StatelessWidget {
   final String token;
   const MenuGrid({super.key, required this.token});
-
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('กำลังพัฒนาฟังก์ชันร้านรับซื้อ'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +111,10 @@ class MenuGrid extends StatelessWidget {
                 label: 'ร้านรับซื้อ',
                 bgColor: const Color(0xFFFFF3E0),
                 labelColor: const Color(0xFFE65100),
-                onTap: () => _showComingSoon(context),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StoreScreen()),
+                ),
               ),
               MenuItem(
                 emoji: '📈',

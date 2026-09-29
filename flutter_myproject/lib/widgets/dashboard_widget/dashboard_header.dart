@@ -10,6 +10,7 @@ import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/services/profile_service.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
+import 'package:flutter_myproject/notifications/notifications_screen.dart';
 
 /// ส่วนหัว Dashboard รับข้อมูลสถิติจาก DashboardData
 class DashboardHeader extends StatefulWidget {
@@ -243,16 +244,23 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     );
   }
 
-  /// ปุ่มกระดิ่งแจ้งเตือน (ยังไม่มีการทำงาน)
+  /// ปุ่มกระดิ่ง แตะแล้วเปิดหน้าการแจ้งเตือน
   Widget _buildNotificationBell() {
-    return Container(
-      width: 42,
-      height: 42,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
+    return Material(
+      color: Colors.white.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
         borderRadius: BorderRadius.circular(14),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+        ),
+        child: const SizedBox(
+          width: 42,
+          height: 42,
+          child: Icon(Icons.notifications_none_rounded, color: Colors.white),
+        ),
       ),
-      child: const Icon(Icons.notifications_none_rounded, color: Colors.white),
     );
   }
 

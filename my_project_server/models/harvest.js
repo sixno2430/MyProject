@@ -9,12 +9,13 @@ const db = require('../libs/db_pool');
 
 const harvest = {
   // 1. ดึงรายการเก็บเกี่ยวทั้งหมด
-  getAllHarvests: async (gardenId = null, userId = null) => {
+  getAllHarvests: async (gardenId = null, userId = null, year = null) => {
     try {
       let query = `
         SELECT 
           h.harvest_id AS id,
           h.garden_id AS gardenId,
+          h.shop_id AS shopId,
           COALESCE(h.code, CAST(h.harvest_id AS CHAR)) AS code,
           COALESCE(g.garden_name, 'แปลงปาล์ม') AS plotName,
           COALESCE(s.shop_name, 'ไม่ระบุร้านรับซื้อ') AS buyer,
@@ -28,12 +29,12 @@ const harvest = {
         LEFT JOIN shop s ON h.shop_id = s.shop_id
       `;
 
-      const params = [];
+      // ปีที่ต้องการดู (ไม่ส่งมา = ปีปัจจุบัน) เดิมล็อกไว้แค่ปีนี้ ทำให้ข้อมูลปีก่อนหายจากหน้าจอ
+      const params = [year || new Date().getFullYear()];
+      query += ` WHERE YEAR(h.harvest_date) = ?`;
       if (gardenId && gardenId !== 'ALL') {
-        query += ` WHERE h.garden_id = ? AND YEAR(h.harvest_date) = YEAR(CURDATE())`;
+        query += ` AND h.garden_id = ?`;
         params.push(gardenId);
-      } else {
-        query += ` WHERE YEAR(h.harvest_date) = YEAR(CURDATE())`;
       }
 
       if (userId) {
@@ -54,10 +55,11 @@ const harvest = {
   },
 
   // 2. ดึงข้อมูลสรุปผลรวม + กราฟ
-  getSummary: async (gardenId = null, userId = null) => {
+  getSummary: async (gardenId = null, userId = null, year = null) => {
     try {
-      let whereClause = `WHERE YEAR(harvest_date) = YEAR(CURDATE())`;
-      const params = [];
+      const targetYear = year || new Date().getFullYear();
+      let whereClause = `WHERE YEAR(harvest_date) = ?`;
+      const params = [targetYear];
 
       if (gardenId && gardenId !== 'ALL') {
         whereClause += ` AND garden_id = ?`;
@@ -107,7 +109,7 @@ const harvest = {
       });
 
       const last12MonthsProduction = {};
-      const currentYear = new Date().getFullYear();
+      const currentYear = targetYear;
       const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
       for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
@@ -137,7 +139,16 @@ const harvest = {
   // 3. ฟังก์ชันสร้างบันทึกการเก็บเกี่ยวใหม่
   createHarvest: async (data) => {
     try {
-      const { garden_id, harvest_date, total_quantity, price_per_kg, total_price, status } = data;
+      const { user_id, garden_id, shop_id, harvest_date, total_quantity, price_per_kg, total_price, status } = data;
+
+      // บันทึกได้เฉพาะแปลงของตัวเอง
+      const owned = await db.query(
+        `SELECT garden_id FROM garden WHERE garden_id = ? AND user_id = ?`,
+        [garden_id, user_id]
+      );
+      if (owned.length === 0) {
+        return { isError: true, data: null, errorMessage: 'ไม่พบแปลงสวนนี้ในบัญชีของคุณ' };
+      }
 
       const maxRows = await db.query(`
         SELECT MAX(CAST(SUBSTRING(harvest_id, 2) AS UNSIGNED)) AS max_num 
@@ -152,13 +163,14 @@ const harvest = {
 
       const query = `
         INSERT INTO harvest 
-        (harvest_id, garden_id, harvest_date, total_quantity, price_per_kg, total_price, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        (harvest_id, garden_id, shop_id, harvest_date, total_quantity, price_per_kg, total_price, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const params = [
         newHarvestId,
         garden_id || null,
+        shop_id || null, // ร้านที่ขายให้ (ไม่ระบุได้)
         harvest_date,
         total_quantity || 0,
         price_per_kg || 0,
@@ -178,14 +190,14 @@ const harvest = {
   // 4. แก้ไขบันทึกการเก็บเกี่ยว (เฉพาะสวนของ userId)
   updateHarvest: async (harvestId, userId, data) => {
     try {
-      const { garden_id, harvest_date, total_quantity, price_per_kg, total_price, status } = data;
+      const { garden_id, shop_id, harvest_date, total_quantity, price_per_kg, total_price, status } = data;
       const query = `
         UPDATE harvest
-        SET garden_id = ?, harvest_date = ?, total_quantity = ?, price_per_kg = ?, total_price = ?, status = ?
+        SET garden_id = ?, shop_id = ?, harvest_date = ?, total_quantity = ?, price_per_kg = ?, total_price = ?, status = ?
         WHERE harvest_id = ? AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?) AND ? IN (SELECT garden_id FROM garden WHERE user_id = ?)
       `;
       const result = await db.query(query, [
-        garden_id, harvest_date, total_quantity || 0, price_per_kg || 0, total_price || 0, status || 'sold',
+        garden_id, shop_id || null, harvest_date, total_quantity || 0, price_per_kg || 0, total_price || 0, status || 'sold',
         harvestId, userId, garden_id, userId
       ]);
       if (!result.affectedRows) {
@@ -200,7 +212,8 @@ const harvest = {
 
   // 4.1 ทำเครื่องหมายว่า "ขายแล้ว" พร้อมราคาที่ขายได้จริง
   //     ราคารวมคำนวณใหม่จากน้ำหนักในฐานข้อมูล (total_quantity × ราคา) กันตัวเลขไม่ตรงกัน
-  sellHarvest: async (harvestId, userId, pricePerKg) => {
+  //     shopId = ร้านที่ขายให้ (ไม่ส่งมา = คงร้านเดิมไว้)
+  sellHarvest: async (harvestId, userId, pricePerKg, shopId = null) => {
     try {
       const price = parseFloat(pricePerKg);
       if (!(price > 0)) {
@@ -208,9 +221,10 @@ const harvest = {
       }
       const result = await db.query(`
         UPDATE harvest
-        SET status = 'sold', price_per_kg = ?, total_price = total_quantity * ?
+        SET status = 'sold', price_per_kg = ?, total_price = total_quantity * ?,
+            shop_id = COALESCE(?, shop_id)
         WHERE harvest_id = ? AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?)
-      `, [price, price, harvestId, userId]);
+      `, [price, price, shopId || null, harvestId, userId]);
       if (!result.affectedRows) {
         return { isError: true, data: null, errorMessage: 'ไม่พบรายการ หรือไม่มีสิทธิ์แก้ไข' };
       }
@@ -222,17 +236,36 @@ const harvest = {
   },
 
   // 5. ลบบันทึกการเก็บเกี่ยว (เฉพาะสวนของ userId)
+  //    ลบรายการเงินที่ผูกกับการขาย (purchase) ของผลผลิตนี้ก่อน ไม่งั้นพอ purchase ถูกลบตาม (CASCADE)
+  //    ช่อง ref_purchase_id จะกลายเป็น NULL แล้วรายการเงินนั้นจะโผล่เป็น "รายการที่บันทึกเอง"
   deleteHarvest: async (harvestId, userId) => {
+    let conn;
     try {
-      const query = `DELETE FROM harvest WHERE harvest_id = ? AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?)`;
-      const result = await db.query(query, [harvestId, userId]);
+      conn = await db.getConnection();
+      await conn.beginTransaction();
+      await conn.query(`
+        DELETE fn FROM finance fn
+        JOIN purchase p ON fn.ref_purchase_id = p.purchase_id
+        JOIN harvest h ON p.harvest_id = h.harvest_id
+        JOIN garden g ON h.garden_id = g.garden_id
+        WHERE h.harvest_id = ? AND g.user_id = ?
+      `, [harvestId, userId]);
+      const result = await conn.query(
+        `DELETE FROM harvest WHERE harvest_id = ? AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?)`,
+        [harvestId, userId]
+      );
       if (!result.affectedRows) {
+        await conn.rollback();
         return { isError: true, data: null, errorMessage: 'ไม่พบรายการ หรือไม่มีสิทธิ์ลบ' };
       }
+      await conn.commit();
       return { isError: false, data: null, errorMessage: "" };
     } catch (error) {
+      if (conn) await conn.rollback().catch(() => {});
       console.error('Error deleteHarvest:', error);
       return { isError: true, data: null, errorMessage: 'ลบรายการไม่สำเร็จ' };
+    } finally {
+      if (conn) conn.release();
     }
   }
 };

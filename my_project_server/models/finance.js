@@ -207,6 +207,16 @@ class FinanceModel {
       if (!user_id) {
         return { isError: true, data: null, errorMessage: 'ไม่พบข้อมูลผู้ใช้' };
       }
+      // ระบุแปลงได้เฉพาะแปลงของตัวเอง (ไม่ระบุแปลงก็ได้)
+      if (garden_id) {
+        const owned = await db.query(
+          `SELECT garden_id FROM garden WHERE garden_id = ? AND user_id = ?`,
+          [garden_id, user_id]
+        );
+        if (owned.length === 0) {
+          return { isError: true, data: null, errorMessage: 'ไม่พบแปลงสวนนี้ในบัญชีของคุณ' };
+        }
+      }
 
       const rows = await db.query(`
         SELECT MAX(CAST(SUBSTRING(finance_id, 3) AS UNSIGNED)) AS max_num 

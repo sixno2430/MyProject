@@ -178,8 +178,10 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
 
     setState(() => isLoading = true);
     try {
+      // ส่ง user_id ไปด้วย เซิร์ฟเวอร์ให้ลบได้เฉพาะแปลงของตัวเอง
+      final userId = await AuthService.getUserId();
       final response = await http.delete(
-        Uri.parse('$baseUrl/gardens/${garden.gardenId}'),
+        Uri.parse('$baseUrl/gardens/${garden.gardenId}?user_id=$userId'),
       );
       final body = json.decode(response.body);
       if (!mounted) return;
@@ -276,10 +278,12 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     if (result != null) {
       setState(() => isLoading = true);
       try {
+        // ส่ง user_id ไปด้วย เซิร์ฟเวอร์ให้แก้ได้เฉพาะแปลงของตัวเอง
+        final userId = await AuthService.getUserId();
         final response = await http.put(
           Uri.parse('$baseUrl/gardens/${garden.gardenId}'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(result),
+          body: jsonEncode({...result, 'user_id': userId}),
         );
         final body = json.decode(response.body);
         if (!mounted) return;
