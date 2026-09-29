@@ -1,5 +1,12 @@
+// ============================================================
+// user_management_screen.dart — หน้าจัดการผู้ใช้สำหรับผู้ดูแลระบบ
+//
+// หมายเหตุ: ตอนนี้เป็นข้อมูลตัวอย่าง ยังไม่เชื่อม API และยังไม่มีทางเข้าจากแอป
+// ============================================================
+
 import 'package:flutter/material.dart';
 
+/// หน้ารายชื่อผู้ใช้สำหรับ Admin
 class UserManagementScreen extends StatelessWidget {
   const UserManagementScreen({super.key});
 
@@ -74,6 +81,7 @@ class UserManagementScreen extends StatelessWidget {
     );
   }
 
+  /// ปุ่มกรองตามบทบาท
   Widget _buildFilterChip(String label, bool isSelected) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -92,6 +100,7 @@ class UserManagementScreen extends StatelessWidget {
     );
   }
 
+  /// การ์ดผู้ใช้ 1 คน
   Widget _buildUserCard({
     required String name,
     required String phone,

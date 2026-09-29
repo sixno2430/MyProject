@@ -1,5 +1,10 @@
+// ============================================================
+// error_view.dart — หน้าแสดงข้อผิดพลาดพร้อมปุ่ม "ลองใหม่" (ใช้ในหน้า Dashboard)
+// ============================================================
+
 import 'package:flutter/material.dart';
 
+/// แสดงข้อความ error และปุ่มลองใหม่ (เรียก onRetry)
 class ErrorView extends StatelessWidget {
   final String error;
   final VoidCallback onRetry;

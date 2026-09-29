@@ -1,9 +1,16 @@
+// ============================================================
+// profile_screen.dart — แท็บ "โปรไฟล์"
+//
+// แสดงข้อมูลผู้ใช้, แก้ไขชื่อ/เบอร์โทร, เปลี่ยนรหัสผ่าน และออกจากระบบ
+// ============================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/services/profile_service.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
 import 'package:flutter_myproject/screens/main/profile/change_password_screen.dart';
 
+/// แท็บโปรไฟล์
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -42,6 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadProfile();
   }
 
+  /// ดึงข้อมูลโปรไฟล์จาก API
   Future<void> _loadProfile() async {
     if (currentUserId == null) return;
 
@@ -468,6 +476,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// แถวข้อมูล (หัวข้อ + ค่า)
   Widget _buildInfoRow(String label, String? value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -487,6 +496,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// แถวข้อมูลที่แสดงค่าเป็นป้าย (เช่น บทบาทผู้ใช้)
   Widget _buildInfoRowWithBadge(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -524,6 +534,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// แถวเมนูการตั้งค่า (ไอคอน + ชื่อ + ลูกศร)
   Widget _buildMenuItem({
     required IconData icon,
     required String title,

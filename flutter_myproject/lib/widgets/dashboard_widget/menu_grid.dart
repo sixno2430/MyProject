@@ -1,3 +1,10 @@
+// ============================================================
+// menu_grid.dart — ตารางเมนูหลักบนหน้า Dashboard (4 คอลัมน์)
+//
+// แต่ละปุ่มเปิดหน้าของฟังก์ชันนั้น: แปลงสวน, ดูแลรักษา, เก็บเกี่ยว, พันธุ์ปาล์ม,
+// รายรับ-จ่าย, ร้านรับซื้อ, รายงาน
+// ============================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/screens/garden/palmplot/palmplot_screen.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/gardencare_screen.dart';
@@ -7,6 +14,7 @@ import 'package:flutter_myproject/screens/garden/plamvarieties/palmvarieties_scr
 import 'package:flutter_myproject/screens/finance/finance_screen.dart';
 import 'package:flutter_myproject/widgets/dashboard_widget/menu_item.dart';
 
+/// ตารางเมนูหลัก (ต้องส่ง token ไปให้หน้าพันธุ์ปาล์ม)
 class MenuGrid extends StatelessWidget {
   final String token;
   const MenuGrid({super.key, required this.token});
@@ -20,13 +28,30 @@ class MenuGrid extends StatelessWidget {
         children: [
           const Text(
             'เมนูหลัก',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F2937)),
           ),
           const SizedBox(height: 12),
-          
-          // แถวที่ 1 (4 เมนู)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+          // ตาราง 4 คอลัมน์ ทุกช่องกว้างเท่ากัน (แทน Row + SizedBox ดันช่องว่าง)
+          Container(
+            padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: GridView.count(
+            crossAxisCount: 4,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 8,
+            childAspectRatio: 0.82,
             children: [
               MenuItem(
                 emoji: '🗺️',
@@ -69,14 +94,7 @@ class MenuGrid extends StatelessWidget {
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
 
-          // แถวที่ 2 (3 หรือ 4 เมนู)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
               MenuItem(
                 emoji: '💵',
                 label: 'รายรับ-จ่าย',
@@ -108,9 +126,8 @@ class MenuGrid extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const ReportScreen()),
                 ),
               ),
-              // ใช้ SizedBox กว้างเท่าปุ่ม เพื่อรักษาการจัดช่องว่างให้ตรงแนวกับแถวบน
-              const SizedBox(width: 64), 
             ],
+          ),
           ),
         ],
       ),

@@ -1,5 +1,12 @@
+// ============================================================
+// notifications_screen.dart — หน้าการแจ้งเตือน
+//
+// หมายเหตุ: ตอนนี้เป็นข้อมูลตัวอย่าง ยังไม่เชื่อม API และยังไม่มีทางเข้าจากแอป
+// ============================================================
+
 import 'package:flutter/material.dart';
 
+/// หน้ารายการแจ้งเตือน
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
 
@@ -55,6 +62,7 @@ class NotificationsScreen extends StatelessWidget {
     );
   }
 
+  /// การ์ดแจ้งเตือน 1 รายการ
   Widget _buildNotificationItem({
     required String icon,
     required String title,

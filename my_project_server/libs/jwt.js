@@ -1,3 +1,7 @@
+// ============================================================
+// jwt.js — สร้างและตรวจสอบ JWT token (ห่อ jsonwebtoken ไว้ พร้อม secret key)
+// ============================================================
+
 var jwt = require('jsonwebtoken');
 var secretKey = "MySecretKey";
 
@@ -11,6 +15,9 @@ module.exports = {
     return token;
   },
  
+  /**
+   * ตรวจ token คืน Promise ของข้อมูลที่ฝังไว้ (reject ถ้า token ผิดหรือหมดอายุ)
+   */
   verify(token) {
     return new Promise((resolve, reject) => {
       jwt.verify(token, secretKey, (err, decoded) => {

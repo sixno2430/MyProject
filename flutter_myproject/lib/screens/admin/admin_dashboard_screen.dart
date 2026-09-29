@@ -1,5 +1,12 @@
+// ============================================================
+// admin_dashboard_screen.dart — หน้า Dashboard สำหรับผู้ดูแลระบบ
+//
+// หมายเหตุ: ตอนนี้เป็นข้อมูลตัวอย่าง ยังไม่เชื่อม API และยังไม่มีทางเข้าจากแอป
+// ============================================================
+
 import 'package:flutter/material.dart';
 
+/// หน้าภาพรวมสำหรับ Admin
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
 
@@ -71,6 +78,7 @@ class AdminDashboardScreen extends StatelessWidget {
     );
   }
 
+  /// กล่องสถิติ 1 ช่อง (ตัวเลข + ชื่อ + ไอคอน)
   Widget _buildAdminStat(String value, String label, IconData icon) {
     return Column(
       children: [
@@ -82,6 +90,7 @@ class AdminDashboardScreen extends StatelessWidget {
     );
   }
 
+  /// แถวผู้ใช้ 1 คน (ชื่อ, บทบาท, สถานะ)
   Widget _buildUserItem(String name, String role, String status, Color roleColor) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),

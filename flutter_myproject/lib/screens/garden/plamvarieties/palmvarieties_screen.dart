@@ -1,7 +1,14 @@
+// ============================================================
+// palmvarieties_screen.dart (plamvarieties/) — หน้าพันธุ์ปาล์มที่เปิดจากเมนูหลัก
+//
+// แสดงรายชื่อพันธุ์ปาล์มจาก PalmVarietyService ค้นหาได้ (ดูอย่างเดียว)
+// ============================================================
+
 import 'package:flutter/material.dart';
 import '../../../../services/palm_variety_service.dart';
 import 'palm_variety.dart';
 
+/// หน้ารายการพันธุ์ปาล์ม (ต้องส่ง token มาด้วย)
 class PalmVarietiesScreen extends StatefulWidget {
   final String token;
   const PalmVarietiesScreen({super.key, required this.token});
@@ -28,10 +35,12 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
     _loadData();
   }
 
+  /// เริ่มโหลดรายชื่อพันธุ์จาก API
   void _loadData() {
     _future = PalmVarietyService.getVarieties(widget.token);
   }
 
+  /// โหลดใหม่ (ดึงหน้าจอลง)
   Future<void> _reload() async {
     setState(() {
       _loadData();
@@ -261,6 +270,7 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
     );
   }
 
+  /// การ์ดพันธุ์ปาล์ม 1 พันธุ์
   Widget _buildVarietyCard({
     required Color topColor,
     required Color iconBgColor,

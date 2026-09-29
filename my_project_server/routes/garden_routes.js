@@ -1,3 +1,7 @@
+// ============================================================
+// garden_routes.js — route แปลงสวนแบบแยกไฟล์ (ตอนนี้ server.js ยังไม่ได้ผูกใช้)
+// ============================================================
+
 const express = require('express');
 const router = express.Router();
 const GardenModel = require('../models/garden');

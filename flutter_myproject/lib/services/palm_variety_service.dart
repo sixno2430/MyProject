@@ -1,11 +1,20 @@
+// ============================================================
+// palm_variety_service.dart — เรียก API รายชื่อพันธุ์ปาล์ม
+//
+// ใช้กับหน้าพันธุ์ปาล์มในโฟลเดอร์ plamvarieties/ (ส่ง token ไปใน header ด้วย)
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../screens/garden/plamvarieties/palm_variety.dart';
 
+/// เรียก API พันธุ์ปาล์ม
 class PalmVarietyService {
   static const String baseUrl = 'http://localhost:3000';
 
+  /// ดึงรายชื่อพันธุ์ปาล์มทั้งหมด (GET /api/varieties)
+  /// รองรับทั้งแบบ { data: [...] } และแบบส่ง List มาตรงๆ
   static Future<List<PalmVariety>> getVarieties(String token) async {
     try {
       final res = await http.get(

@@ -1,3 +1,12 @@
+// ============================================================
+// activity_detail_screen.dart — หน้ารายละเอียดกิจกรรม 1 รายการ
+//
+// แสดงข้อมูลเต็ม และมีปุ่มแก้ไข/ลบ
+// - แก้ไข: เปิดฟอร์มเดิมของประเภทนั้น (เก็บเกี่ยว / ดูแลสวน / การเงิน)
+// - ลบ: เรียก API ลบของประเภทนั้น
+// ทำเสร็จแล้ว pop(true) กลับไป ให้หน้าก่อนหน้าโหลดข้อมูลใหม่
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -14,13 +23,16 @@ import 'package:flutter_myproject/widgets/activity_widgets/activity_type_badge.d
 import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 
+/// หน้ารายละเอียดกิจกรรม
 class ActivityDetailScreen extends StatelessWidget {
   final ActivityItem activity;
   const ActivityDetailScreen({super.key, required this.activity});
 
+  /// แปลงค่าจาก JSON เป็นตัวเลข (ถ้าแปลงไม่ได้ให้เป็น 0)
   double _num(dynamic v) => double.tryParse(v?.toString() ?? '') ?? 0;
 
   // เปิดฟอร์มแก้ไขให้ตรงประเภท โดยแปลงข้อมูลกิจกรรมเป็นรูปแบบที่ฟอร์มนั้นรับ
+  /// สร้างฟอร์มแก้ไขให้ตรงประเภท โดยแปลงข้อมูลกิจกรรมเป็นรูปแบบที่ฟอร์มนั้นรับ
   Widget _buildEditForm() {
     final raw = activity.raw;
     final dateStr = DateFormat('yyyy-MM-dd').format(activity.recordDate);
@@ -69,6 +81,7 @@ class ActivityDetailScreen extends StatelessWidget {
     }
   }
 
+  /// เปิดฟอร์มแก้ไข ถ้าบันทึกแล้วปิดหน้านี้และบอกหน้าก่อนหน้าให้โหลดใหม่
   Future<void> _edit(BuildContext context) async {
     final saved = await Navigator.push(
       context,
@@ -78,6 +91,7 @@ class ActivityDetailScreen extends StatelessWidget {
     if (saved == true && context.mounted) Navigator.pop(context, true);
   }
 
+  /// ยืนยันแล้วลบรายการผ่าน API ของประเภทนั้น (harvests / care-logs / finance)
   Future<void> _delete(BuildContext context) async {
     if (!await confirmDelete(context, 'กิจกรรม ${activity.gardenName}')) return;
 
@@ -295,6 +309,7 @@ class ActivityDetailScreen extends StatelessWidget {
     );
   }
 
+  /// แถวข้อมูล 1 บรรทัด (ไอคอน + หัวข้อ + ค่า)
   Widget _buildDetailRow(IconData icon, String label, String value) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -333,6 +348,7 @@ class ActivityDetailScreen extends StatelessWidget {
     );
   }
 
+  /// ตัวเลขใหญ่ในการ์ดด้านบน (จำนวน หรือจำนวนเงิน +/-)
   String _buildMainValue() {
     switch (activity.type) {
       case 'harvest':
@@ -347,12 +363,13 @@ class ActivityDetailScreen extends StatelessWidget {
     }
   }
 
+  /// หน่วยใต้ตัวเลขใหญ่
   String _buildMainLabel() {
     switch (activity.type) {
       case 'harvest':
         return 'กิโลกรัม (ผลผลิต)';
       case 'care':
-        return 'กิโลกรัม (ปุ๋ย/สาร)';
+        return '${activity.quantityUnit} (${activity.careLabel})';
       case 'income':
         return 'บาท (รายรับ)';
       case 'expense':
@@ -393,6 +410,7 @@ class ActivityDetailScreen extends StatelessWidget {
   }
 }
 
+/// สีของหน้ารายละเอียดแต่ละประเภท
 class _DetailTheme {
   final Color appBarColor;
   final Color valueColor;

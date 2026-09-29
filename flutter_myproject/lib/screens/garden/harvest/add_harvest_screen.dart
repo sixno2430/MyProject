@@ -1,3 +1,10 @@
+// ============================================================
+// add_harvest_screen.dart — ฟอร์มบันทึก/แก้ไขการเก็บเกี่ยว
+//
+// เลือกแปลง, วันที่, น้ำหนัก, ราคาต่อ กก. (คำนวณราคารวมให้อัตโนมัติ) และสถานะ (ขายแล้ว / รอขาย)
+// ส่ง existing มา = โหมดแก้ไข (PUT) ไม่ส่ง = เพิ่มใหม่ (POST)
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -6,6 +13,7 @@ import 'package:intl/intl.dart';
 import 'harvest_screen.dart' show HarvestData;
 import 'package:flutter_myproject/services/auth_server.dart';
 
+/// ฟอร์มบันทึกการเก็บเกี่ยว
 class AddHarvestScreen extends StatefulWidget {
   /// ข้อมูลเดิม (ส่งมา = โหมดแก้ไข, ไม่ส่ง = เพิ่มใหม่)
   final HarvestData? existing;
@@ -71,6 +79,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
   }
 
   // ดึงรายชื่อแปลงสวนจาก Backend
+  /// โหลดแปลงสวนของ user มาใส่ dropdown
   Future<void> _fetchGardens() async {
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) return;
@@ -148,9 +157,11 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     });
   }
 
+  /// แปลงตัวเลขเป็นข้อความในช่องกรอก (10.0 -> "10")
   String _numText(double n) => n % 1 == 0 ? n.toInt().toString() : n.toString();
 
   // คำนวณราคารวมอัตโนมัติ
+  /// คำนวณราคารวม (น้ำหนัก × ราคา) ทุกครั้งที่พิมพ์
   void _calculateTotal() {
     final qty = double.tryParse(_quantityController.text.replaceAll(',', '')) ?? 0;
     final price = double.tryParse(_pricePerKgController.text.replaceAll(',', '')) ?? 0;
@@ -165,6 +176,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
   }
 
   // แปลงวันที่แสดงผลเป็นรูปแบบ พ.ศ.
+  /// แสดงวันที่ที่เลือกเป็นภาษาไทย ปี พ.ศ.
   void _updateDateDisplay() {
     final thaiYear = _selectedDate.year + 543;
     final monthNames = [
@@ -174,6 +186,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     _dateController.text = '${_selectedDate.day} ${monthNames[_selectedDate.month - 1]} $thaiYear';
   }
 
+  /// เลือกวันที่เก็บเกี่ยว
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -198,6 +211,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
   }
 
   // ส่งข้อมูลไปบันทึกที่ Backend
+  /// ตรวจฟอร์ม แล้วส่งบันทึก (เพิ่มใหม่หรือแก้ไข) สำเร็จแล้วปิดหน้า
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedGardenId == null) {
@@ -449,6 +463,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
   }
 
   // Helper Widgets
+  /// หัวข้อเหนือช่องกรอก
   Widget _buildLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6.0),
@@ -459,6 +474,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     );
   }
 
+  /// หน้าตาช่องกรอกที่ใช้ร่วมกันในฟอร์ม
   InputDecoration _buildInputDecoration({String? hintText, IconData? suffixIcon}) {
     return InputDecoration(
       hintText: hintText,
@@ -482,6 +498,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     );
   }
 
+  /// ปุ่มเลือกสถานะ (ขายแล้ว / รอขาย)
   Widget _buildStatusChip({
     required String label,
     required String value,

@@ -1,3 +1,10 @@
+// ============================================================
+// profile_routes.js — API โปรไฟล์ผู้ใช้ (ผูกไว้ที่ /api/profile ใน server.js)
+//
+// GET /api/profile/:user_id -> ข้อมูลผู้ใช้ + บทบาท + วันที่สมัคร + จำนวนแปลงสวน
+// หมายเหตุ: ยังไม่มี PUT /api/profile/:user_id ที่แอปใช้ตอนแก้ไขโปรไฟล์
+// ============================================================
+
 const express = require('express');
 const router = express.Router();
 const dbPool = require('../libs/db_pool');

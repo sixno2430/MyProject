@@ -1,3 +1,10 @@
+// ============================================================
+// palm_variety_dropdown.dart — Dropdown เลือกพันธุ์ปาล์มแบบใช้ซ้ำได้
+//
+// แสดงสถานะกำลังโหลด / error / ไม่มีข้อมูลให้เอง
+// หมายเหตุ: ตอนนี้ยังไม่มีหน้าไหนเรียกใช้
+// ============================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/screens/garden/palmvarieties/palm_variety.dart';
 /// Dropdown เลือกพันธุ์ปาล์ม
@@ -64,6 +71,7 @@ class _PalmVarietyDropdownState extends State<PalmVarietyDropdown> {
   }
   
 
+  /// รอข้อมูลจาก futureVarieties แล้วเก็บไว้แสดงใน dropdown
   Future<void> _loadVarieties() async {
     try {
       final list = await widget.futureVarieties!;
@@ -141,6 +149,7 @@ class _PalmVarietyDropdownState extends State<PalmVarietyDropdown> {
     );
   }
 
+  /// กล่องแสดงสถานะกำลังโหลด
   Widget _buildLoading() {
     return Container(
       height: 56,
@@ -159,6 +168,7 @@ class _PalmVarietyDropdownState extends State<PalmVarietyDropdown> {
     );
   }
 
+  /// กล่องแสดงข้อผิดพลาดตอนโหลดไม่สำเร็จ
   Widget _buildError() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -192,6 +202,7 @@ class _PalmVarietyDropdownState extends State<PalmVarietyDropdown> {
     );
   }
 
+  /// กล่องแสดงว่ายังไม่มีข้อมูลพันธุ์ปาล์ม
   Widget _buildEmpty() {
     return Container(
       height: 56,

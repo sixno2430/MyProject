@@ -1,3 +1,11 @@
+// ============================================================
+// harvest_screen.dart — หน้า "บันทึกการเก็บเกี่ยว"
+//
+// แสดงสรุปผลผลิตปีนี้, กราฟรายเดือน และรายการเก็บเกี่ยว
+// กรองตามสถานะ (ทั้งหมด / รอขาย / ขายแล้ว) และกด "ขายแล้ว" ให้รายการที่รอขายได้
+// API: GET /api/harvests, GET /api/harvests/summary, PUT /api/harvests/:id/sell, DELETE /api/harvests/:id
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +18,7 @@ import 'package:flutter_myproject/widgets/item_actions.dart';
 // 1. MODELS
 // ==========================================
 
+/// ข้อมูลการเก็บเกี่ยว 1 รายการ
 class HarvestData {
   final String id;
   final String gardenId;
@@ -35,6 +44,7 @@ class HarvestData {
     required this.status,
   });
 
+  /// แปลง JSON จาก API เป็น HarvestData
   factory HarvestData.fromJson(Map<String, dynamic> json) {
     return HarvestData(
       id: json['id']?.toString() ?? '',
@@ -51,6 +61,7 @@ class HarvestData {
   }
 }
 
+/// ข้อมูลสรุป: ผลผลิตรวม, รายได้ (เฉพาะที่ขายแล้ว), ราคาเฉลี่ย, ผลผลิตรายเดือน
 class HarvestSummary {
   final double totalQuantityKg;
   final double totalRevenue;
@@ -64,6 +75,7 @@ class HarvestSummary {
     required this.last12MonthsProduction,
   });
 
+  /// แปลง JSON จาก API เป็น HarvestSummary
   factory HarvestSummary.fromJson(Map<String, dynamic> json) {
     return HarvestSummary(
       totalQuantityKg: (json['totalQuantityKg'] ?? json['total_quantity_kg'] ?? 0).toDouble(),
@@ -82,6 +94,7 @@ class HarvestSummary {
 // 2. SERVICE
 // ==========================================
 
+/// เรียก API การเก็บเกี่ยว (ส่ง user_id ของคนที่ล็อกอินไปทุกครั้ง)
 class HarvestService {
   static String get baseUrl => AppConfig.apiBaseUri;
 
@@ -97,6 +110,7 @@ class HarvestService {
     };
   }
 
+  /// ดึงรายการเก็บเกี่ยวของปีนี้
   Future<List<HarvestData>> fetchHarvestRecords({String? gardenId}) async {
     final uri = Uri.parse('$baseUrl/harvests').replace(
       queryParameters: await _buildQuery(gardenId),
@@ -135,6 +149,7 @@ class HarvestService {
     }
   }
 
+  /// ดึงข้อมูลสรุปและผลผลิตรายเดือนของปีนี้
   Future<HarvestSummary> fetchHarvestSummary({String? gardenId}) async {
     final uri = Uri.parse('$baseUrl/harvests/summary').replace(
       queryParameters: await _buildQuery(gardenId),
@@ -164,6 +179,7 @@ class HarvestService {
 // 3. UI SCREEN
 // ==========================================
 
+/// หน้าบันทึกการเก็บเกี่ยว
 class HarvestScreen extends StatefulWidget {
   const HarvestScreen({super.key});
 
@@ -178,12 +194,16 @@ class _HarvestScreenState extends State<HarvestScreen> {
 
   String? _selectedMonth;
 
+  /// แท็บกรองรายการ: 'all' | 'pending' | 'sold'
+  String _statusFilter = 'all';
+
   @override
   void initState() {
     super.initState();
     _refreshData();
   }
 
+  /// โหลดสรุปและรายการใหม่ทั้งคู่
   void _refreshData() {
     setState(() {
       _summaryFuture = _service.fetchHarvestSummary();
@@ -192,6 +212,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
   }
 
   // กดค้างที่รายการ -> เลือกแก้ไข / ลบ
+  /// กดค้างที่การ์ด: เลือกแก้ไข (เปิดฟอร์ม) หรือลบ
   Future<void> _onHarvestLongPress(HarvestData item) async {
     final action = await showItemActionsSheet(context);
     if (action == null || !mounted) return;
@@ -224,6 +245,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
     }
   }
 
+  /// เปิดฟอร์มบันทึกการเก็บเกี่ยวใหม่ กลับมาแล้วโหลดใหม่
   Future<void> _navigateToAddHarvest() async {
     final result = await Navigator.push(
       context,
@@ -360,83 +382,38 @@ class _HarvestScreenState extends State<HarvestScreen> {
                     );
                   }
 
-                  return ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: items.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final item = items[index];
-                      final bool isSold = item.status == 'sold';
+                  // นับจำนวนแต่ละสถานะไว้แสดงบนแท็บ
+                  final pendingCount = items.where((i) => i.status != 'sold').length;
+                  final soldCount = items.length - pendingCount;
+                  final shown = switch (_statusFilter) {
+                    'pending' => items.where((i) => i.status != 'sold').toList(),
+                    'sold' => items.where((i) => i.status == 'sold').toList(),
+                    _ => items,
+                  };
 
-                      return GestureDetector(
-                        onLongPress: () => _onHarvestLongPress(item),
-                        child: Container(
-                        padding: const EdgeInsets.all(16.0),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            )
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Text('${item.code} · ${item.plotName}',
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                    const SizedBox(width: 8),
-                                    // 🟠 Badge ปรับสีส้มและข้อความ "รอขาย" ชัดเจน
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: isSold ? const Color(0xFFE8F5E9) : const Color(0xFFFFE0B2),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        isSold ? 'ขายแล้ว' : 'รอขาย',
-                                        style: TextStyle(
-                                          color: isSold ? const Color(0xFF2E7D32) : const Color(0xFFE65100),
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    )
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.storefront_outlined, size: 15, color: Colors.grey),
-                                    const SizedBox(width: 4),
-                                    Text(item.buyer, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${item.quantityKg.toStringAsFixed(0)} กก. × ${item.pricePerKg.toStringAsFixed(1)} บาท',
-                                  style: const TextStyle(color: Colors.black87, fontSize: 13),
-                                ),
-                              ],
-                            ),
-                            Text(
-                              '${item.totalPrice.toStringAsFixed(0)} ฿',
-                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1E5631)),
-                            ),
-                          ],
-                        ),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          _buildFilterChip('all', 'ทั้งหมด', items.length),
+                          const SizedBox(width: 8),
+                          _buildFilterChip('pending', 'รอขาย', pendingCount),
+                          const SizedBox(width: 8),
+                          _buildFilterChip('sold', 'ขายแล้ว', soldCount),
+                        ],
                       ),
-                      );
-                    },
+                      const SizedBox(height: 12),
+                      if (shown.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Center(
+                            child: Text('ไม่มีรายการในหมวดนี้', style: TextStyle(color: Colors.grey)),
+                          ),
+                        )
+                      else
+                        ...shown.map(_buildHarvestCard),
+                    ],
                   );
                 },
               ),
@@ -470,6 +447,202 @@ class _HarvestScreenState extends State<HarvestScreen> {
     );
   }
 
+  // ── เปลี่ยน "รอขาย" เป็น "ขายแล้ว": ถามราคาขายจริงก่อน แล้วค่อยบันทึก ──
+  Future<void> _markAsSold(HarvestData item) async {
+    final price = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SellSheet(item: item),
+    );
+    if (price == null || !mounted) return;
+
+    final userId = await AuthService.getUserId();
+    try {
+      final response = await http.put(
+        Uri.parse('${HarvestService.baseUrl}/harvests/${item.id}/sell'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'user_id': userId, 'price_per_kg': price}),
+      );
+      final body = jsonDecode(response.body);
+      if (body['isError'] == true) throw Exception(body['errorMessage']);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('บันทึกการขาย ${item.code} แล้ว'),
+          backgroundColor: const Color(0xFF1E5631),
+        ),
+      );
+      _refreshData();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  /// ปุ่มกรองสถานะ พร้อมจำนวนรายการ
+  Widget _buildFilterChip(String value, String label, int count) {
+    final selected = _statusFilter == value;
+    const green = Color(0xFF1E5631);
+    return GestureDetector(
+      onTap: () => setState(() => _statusFilter = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? green : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? green : Colors.grey.shade300),
+        ),
+        child: Text(
+          '$label ($count)',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            color: selected ? Colors.white : Colors.black87,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// การ์ดเก็บเกี่ยว 1 รายการ (รายการรอขายมีปุ่ม "ขายแล้ว" ด้านล่าง)
+  Widget _buildHarvestCard(HarvestData item) {
+    final bool isSold = item.status == 'sold';
+    const green = Color(0xFF1E5631);
+    const orange = Color(0xFFE65100);
+
+    return GestureDetector(
+      onLongPress: () => _onHarvestLongPress(item),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          // รอขาย = มีขอบส้มบางๆ ให้เห็นชัดว่ายังต้องจัดการ
+          border: isSold ? null : Border.all(color: orange.withValues(alpha: 0.35)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '${item.code} · ${item.plotName}',
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: isSold ? const Color(0xFFE8F5E9) : const Color(0xFFFFE0B2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                isSold ? 'ขายแล้ว' : 'รอขาย',
+                                style: TextStyle(
+                                  color: isSold ? const Color(0xFF2E7D32) : orange,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(Icons.calendar_today_outlined, size: 13, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(item.date, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                            const SizedBox(width: 12),
+                            const Icon(Icons.storefront_outlined, size: 14, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                item.buyer,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isSold || item.pricePerKg > 0
+                              ? '${item.quantityKg.toStringAsFixed(0)} กก. × ${item.pricePerKg.toStringAsFixed(2)} บาท'
+                              : '${item.quantityKg.toStringAsFixed(0)} กก. · ยังไม่ได้ขาย',
+                          style: const TextStyle(color: Colors.black87, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${item.totalPrice.toStringAsFixed(0)} ฿',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: isSold ? green : Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── ปุ่มขาย เฉพาะรายการที่ยังรอขาย ──
+            if (!isSold)
+              InkWell(
+                onTap: () => _markAsSold(item),
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    color: orange.withValues(alpha: 0.06),
+                    border: Border(top: BorderSide(color: orange.withValues(alpha: 0.2))),
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.sell_outlined, size: 18, color: orange),
+                      SizedBox(width: 6),
+                      Text(
+                        'ทำเครื่องหมายว่าขายแล้ว',
+                        style: TextStyle(color: orange, fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// การ์ดสรุป 1 ช่อง (ผลผลิต / รายได้ / ราคาเฉลี่ย)
   Widget _buildSummaryCard(String title, String value, String unit) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
@@ -501,6 +674,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
 // 4. INTERACTIVE CHART COMPONENT
 // ==========================================
 
+/// กราฟแท่งผลผลิต 12 เดือน แตะแท่งเพื่อดูตัวเลขของเดือนนั้น
 class _InteractiveChartCard extends StatefulWidget {
   final Map<String, double> monthlyData;
   final ValueChanged<String?>? onHoverMonth;
@@ -517,6 +691,7 @@ class _InteractiveChartCard extends StatefulWidget {
 class _InteractiveChartCardState extends State<_InteractiveChartCard> {
   String? _hoveredMonth;
 
+  /// จำเดือนที่ถูกแตะ แล้วแจ้งหน้าแม่ให้เปลี่ยนตัวเลขสรุป
   void _updateHover(String? month) {
     setState(() {
       _hoveredMonth = month;
@@ -630,6 +805,155 @@ class _InteractiveChartCardState extends State<_InteractiveChartCard> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 4. BOTTOM SHEET: ยืนยันการขาย
+// ==========================================
+
+/// ถามราคาขายต่อกิโลกรัม คำนวณราคารวมให้ดูทันที แล้วคืนค่าราคาที่กรอก
+class _SellSheet extends StatefulWidget {
+  final HarvestData item;
+  const _SellSheet({required this.item});
+
+  @override
+  State<_SellSheet> createState() => _SellSheetState();
+}
+
+class _SellSheetState extends State<_SellSheet> {
+  static const green = Color(0xFF1E5631);
+  late final TextEditingController _priceCtrl;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.item.pricePerKg;
+    _priceCtrl = TextEditingController(
+      text: p > 0 ? (p % 1 == 0 ? p.toInt().toString() : p.toString()) : '',
+    );
+    _priceCtrl.addListener(() => setState(() => _error = null));
+  }
+
+  @override
+  void dispose() {
+    _priceCtrl.dispose();
+    super.dispose();
+  }
+
+  /// ราคาที่กรอก (null ถ้าไม่ใช่ตัวเลข)
+  double? get _price => double.tryParse(_priceCtrl.text.trim());
+
+  /// ตรวจว่าราคามากกว่า 0 แล้วปิด sheet พร้อมส่งราคากลับ
+  void _confirm() {
+    final price = _price;
+    if (price == null || price <= 0) {
+      setState(() => _error = 'กรุณาใส่ราคาที่มากกว่า 0');
+      return;
+    }
+    Navigator.pop(context, price);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    final total = (_price ?? 0) * item.quantityKg;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text('บันทึกการขาย', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(
+                  '${item.code} · ${item.plotName} · ${item.quantityKg.toStringAsFixed(0)} กก.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _priceCtrl,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  cursorColor: green,
+                  decoration: InputDecoration(
+                    labelText: 'ราคาขายต่อกิโลกรัม',
+                    suffixText: 'บาท/กก.',
+                    errorText: _error,
+                    prefixIcon: const Icon(Icons.payments_outlined, color: green),
+                    floatingLabelStyle: const TextStyle(color: green),
+                    filled: true,
+                    fillColor: const Color(0xFFF9FAFB),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: green, width: 1.5),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('รายได้จากการขาย', style: TextStyle(fontSize: 14)),
+                      const Spacer(),
+                      Text(
+                        '${total.toStringAsFixed(2)} ฿',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _confirm,
+                    icon: const Icon(Icons.check),
+                    label: const Text('ยืนยันขายแล้ว', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: green,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

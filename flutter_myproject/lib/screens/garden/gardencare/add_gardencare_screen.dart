@@ -1,3 +1,10 @@
+// ============================================================
+// add_gardencare_screen.dart — ฟอร์มเพิ่ม/แก้ไขรายการดูแลสวน
+//
+// เลือกแปลง, ประเภทกิจกรรม, ชนิดปุ๋ย (ถ้าใส่ปุ๋ย), วันที่, จำนวน และค่าใช้จ่าย
+// ส่ง existing มา = โหมดแก้ไข (PUT) ไม่ส่ง = เพิ่มใหม่ (POST) — รหัสรายการใหม่เซิร์ฟเวอร์สร้างให้
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -5,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/config/app_config.dart';
 
+/// ฟอร์มบันทึกการดูแลสวน
 class AddGardenCareScreen extends StatefulWidget {
   /// ข้อมูลเดิมจาก API (ส่งมา = โหมดแก้ไข, ไม่ส่ง = เพิ่มใหม่)
   final Map<String, dynamic>? existing;
@@ -26,6 +34,12 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
   bool _isLoadingPlots = true;
 
   String _selectedType = 'ใส่ปุ๋ย';
+
+  // ชนิดปุ๋ย (โหลดจาก /api/fertilizers) ใช้เมื่อเลือกประเภท "ใส่ปุ๋ย"
+  List<Map<String, String>> _fertilizers = [];
+  String? _selectedFertilizerId;
+
+  bool get _isFertilizer => _selectedType == 'ใส่ปุ๋ย';
   DateTime _selectedDate = DateTime.now();
   final _detailController = TextEditingController();
   final _costController = TextEditingController();
@@ -59,20 +73,49 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
               (t) => t['type'] == e['action_type'],
               orElse: () => _careTypes.last,
             )['label'];
+      _selectedFertilizerId = hasFertilizer ? e['fertilizer_id'].toString() : null;
       _detailController.text = e['note']?.toString() ?? '';
       _amountController.text = _numText(e['quantity']);
       _costController.text = _numText(e['cost']);
     }
     _fetchPlotsFromBackend();
+    _fetchFertilizers();
+  }
+
+  /// โหลดรายชื่อปุ๋ยจาก /api/fertilizers มาใส่ dropdown
+  Future<void> _fetchFertilizers() async {
+    try {
+      final response = await http.get(Uri.parse('$apiUrl/fertilizers'));
+      final body = jsonDecode(response.body);
+      if (body is! Map || body['isError'] == true) return;
+      final list = (body['data'] as List)
+          .map((f) => {
+                'id': f['fertilizer_id'].toString(),
+                'name': f['fertilizer_name'].toString(),
+              })
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _fertilizers = list;
+        // ยังไม่ได้เลือก (หรือค่าเดิมไม่มีในรายการ) -> เลือกตัวแรกให้
+        if (!list.any((f) => f['id'] == _selectedFertilizerId) && list.isNotEmpty) {
+          _selectedFertilizerId = list.first['id'];
+        }
+      });
+    } catch (_) {
+      // โหลดไม่ได้ก็ยังบันทึกได้ แค่จะไม่ระบุชนิดปุ๋ย
+    }
   }
 
   // แปลงตัวเลขจาก DB เป็นข้อความ เช่น 40.00 -> "40"
+  /// แปลงตัวเลขจาก DB เป็นข้อความในช่องกรอก (40.00 -> "40")
   String _numText(dynamic v) {
     final n = double.tryParse(v?.toString() ?? '');
     if (n == null || n == 0) return '';
     return n % 1 == 0 ? n.toInt().toString() : n.toString();
   }
 
+  /// โหลดแปลงสวนของ user มาใส่ dropdown
   Future<void> _fetchPlotsFromBackend() async {
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) {
@@ -107,6 +150,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
     }
   }
 
+  /// เลือกวันที่ดำเนินการ
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -123,6 +167,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
+  /// วันที่ที่เลือก แสดงเป็นภาษาไทย ปี พ.ศ.
   String get _thaiDate {
     final d = DateFormat('d MMMM yyyy', 'th_TH').format(_selectedDate);
     return d.replaceFirst(
@@ -131,6 +176,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
     );
   }
 
+  /// ตรวจฟอร์ม แล้วส่งบันทึก (เพิ่มใหม่หรือแก้ไข) สำเร็จแล้วปิดหน้า
   Future<void> _saveCareLog() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedGardenId == null) {
@@ -153,9 +199,8 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      String careId = _isEdit
-          ? widget.existing!['care_id'].toString()
-          : 'C${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
+      // รหัสรายการใหม่ให้เซิร์ฟเวอร์สร้าง (ต่อจากเลขล่าสุด) ส่งเฉพาะตอนแก้ไข
+      final String? careId = _isEdit ? widget.existing!['care_id'].toString() : null;
       String formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
 
       // ดึงข้อมูลประเภทกิจกรรมและหน่วยนับที่เลือก
@@ -178,9 +223,8 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
       }
 
       Map<String, dynamic> bodyData = {
-        'care_id': careId,
         'garden_id': _selectedGardenId,
-        'fertilizer_id': _selectedType == 'ใส่ปุ๋ย' ? 'F001' : null,
+        'fertilizer_id': _isFertilizer ? _selectedFertilizerId : null,
         'action_type': currentTypeObj['type'], // บันทึกประเภทกิจกรรมจริงลง DB
         'quantity': quantityVal,
         'quantity_type': currentTypeObj['unit'], // บันทึกหน่วยตามประเภทกิจกรรม
@@ -336,6 +380,36 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
                     ),
                     const SizedBox(height: 20),
 
+                    // เลือกชนิดปุ๋ย เฉพาะตอนเลือกประเภท "ใส่ปุ๋ย"
+                    if (_isFertilizer && _fertilizers.isNotEmpty) ...[
+                      _buildLabel('ชนิดปุ๋ย *'),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[300]!),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            isExpanded: true,
+                            value: _selectedFertilizerId,
+                            icon: Icon(Icons.keyboard_arrow_down, color: primaryGreen),
+                            style: const TextStyle(color: Colors.black87, fontSize: 15),
+                            items: _fertilizers
+                                .map((f) => DropdownMenuItem<String>(
+                                      value: f['id'],
+                                      child: Text('💊 ${f['name']}'),
+                                    ))
+                                .toList(),
+                            onChanged: (v) => setState(() => _selectedFertilizerId = v),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
                     _buildLabel('วันที่ดำเนินการ *'),
                     const SizedBox(height: 6),
                     GestureDetector(
@@ -359,13 +433,16 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    _buildLabel('รายละเอียด *'),
+                    // ใส่ปุ๋ยมีชนิดปุ๋ยแล้ว รายละเอียดจึงไม่บังคับ
+                    _buildLabel(_isFertilizer ? 'รายละเอียด' : 'รายละเอียด *'),
                     const SizedBox(height: 6),
                     _buildTextField(
                       controller: _detailController,
-                      hint: 'เช่น ตัดแต่งทางใบใกล้วางกอง หรือ ปุ๋ย 15-15-15',
+                      hint: _isFertilizer
+                          ? 'เช่น ใส่รอบโคนต้น ต้นละ 2 กก.'
+                          : 'เช่น ตัดแต่งทางใบใกล้วางกอง',
                       maxLines: 2,
-                      isRequired: true,
+                      isRequired: !_isFertilizer,
                     ),
                     const SizedBox(height: 16),
 
@@ -427,10 +504,12 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
     );
   }
 
+  /// หัวข้อเหนือช่องกรอก
   Widget _buildLabel(String text) {
     return Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600));
   }
 
+  /// ช่องกรอกข้อความ (ตั้งให้บังคับกรอกได้)
   Widget _buildTextField({
     required TextEditingController? controller,
     required String hint,

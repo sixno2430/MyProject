@@ -1,9 +1,17 @@
+// ============================================================
+// add_palmvariety_screen.dart — ฟอร์มเพิ่ม/แก้ไขพันธุ์ปาล์ม
+//
+// กรอกชื่อพันธุ์และชื่อวิทยาศาสตร์
+// ส่ง existing มา = แก้ไข (PUT /api/varieties/:id) ไม่ส่ง = เพิ่มใหม่ (POST /api/varieties)
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'palm_variety.dart';
 
+/// ฟอร์มพันธุ์ปาล์ม
 class AddPalmVarietyScreen extends StatefulWidget {
   /// ข้อมูลเดิม (ส่งมา = โหมดแก้ไข, ไม่ส่ง = เพิ่มใหม่)
   final PalmVariety? existing;
@@ -40,6 +48,7 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
     super.dispose();
   }
 
+  /// ตรวจฟอร์มแล้วบันทึก สำเร็จแล้วปิดหน้า
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSubmitting = true);
@@ -161,6 +170,7 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
     );
   }
 
+  /// ช่องกรอกข้อความพร้อมหัวข้อ
   Widget _buildTextField({
     required String label,
     required String hint,

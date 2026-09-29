@@ -1,3 +1,10 @@
+// ============================================================
+// dashboard.js — model ข้อมูลหน้า Dashboard และประวัติกิจกรรม
+//
+// ACTIVITY_SQL รวมกิจกรรม 4 แหล่ง (เก็บเกี่ยว / ดูแลสวน / รายรับ / รายจ่าย)
+// ใช้ร่วมกันทั้ง Dashboard (5 รายการล่าสุด) และหน้าประวัติกิจกรรม (ทั้งหมด)
+// ============================================================
+
 const pool = require('../libs/db_pool');
 
 // กิจกรรมทั้งหมดของ user รวม 4 แหล่ง เรียงวันที่ล่าสุดก่อน
@@ -52,9 +59,14 @@ module.exports = {
       conn = await pool.getConnection();
 
       // 1) จำนวนแปลงสวน
-      var gardenCountSql = "SELECT COUNT(*) AS garden_count FROM garden WHERE user_id = ?";
+      var gardenCountSql =
+          "SELECT COUNT(*) AS garden_count, COALESCE(SUM(area_size), 0) AS total_area, " +
+          "       COALESCE(SUM(plant_count), 0) AS total_plants " +
+          "FROM garden WHERE user_id = ?";
       var gardenCountRows = await conn.query(gardenCountSql, [userId]);
       var gardenCount = Number(gardenCountRows[0].garden_count);
+      var totalArea = Number(gardenCountRows[0].total_area);
+      var totalPlants = Number(gardenCountRows[0].total_plants);
 
       // 2) ผลผลิตรวมเดือนนี้ (กก.) — join harvest กับ garden เพื่อกรองด้วย user_id
       var productionSql =
@@ -67,11 +79,12 @@ module.exports = {
       var productionRows = await conn.query(productionSql, [userId]);
       var monthlyProduction = Number(productionRows[0].total_production);
 
-      // 3) รายรับรวมเดือนนี้ (บาท) — ขายผลผลิต + รายรับที่บันทึกเอง (ให้ตรงกับหน้าการเงิน)
+      // 3) รายรับรวมเดือนนี้ (บาท) — ขายผลผลิต (เฉพาะที่ขายแล้ว) + รายรับที่บันทึกเอง (ให้ตรงกับหน้าการเงิน)
       var incomeSql =
           "SELECT COALESCE(SUM(amount), 0) AS total_income FROM (" +
           "  SELECT h.total_price AS amount, h.harvest_date AS d " +
-          "  FROM harvest h JOIN garden g ON h.garden_id = g.garden_id WHERE g.user_id = ? " +
+          "  FROM harvest h JOIN garden g ON h.garden_id = g.garden_id " +
+          "  WHERE g.user_id = ? AND COALESCE(h.status, 'sold') = 'sold' " +
           "  UNION ALL " +
           "  SELECT fn.amount, fn.record_date FROM finance fn " +
           "  WHERE fn.user_id = ? AND fn.record_type = 'INCOME' " +
@@ -81,6 +94,13 @@ module.exports = {
       var incomeRows = await conn.query(incomeSql, [userId, userId]);
       var monthlyIncome = Number(incomeRows[0].total_income);
 
+      // 3.1) ผลผลิตที่ยังรอขาย (ใช้แสดงการ์ดเตือนบน Dashboard)
+      var pendingSql =
+          "SELECT COUNT(*) AS pending_count, COALESCE(SUM(h.total_quantity), 0) AS pending_kg " +
+          "FROM harvest h JOIN garden g ON h.garden_id = g.garden_id " +
+          "WHERE g.user_id = ? AND COALESCE(h.status, 'sold') <> 'sold'";
+      var pendingRows = await conn.query(pendingSql, [userId]);
+
       // 4) กิจกรรมล่าสุด 5 รายการ (ใช้ query เดียวกับหน้าประวัติกิจกรรม)
       var activityRows = await conn.query(ACTIVITY_SQL + " LIMIT 5", [userId, userId, userId]);
 
@@ -88,6 +108,10 @@ module.exports = {
         isError: false,
         data: {
           garden_count: gardenCount,
+          total_area: totalArea,
+          total_plants: totalPlants,
+          pending_harvest_count: Number(pendingRows[0].pending_count),
+          pending_harvest_kg: Number(pendingRows[0].pending_kg),
           monthly_production: monthlyProduction,
           monthly_income: monthlyIncome,
           activities: activityRows,

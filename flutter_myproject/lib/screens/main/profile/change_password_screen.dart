@@ -1,9 +1,17 @@
+// ============================================================
+// change_password_screen.dart — หน้าเปลี่ยนรหัสผ่าน
+//
+// ต้องกรอกรหัสเดิมให้ถูก และรหัสใหม่อย่างน้อย 8 ตัว
+// ส่งไป PUT /api/user/:userId/password (เซิร์ฟเวอร์ตรวจรหัสเดิมอีกครั้ง)
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 
+/// หน้าเปลี่ยนรหัสผ่าน (เปิดจากเมนูในหน้าโปรไฟล์)
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
 
@@ -31,6 +39,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     super.dispose();
   }
 
+  /// ตรวจฟอร์มแล้วส่งรหัสเดิม/ใหม่ไปเซิร์ฟเวอร์ สำเร็จแล้วปิดหน้า
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -64,6 +73,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     }
   }
 
+  /// แสดงข้อความแจ้งเตือน (สีเขียว = สำเร็จ, สีแดง = ผิดพลาด)
   void _showMessage(String text, {bool success = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -142,6 +152,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     );
   }
 
+  /// ช่องกรอกรหัสผ่าน มีปุ่มแสดง/ซ่อนรหัส
   Widget _buildField({
     required String label,
     required TextEditingController controller,

@@ -1,3 +1,12 @@
+// ============================================================
+// finance_screen.dart — แท็บ "การเงิน" (รายรับ-รายจ่าย)
+//
+// เลือกเดือน แล้วแสดงยอดคงเหลือ, รายรับ, รายจ่าย และรายการของเดือนนั้น
+// รายการรวมมาจาก 3 แหล่ง: ขายผลผลิต (H...), ค่าดูแลสวน (C...), รายการที่บันทึกเอง (FN...)
+// แก้ไข/ลบได้เฉพาะรายการ FN... (อีก 2 แหล่งต้องไปแก้ที่หน้าของมัน)
+// API: GET /api/finance/transactions, DELETE /api/finance/:id
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -11,6 +20,7 @@ import 'package:flutter_myproject/widgets/item_actions.dart';
 // 1. MODELS
 // ==========================================
 
+/// ยอดสรุปของเดือน (คงเหลือ / รายรับ / รายจ่าย)
 class FinanceSummary {
   final double balance;
   final double totalIncome;
@@ -22,6 +32,7 @@ class FinanceSummary {
     required this.totalExpense,
   });
 
+  /// แปลง JSON เป็น FinanceSummary (รองรับชื่อ key หลายแบบ)
   factory FinanceSummary.fromJson(Map<String, dynamic> json) {
     double parseNum(dynamic val) {
       if (val == null) return 0.0;
@@ -41,6 +52,7 @@ class FinanceSummary {
   }
 }
 
+/// รายการเงิน 1 รายการ
 class TransactionItem {
   final String id;
   final String title;
@@ -66,6 +78,7 @@ class TransactionItem {
     required this.date,
   });
 
+  /// แปลง JSON เป็น TransactionItem ถ้าไม่ระบุประเภท จะเดาจากหมวด/ชื่อรายการ
   factory TransactionItem.fromJson(Map<String, dynamic> json) {
     double parseAmount(dynamic val) {
       if (val == null) return 0.0;
@@ -102,6 +115,7 @@ class TransactionItem {
 // 2. MAIN SCREEN
 // ==========================================
 
+/// แท็บการเงิน (ส่ง userId มาได้ ถ้าไม่ส่งจะใช้ user ที่ล็อกอินอยู่)
 class FinanceScreen extends StatefulWidget {
   final String? userId;
   const FinanceScreen({super.key, this.userId});
@@ -131,6 +145,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     _initUserData();
   }
 
+  /// สร้างรายการเดือนย้อนหลังให้เลือกใน dropdown
   void _initMonths() {
     final now = DateTime.now();
     _months = List.generate(12, (index) {
@@ -143,6 +158,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     );
   }
 
+  /// หา user_id ที่จะใช้ แล้วโหลดข้อมูลครั้งแรก
   Future<void> _initUserData() async {
     final loggedInUserId = widget.userId ?? await AuthService.getUserId();
     if (mounted) {
@@ -153,6 +169,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     }
   }
 
+  /// โหลดรายรับและรายจ่ายของเดือนที่เลือก แล้วคำนวณยอดสรุปเอง
   Future<void> _refreshData() async {
     if (_effectiveUserId == null || _effectiveUserId!.isEmpty) return;
 
@@ -201,6 +218,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     }
   }
 
+  /// ดึงรายการของเดือน/ประเภทที่กำหนด (โหลดไม่ได้จะคืนรายการว่าง)
   Future<List<TransactionItem>> _fetchRawTransactions(String monthKey, String type, String userId) async {
     try {
       final url = '$baseUrl/finance/transactions?month=$monthKey&type=$type&user_id=$userId';
@@ -224,6 +242,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
   }
 
   // กดค้างที่รายการ -> เลือกแก้ไข / ลบ
+  /// กดค้างที่รายการ: แก้ไข/ลบได้เฉพาะ FN... ถ้าเป็นรายการจากหน้าอื่นจะบอกให้ไปแก้ที่หน้านั้น
   Future<void> _onTransactionLongPress(TransactionItem item) async {
     if (!item.isManualEntry) {
       final where = item.id.startsWith('H') ? 'บันทึกการเก็บเกี่ยว' : 'การดูแลรักษาสวน';
@@ -264,6 +283,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     }
   }
 
+  /// เปิดฟอร์มบันทึกรายการใหม่ กลับมาแล้วโหลดใหม่
   Future<void> _navigateToAddTransaction() async {
     final result = await Navigator.push(
       context,
@@ -277,6 +297,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     }
   }
 
+  /// แปลงวันที่ yyyy-MM-dd เป็นแบบไทยสั้นๆ
   String _formatThaiDate(String dateStr) {
     try {
       final dt = DateTime.parse(dateStr);
@@ -288,6 +309,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     }
   }
 
+  /// ชื่อเดือนภาษาไทย ปี พ.ศ. สำหรับ dropdown
   String _formatMonthLabel(DateTime dt) {
     final months = [
       'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
@@ -297,6 +319,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     return months[dt.month - 1];
   }
 
+  /// เลือก emoji ตามหมวด/ชื่อรายการ
   String _getCategoryIcon(String category, String title, String type) {
     final text = '$category $title'.toLowerCase();
     if (type == 'income' || text.contains('ขาย') || text.contains('ผลผลิต') || text.contains('เก็บเกี่ยว')) {
@@ -484,6 +507,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     );
   }
 
+  /// ตัวเลขรายรับ/รายจ่ายในการ์ดยอดคงเหลือ
   Widget _buildBalanceItem(String label, String value, Color valueColor) {
     return Column(
       children: [
@@ -494,6 +518,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     );
   }
 
+  /// ปุ่มกรอง ทั้งหมด / รายรับ / รายจ่าย
   Widget _buildFilterTab(String label, String type) {
     final isSelected = _filterType == type;
     return GestureDetector(
@@ -526,6 +551,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     );
   }
 
+  /// แถวรายการเงิน 1 รายการ (กดค้างเพื่อแก้ไข/ลบ)
   Widget _buildTransactionItem({
     VoidCallback? onLongPress,
     required String title,

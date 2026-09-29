@@ -1,6 +1,14 @@
+// ============================================================
+// auth_server.dart — จัดการข้อมูลการล็อกอินที่เก็บในเครื่อง
+//
+// เก็บ/อ่าน/ลบ user_id และ access token ผ่าน SharedPreferences
+// ทุกหน้าที่ต้องรู้ว่าใครล็อกอินอยู่ จะเรียก AuthService.getUserId()
+// ============================================================
+
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// รวมฟังก์ชันจัดการสถานะการล็อกอิน (เรียกแบบ static ไม่ต้องสร้าง object)
 class AuthService {
   static const String _userIdKey = 'user_id';
   static const String _tokenKey = 'access_token';

@@ -1,3 +1,10 @@
+// ============================================================
+// care.js — model การดูแลสวน (ตาราง palm_care)
+//
+// ดึง/เพิ่ม/แก้ไข/ลบ รายการดูแลสวน ทุกคำสั่งเช็กว่าแปลงเป็นของ user นั้นจริง
+// action_type: fertilizer, pruning, weeding, watering, spraying, other
+// ============================================================
+
 const db = require('../libs/db_pool');
 
 const careModel = {
@@ -10,7 +17,7 @@ const careModel = {
           c.garden_id,
           COALESCE(g.garden_name, 'ไม่ระบุแปลง') AS garden_name,
           c.fertilizer_id,
-          COALESCE(f.fertilizer_name, 'ปุ๋ยบำรุง') AS fertilizer_name,
+          f.fertilizer_name,
           c.action_type,
           c.quantity,
           c.quantity_type,
@@ -31,10 +38,28 @@ const careModel = {
     }
   },
 
-  // 2. บันทึกข้อมูลรายการใหม่ (เพิ่ม action_type และ note)
+  // 2. บันทึกข้อมูลรายการใหม่
+  //    - เช็กก่อนว่าแปลงที่เลือกเป็นของ user คนนี้จริง
+  //    - สร้าง care_id ที่ฝั่งเซิร์ฟเวอร์ (ต่อจากเลขล่าสุด) ไม่ใช้ค่าที่แอปส่งมา กันรหัสชนกัน
   createCareLog: async (careData) => {
     try {
-      const { care_id, garden_id, fertilizer_id, action_type, quantity, quantity_type, cost, record_date, note } = careData;
+      const { user_id, garden_id, fertilizer_id, action_type, quantity, quantity_type, cost, record_date, note } = careData;
+
+      const owned = await db.query(
+        `SELECT garden_id FROM garden WHERE garden_id = ? AND user_id = ?`,
+        [garden_id, user_id]
+      );
+      if (owned.length === 0) {
+        return { isError: true, data: null, errorMessage: 'ไม่พบแปลงสวนนี้ในบัญชีของคุณ' };
+      }
+
+      const maxRows = await db.query(`
+        SELECT MAX(CAST(SUBSTRING(care_id, 2) AS UNSIGNED)) AS max_num
+        FROM palm_care WHERE care_id LIKE 'C%'
+      `);
+      const maxNum = maxRows[0].max_num !== null ? Number(maxRows[0].max_num) : 0;
+      const care_id = 'C' + String(maxNum + 1).padStart(3, '0');
+
       const sql = `
         INSERT INTO palm_care (care_id, garden_id, fertilizer_id, action_type, quantity, quantity_type, cost, record_date, note)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -44,15 +69,15 @@ const careModel = {
         care_id,
         garden_id,
         fertilizer_id || null,
-        action_type || 'pruning',
-        quantity,
+        action_type || 'other',
+        quantity || 0,
         quantity_type,
-        cost,
+        cost || 0,
         record_date,
         note || ''
       ]);
 
-      return { isError: false, data: result, errorMessage: "" };
+      return { isError: false, data: { care_id }, errorMessage: "" };
     } catch (error) {
       console.error('Error in createCareLog:', error.message);
       return { isError: true, data: null, errorMessage: error.message };
@@ -70,8 +95,8 @@ const careModel = {
         WHERE care_id = ? AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?) AND ? IN (SELECT garden_id FROM garden WHERE user_id = ?)
       `;
       const result = await db.query(sql, [
-        garden_id, fertilizer_id || null, action_type || 'pruning', quantity, quantity_type,
-        cost, record_date, note || '',
+        garden_id, fertilizer_id || null, action_type || 'other', quantity || 0, quantity_type,
+        cost || 0, record_date, note || '',
         careId, userId, garden_id, userId
       ]);
       if (!result.affectedRows) {

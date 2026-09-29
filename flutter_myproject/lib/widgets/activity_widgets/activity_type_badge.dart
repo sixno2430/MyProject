@@ -1,5 +1,10 @@
+// ============================================================
+// activity_type_badge.dart — ป้ายบอกประเภทกิจกรรม (สี + ไอคอน + ชื่อ)
+// ============================================================
+
 import 'package:flutter/material.dart';
 
+/// ป้ายประเภทกิจกรรม เช่น "เก็บเกี่ยว", "รายรับ"
 class ActivityTypeBadge extends StatelessWidget {
   final String type;
   const ActivityTypeBadge({super.key, required this.type});
@@ -72,6 +77,7 @@ class ActivityTypeBadge extends StatelessWidget {
   }
 }
 
+/// สีและข้อความของป้ายแต่ละประเภท
 class _BadgeConfig {
   final String emoji;
   final String label;

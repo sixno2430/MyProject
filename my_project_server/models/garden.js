@@ -1,7 +1,15 @@
+// ============================================================
+// garden.js — model แปลงสวน (ตาราง garden + garden_variety)
+// ============================================================
+
 const db = require('../libs/db_pool'); // ดึง DB Pool ของโครงการ
 
 const garden = {
 
+  /**
+   * แปลงสวนของ user พร้อมพันธุ์ปาล์มในแต่ละแปลง
+   * @param userId ส่ง 'ALL' = ทุกแปลงในระบบ
+   */
   getGardensByUserId: async (userId) => {
     try {
       // 1. ดึงรายการสวน (ถ้าส่ง 'ALL' มา ดึงทุกสวน)
@@ -50,6 +58,9 @@ const garden = {
     }
   },
 
+  /**
+   * เพิ่มแปลงใหม่ (สร้าง garden_id ต่อจากเลขล่าสุด) และบันทึกพันธุ์ที่ปลูก
+   */
   createGarden: async (gardenData) => {
     try {
       const { user_id, garden_name, area_size, plant_count, plant_year, address, variety_id } = gardenData;
@@ -92,6 +103,9 @@ const garden = {
     }
   },
 
+  /**
+   * แก้ไขข้อมูลแปลง
+   */
   updateGarden: async (gardenId, gardenData) => {
     try {
       const { garden_name, address, area_size, plant_year, plant_count } = gardenData;
@@ -111,6 +125,9 @@ const garden = {
     }
   },
 
+  /**
+   * ลบแปลง
+   */
   deleteGarden: async (gardenId) => {
     try {
       await db.query("DELETE FROM garden_variety WHERE garden_id = ?", [gardenId]);
@@ -126,6 +143,9 @@ const garden = {
     }
   },
 
+  /**
+   * พันธุ์ปาล์มที่ปลูกในแปลงนี้
+   */
   getGardenVarieties: async (gardenId) => {
     try {
       const query = `

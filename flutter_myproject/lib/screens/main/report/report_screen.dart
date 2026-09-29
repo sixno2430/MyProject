@@ -1,3 +1,11 @@
+// ============================================================
+// report_screen.dart — แท็บ "รายงาน" สรุปผลประจำปี
+//
+// แสดงผลผลิตรวม, กำไร, รายรับ, รายจ่าย, กราฟวงกลมสัดส่วนผลผลิตตามแปลง
+// และกราฟเส้นรายรับ-รายจ่ายรายเดือน เปลี่ยนปีได้
+// API: GET /api/report/:userId?year=2026
+// ============================================================
+
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -10,6 +18,7 @@ import 'package:flutter_myproject/services/auth_server.dart';
 // 1. MODEL
 // ==========================================
 
+/// ผลผลิตรวมของแปลง 1 แปลง (ใช้ในกราฟวงกลม)
 class GardenProduction {
   final String gardenName;
   final double totalKg;
@@ -22,6 +31,7 @@ class GardenProduction {
       );
 }
 
+/// รายรับ-รายจ่ายของเดือน 1 เดือน (ใช้ในกราฟเส้น)
 class MonthlyMoney {
   final int month;
   final double income;
@@ -36,6 +46,7 @@ class MonthlyMoney {
       );
 }
 
+/// ข้อมูลรายงานทั้งปี
 class YearlyReport {
   final int year;
   final double totalKg;
@@ -74,7 +85,9 @@ class YearlyReport {
 // 2. SERVICE
 // ==========================================
 
+/// เรียก API รายงาน
 class ReportService {
+  /// ดึงรายงานของปีที่กำหนด สำหรับ user ที่ล็อกอินอยู่
   static Future<YearlyReport> fetchYearly(int year) async {
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) {
@@ -99,6 +112,7 @@ class ReportService {
 // 3. UI
 // ==========================================
 
+/// แท็บรายงาน
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
 
@@ -131,12 +145,14 @@ class _ReportScreenState extends State<ReportScreen> {
     _load();
   }
 
+  /// โหลดรายงานของปีที่เลือก
   void _load() {
     setState(() {
       _future = ReportService.fetchYearly(_year);
     });
   }
 
+  /// เลื่อนปีไปข้างหน้า/ถอยหลัง (ไม่ให้เลือกปีอนาคต)
   void _changeYear(int delta) {
     final next = _year + delta;
     if (next > DateTime.now().year) return; // ไม่ให้เลือกปีอนาคต
@@ -186,6 +202,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// รายงานว่าง (ใช้ตอนดึงหน้าจอลงแล้วโหลดไม่สำเร็จ)
   YearlyReport _emptyReport() => YearlyReport(
         year: _year,
         totalKg: 0,
@@ -196,6 +213,7 @@ class _ReportScreenState extends State<ReportScreen> {
         monthly: [],
       );
 
+  /// แถบเลือกปี (ลูกศรซ้าย/ขวา)
   Widget _buildYearSelector() {
     final isCurrentYear = _year >= DateTime.now().year;
     return Row(
@@ -217,6 +235,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// ข้อความผิดพลาดพร้อมปุ่มลองใหม่
   Widget _buildError(String message) {
     return Padding(
       padding: const EdgeInsets.all(32),
@@ -230,6 +249,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// เนื้อหารายงานทั้งหมด (การ์ดสถิติ + กราฟ 2 แบบ)
   Widget _buildReport(YearlyReport r) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -330,6 +350,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// กรอบการ์ดสีขาวพร้อมหัวข้อ
   Widget _buildCard({required String title, required Widget child}) {
     return Container(
       width: double.infinity,
@@ -349,6 +370,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// ข้อความเมื่อยังไม่มีข้อมูล
   Widget _buildNoData(String text) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -356,6 +378,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// การ์ดตัวเลข 1 ช่อง
   Widget _buildStatCard(String label, String value, String unit, Color color) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -385,6 +408,7 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
+  /// คำอธิบายสีของกราฟ (จุดสี + ชื่อ + %)
   Widget _buildLegend(String label, Color color, String percent) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),

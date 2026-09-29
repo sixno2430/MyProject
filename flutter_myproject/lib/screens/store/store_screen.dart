@@ -1,3 +1,11 @@
+// ============================================================
+// store_screen.dart — หน้า "ร้านรับซื้อปาล์ม"
+//
+// รายชื่อร้าน/ลานเทรับซื้อ พร้อมราคาล่าสุดแต่ละเกรด, เวลาเปิด-ปิด, เบอร์โทร
+// และประวัติที่เราเคยขายให้ร้านนั้น เรียงร้านที่เปิดและให้ราคาสูงสุดขึ้นก่อน
+// API: GET /api/shops?user_id=...
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +18,7 @@ import 'package:flutter_myproject/services/auth_server.dart';
 // 1. MODEL
 // ==========================================
 
+/// ราคารับซื้อ 1 เกรด พร้อมช่วงวันที่ใช้ได้
 class PriceRate {
   final String grade;
   final double pricePerKg;
@@ -34,6 +43,7 @@ class PriceRate {
       );
 }
 
+/// ข้อมูลร้านรับซื้อ 1 ร้าน
 class BuyingShop {
   final String id;
   final String name;
@@ -106,6 +116,7 @@ class _StoreScreenState extends State<StoreScreen> {
     _future = _fetchShops();
   }
 
+  /// ดึงรายชื่อร้าน แล้วเรียง: ร้านที่เปิดก่อน ตามด้วยราคาปัจจุบันสูงสุด
   Future<List<BuyingShop>> _fetchShops() async {
     final userId = await AuthService.getUserId();
     final response = await http.get(
@@ -123,6 +134,7 @@ class _StoreScreenState extends State<StoreScreen> {
     return shops;
   }
 
+  /// ดึงหน้าจอลงเพื่อโหลดใหม่
   Future<void> _refresh() async {
     setState(() {
       _future = _fetchShops();
@@ -132,6 +144,7 @@ class _StoreScreenState extends State<StoreScreen> {
     } catch (_) {}
   }
 
+  /// แปลงวันที่เป็นแบบไทยสั้น เช่น "31 ก.ค. 69"
   String _thaiDate(String ymd) {
     final d = DateTime.tryParse(ymd);
     if (d == null) return ymd;
@@ -139,6 +152,7 @@ class _StoreScreenState extends State<StoreScreen> {
     return '${d.day} ${months[d.month - 1]} ${(d.year + 543) % 100}';
   }
 
+  /// คัดลอกเบอร์โทรร้านไปยังคลิปบอร์ด
   Future<void> _copyPhone(String phone) async {
     await Clipboard.setData(ClipboardData(text: phone));
     if (!mounted) return;
@@ -220,6 +234,7 @@ class _StoreScreenState extends State<StoreScreen> {
     );
   }
 
+  /// ช่องค้นหาชื่อร้าน/จังหวัด
   Widget _buildSearchBox() {
     return TextField(
       onChanged: (v) => setState(() => _query = v.trim()),
@@ -238,6 +253,7 @@ class _StoreScreenState extends State<StoreScreen> {
     );
   }
 
+  /// การ์ดร้าน 1 ร้าน (ข้อมูลติดต่อ + ราคา + ประวัติการขาย)
   Widget _buildShopCard(BuyingShop shop) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -334,6 +350,7 @@ class _StoreScreenState extends State<StoreScreen> {
     );
   }
 
+  /// แถวข้อมูลติดต่อ (ไอคอน + ข้อความ)
   Widget _buildInfoRow(IconData icon, String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -348,6 +365,7 @@ class _StoreScreenState extends State<StoreScreen> {
     );
   }
 
+  /// ป้ายราคา 1 เกรด (สีเทาถ้าหมดอายุแล้ว)
   Widget _buildRateChip(PriceRate rate) {
     final color = rate.isCurrent ? accent : Colors.grey;
     final until = rate.endDate == null ? '' : ' ถึง ${_thaiDate(rate.endDate!)}';

@@ -1,8 +1,15 @@
+// ============================================================
+// activity_list.dart — ส่วน "กิจกรรมล่าสุด" บนหน้า Dashboard
+//
+// แสดงกิจกรรมล่าสุด 5 รายการ และปุ่ม "ดูทั้งหมด" ไปหน้าประวัติกิจกรรม
+// ============================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/widgets/dashboard_widget/recent_activity_card.dart';
 import 'package:flutter_myproject/screens/main/HOME/activity_screen.dart';
 
+/// รายการกิจกรรมล่าสุด เรียก onChanged เมื่อมีการแก้ไข/ลบ ให้ Dashboard โหลดใหม่
 class ActivityList extends StatelessWidget {
   final List<ActivityItem> activities;
 

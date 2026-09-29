@@ -1,3 +1,10 @@
+// ============================================================
+// formatters.dart — ฟังก์ชันจัดรูปแบบตัวเลขและวันที่ภาษาไทย
+//
+// ใช้ร่วมกันหลายหน้า (Dashboard, การ์ดกิจกรรม, หน้ารายละเอียด)
+// ============================================================
+
+/// ใส่ comma คั่นหลักพัน และปัดเป็นจำนวนเต็ม เช่น 1234567 -> "1,234,567"
 String formatNumber(num value) {
   final str = value.toStringAsFixed(0);
   final buffer = StringBuffer();
@@ -10,6 +17,7 @@ String formatNumber(num value) {
   return buffer.toString();
 }
 
+/// บอกวันแบบสั้น: "วันนี้", "เมื่อวาน" หรือ "12 ส.ค."
 String formatRelativeDate(DateTime date) {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
@@ -26,6 +34,7 @@ String formatRelativeDate(DateTime date) {
   return '${date.day} ${thaiMonths[date.month]}';
 }
 
+/// วันที่เต็มแบบไทย ปี พ.ศ. เช่น "พฤหัสบดี, 24 กันยายน 2569"
 String formatThaiDate(DateTime date) {
   const thaiMonths = [
     '', 'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',

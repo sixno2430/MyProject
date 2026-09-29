@@ -1,3 +1,11 @@
+// ============================================================
+// gardencare_screen.dart — หน้า "การดูแลรักษาสวน"
+//
+// แสดงรายการดูแลสวน (ใส่ปุ๋ย, ตัดแต่ง, ให้น้ำ, พ่นยา ฯลฯ) กรองตามแปลงและประเภทได้
+// กดค้างที่การ์ดเพื่อแก้ไข/ลบ
+// API: GET /api/care-logs?user_id=..., DELETE /api/care-logs/:id
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -7,6 +15,7 @@ import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
 import 'package:flutter_myproject/config/app_config.dart';
 
+/// หน้ารายการดูแลสวน
 class GardenCareScreen extends StatefulWidget {
   const GardenCareScreen({super.key});
 
@@ -35,6 +44,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     _fetchDataFromBackend();
   }
 
+  /// ดึงรายการดูแลสวนและรายชื่อแปลงของ user แล้วแปลงเป็นข้อมูลสำหรับแสดงบนการ์ด
   Future<void> _fetchDataFromBackend() async {
     setState(() {
       _isLoading = true;
@@ -68,8 +78,9 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
             : (resBody is List ? resBody : []);
 
         List<Map<String, dynamic>> loadedActivities = careData.map((item) {
+          // DB ส่งวันที่มาเป็น UTC ต้องแปลงเป็นเวลาไทย ไม่งั้นวันที่จะเลื่อนไป 1 วัน
           DateTime recordDate =
-              DateTime.tryParse(item['record_date']?.toString() ?? '') ??
+              DateTime.tryParse(item['record_date']?.toString() ?? '')?.toLocal() ??
               DateTime.now();
           String formattedDate = DateFormat(
             'd MMM yyyy',
@@ -79,9 +90,10 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
           bool isFertilizer =
               item['fertilizer_id'] != null &&
               item['fertilizer_id'].toString().isNotEmpty;
+          // รายการเก่าที่ไม่มี action_type ให้เป็น "อื่นๆ" (เดิมตกไปเป็น "ตัดแต่ง" ทั้งหมด)
           String type = isFertilizer
               ? 'fertilizer'
-              : (item['action_type'] ?? 'pruning');
+              : (item['action_type'] ?? 'other');
 
           // 🛠️ แปลงจำนวนทศนิยมเป็นตัวเลขสวยๆ
           double numVal =
@@ -99,17 +111,22 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
 
           String unitStr =
               item['quantity_type'] ?? (isFertilizer ? 'กก.' : 'ต้น');
-          String detail = '$userNoteจำนวน $formattedQty $unitStr';
+          // ใส่ปุ๋ย: บอกชื่อปุ๋ยด้วย
+          String fertilizerName =
+              isFertilizer && item['fertilizer_name'] != null
+              ? '${item['fertilizer_name']} · '
+              : '';
+          String detail = '$fertilizerName$userNoteจำนวน $formattedQty $unitStr';
 
           double costValue =
               double.tryParse(item['cost']?.toString() ?? '0') ?? 0.0;
           String costText =
-              '${isFertilizer ? 'ค่าใช้จ่าย' : 'ค่าแรง'} ${NumberFormat('#,##0').format(costValue)} บาท';
+              'ค่าใช้จ่าย ${NumberFormat('#,##0').format(costValue)} บาท';
 
           return {
             'care_id': item['care_id'],
             'title':
-                '${isFertilizer ? 'ใส่ปุ๋ย' : 'ดูแลรักษา'} · ${item['garden_name'] ?? 'ไม่ระบุแปลง'}',
+                '${_getTypeStyle(type)['label']} · ${item['garden_name'] ?? 'ไม่ระบุแปลง'}',
             'detail': detail,
             'cost': costText,
             'cost_value': costValue,
@@ -156,6 +173,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
   }
 
   // กำหนดป้ายสไตล์และสีของแต่ละกิจกรรม
+  /// สีและชื่อภาษาไทยของแต่ละประเภทกิจกรรม
   Map<String, dynamic> _getTypeStyle(String type) {
     switch (type) {
       case 'fertilizer':
@@ -197,6 +215,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     }
   }
 
+  /// รายการที่ผ่านตัวกรองแปลงและแท็บประเภท
   List<Map<String, dynamic>> get _filteredActivities {
     return _activities.where((item) {
       final matchPlot =
@@ -209,10 +228,9 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     }).toList();
   }
 
+  // ตัวเลขสรุปให้ตรงกับรายการที่เห็น (กรองทั้งแปลงและแท็บ)
   Map<String, dynamic> get _stats {
-    final filtered = _selectedPlot == 'ทั้งหมด'
-        ? _activities
-        : _activities.where((a) => a['plot'] == _selectedPlot).toList();
+    final filtered = _filteredActivities;
 
     int count = filtered.length;
     double cost = 0;
@@ -499,6 +517,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     );
   }
 
+  /// ปุ่มแท็บกรองประเภท (ดูแลรักษา / ใส่ปุ๋ย / ทั้งหมด)
   Widget _buildTab(String label, String emoji) {
     final isActive = _selectedTab == label;
     return Expanded(
@@ -530,6 +549,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     );
   }
 
+  /// การ์ดสถิติ (จำนวนครั้ง / ค่าใช้จ่ายรวม)
   Widget _buildStatCard(String label, String value, String unit, Color color) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -569,6 +589,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
   }
 
   // กดค้างที่การ์ด -> เลือกแก้ไข / ลบ
+  /// กดค้างที่การ์ด: เลือกแก้ไข (เปิดฟอร์ม) หรือลบ (ยืนยันแล้วเรียก API)
   Future<void> _onActivityLongPress(Map<String, dynamic> item) async {
     final action = await showItemActionsSheet(context);
     if (action == null || !mounted) return;
@@ -605,6 +626,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     }
   }
 
+  /// การ์ดรายการดูแลสวน 1 รายการ
   Widget _buildActivityCard(Map<String, dynamic> item) {
     final style = _getTypeStyle(item['type']);
     final color = style['color'] as Color;

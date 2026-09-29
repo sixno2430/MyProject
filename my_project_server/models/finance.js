@@ -1,3 +1,12 @@
+// ============================================================
+// finance.js — model การเงิน (รายรับ-รายจ่าย)
+//
+// รายการเงินรวมจาก 3 แหล่ง:
+//   1) ขายผลผลิต (harvest) — นับเฉพาะที่ขายแล้ว
+//   2) ค่าดูแลสวน (palm_care)
+//   3) รายการที่บันทึกเอง (ตาราง finance) — แก้ไข/ลบได้ที่นี่
+// ============================================================
+
 const db = require('../libs/db_pool');
 
 class FinanceModel {
@@ -24,7 +33,7 @@ class FinanceModel {
           COALESCE(SUM(CASE WHEN UPPER(type) = 'INCOME' THEN amount ELSE 0 END), 0) AS totalIncome,
           COALESCE(SUM(CASE WHEN UPPER(type) = 'EXPENSE' THEN amount ELSE 0 END), 0) AS totalExpense
         FROM (
-          -- 1. รายรับจาก harvest (แก้เงื่อนไข: เอายอดเงินที่มีทั้งหมด ไม่ว่าจะ sold หรือ pending)
+          -- 1. รายรับจาก harvest: นับเฉพาะที่ขายแล้ว (status = 'sold') รายการรอขายยังไม่ใช่รายรับ
           SELECT 
             h.total_price AS amount, 
             'INCOME' AS type, 
@@ -32,7 +41,7 @@ class FinanceModel {
             g.user_id AS user_id
           FROM harvest h
           LEFT JOIN garden g ON h.garden_id = g.garden_id
-          WHERE h.total_price > 0
+          WHERE h.total_price > 0 AND COALESCE(h.status, 'sold') = 'sold'
 
           UNION ALL
 
@@ -119,7 +128,7 @@ class FinanceModel {
           COALESCE(g.garden_name, 'ไม่ระบุสวน') AS gardenName,
           DATE_FORMAT(t.date, '%Y-%m-%d') AS date
         FROM (
-          -- 1. harvest: เอาเงื่อนไข status = 'sold' ออก เพื่อให้รายการรอขายขึ้นด้วย
+          -- 1. harvest: เฉพาะที่ขายแล้ว รายการรอขายจะขึ้นเป็นรายรับเมื่อกด "ขายแล้ว"
           SELECT 
             h.harvest_id AS id,
             CONCAT('ขายผลผลิตปาล์ม (', FORMAT(h.total_quantity, 0), ' กก.)') AS title,
@@ -131,7 +140,7 @@ class FinanceModel {
             h.harvest_date AS date
           FROM harvest h
           LEFT JOIN garden g ON h.garden_id = g.garden_id
-          WHERE h.total_price > 0
+          WHERE h.total_price > 0 AND COALESCE(h.status, 'sold') = 'sold'
 
           UNION ALL
 
@@ -140,7 +149,15 @@ class FinanceModel {
             c.care_id AS id,
             CASE 
               WHEN f.fertilizer_name IS NOT NULL THEN CONCAT('ใส่ปุ๋ย: ', f.fertilizer_name)
-              WHEN c.action_type IS NOT NULL THEN CONCAT('ดูแลสวน: ', c.action_type)
+              WHEN c.action_type IS NOT NULL AND c.action_type <> 'other' THEN CONCAT('ดูแลสวน: ',
+                CASE c.action_type
+                  WHEN 'pruning'  THEN 'ตัดแต่ง'
+                  WHEN 'weeding'  THEN 'กำจัดวัชพืช'
+                  WHEN 'watering' THEN 'ให้น้ำ'
+                  WHEN 'spraying' THEN 'พ่นยา'
+                  WHEN 'fertilizer' THEN 'ใส่ปุ๋ย'
+                  ELSE c.action_type
+                END)
               WHEN c.note IS NOT NULL AND c.note != '' THEN CONCAT('ดูแลสวน: ', c.note)
               ELSE 'ดูแลรักษา/บำรุงสวน'
             END AS title,

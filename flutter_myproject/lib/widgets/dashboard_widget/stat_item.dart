@@ -1,5 +1,12 @@
+// ============================================================
+// stat_item.dart — ช่องสถิติแบบเดิม (ตัวเลข + คำอธิบาย)
+//
+// หมายเหตุ: ตอนนี้ไม่มีหน้าไหนใช้แล้ว (Dashboard เปลี่ยนไปใช้ _StatTile ใน dashboard_header.dart)
+// ============================================================
+
 import 'package:flutter/material.dart';
 
+/// ช่องสถิติ 1 ช่อง ขยายเต็มพื้นที่ที่เหลือ (Expanded)
 class StatItem extends StatelessWidget {
   final String value;
   final String label;

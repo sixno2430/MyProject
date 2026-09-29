@@ -1,5 +1,12 @@
+// ============================================================
+// button_nav.dart — แถบเมนูด้านล่างของหน้าหลัก (5 แท็บ)
+//
+// หน้าหลัก / สวน / การเงิน / รายงาน / โปรไฟล์ ใช้ใน HomeScreen
+// ============================================================
+
 import 'package:flutter/material.dart';
 
+/// แถบเมนูด้านล่าง แจ้งแท็บที่ถูกกดผ่าน onTap
 class ButtonNav extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
@@ -41,6 +48,7 @@ class ButtonNav extends StatelessWidget {
     );
   }
 
+  /// ปุ่ม 1 แท็บ (ไอคอน + ชื่อ) ไฮไลต์ถ้าเป็นแท็บที่เลือกอยู่
   Widget _buildItem(String icon, String label, int index) {
     final bool isSelected = currentIndex == index;
     final Color primaryGreen = const Color(0xFF2D6A4F);

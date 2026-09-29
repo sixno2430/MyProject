@@ -1,9 +1,16 @@
+// ============================================================
+// activity_card.dart — การ์ดกิจกรรม 1 รายการในหน้า "ประวัติกิจกรรม"
+//
+// แตะแล้วเปิดหน้ารายละเอียด ถ้ามีการแก้ไข/ลบ จะเรียก onChanged ให้หน้าแม่โหลดใหม่
+// ============================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/screens/main/HOME/activity_detail_screen.dart';
 import 'package:flutter_myproject/widgets/activity_widgets/activity_type_badge.dart';
 import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 
+/// การ์ดกิจกรรม (แถบสีซ้ายตามประเภท + ข้อความ + ตัวเลข)
 class ActivityCard extends StatelessWidget { 
   final ActivityItem activity;
 
@@ -140,6 +147,7 @@ class ActivityCard extends StatelessWidget {
     );
   }
 
+  /// ข้อความบรรทัดรอง: ใช้คำอธิบายถ้ามี ไม่งั้นบอกประเภทกิจกรรม
   String _buildSubtitle() {
     if (activity.description != null && activity.description!.isNotEmpty) {
       return activity.description!;
@@ -148,7 +156,7 @@ class ActivityCard extends StatelessWidget {
       case 'harvest':
         return 'เก็บเกี่ยวผลผลิตจากแปลง';
       case 'care':
-        return 'ดูแลรักษาและใส่ปุ๋ย';
+        return activity.careLabel;
       case 'income':
         return 'บันทึกรายรับ';
       case 'expense':
@@ -158,11 +166,12 @@ class ActivityCard extends StatelessWidget {
     }
   }
 
+  /// ตัวเลขด้านขวา: จำนวน (กก./ต้น/ครั้ง) หรือจำนวนเงิน +/-
   String _buildValueText() {
     switch (activity.type) {
       case 'harvest':
       case 'care':
-        return '${formatNumber(activity.quantity ?? 0)} กก.';
+        return '${formatNumber(activity.quantity ?? 0)} ${activity.quantityUnit}';
       case 'income':
         return '+${formatNumber(activity.amount ?? 0)}';
       case 'expense':
@@ -213,6 +222,7 @@ class ActivityCard extends StatelessWidget {
   }
 }
 
+/// สีของการ์ดแต่ละประเภท
 class _CardTheme {
   final String emoji;
   final Color accentColor;

@@ -1,3 +1,11 @@
+// ============================================================
+// palmplot_screen.dart — หน้า "แปลงสวนของฉัน"
+//
+// แสดงรายการแปลงสวนของ user พร้อมสถิติรวม (จำนวนแปลง / ไร่ / ต้น) และค้นหาได้
+// เพิ่มแปลงใหม่ -> AddPlotScreen, แก้ไข -> bottom sheet (_EditGardenDialog), ลบได้
+// API: GET/PUT/DELETE /api/gardens
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +21,7 @@ import 'package:flutter_myproject/config/app_config.dart';
 // ==========================================
 // MODEL: พันธุ์ปาล์ม
 // ==========================================
+/// พันธุ์ปาล์มที่ปลูกในแปลง (พร้อมจำนวนต้น)
 class PalmVariety {
   final String varietyId;
   final String varietyName;
@@ -33,6 +42,7 @@ class PalmVariety {
   }
 }
 
+/// ข้อมูลแปลงสวน 1 แปลง
 class Garden {
   final String gardenId;
   final String userId;
@@ -56,6 +66,7 @@ class Garden {
     this.varieties,
   });
 
+  /// แปลง JSON จาก API เป็น Garden
   factory Garden.fromJson(Map<String, dynamic> json) {
     List<PalmVariety>? varietyList;
     if (json['varieties'] != null && json['varieties'] is List) {
@@ -97,6 +108,7 @@ class Garden {
 // ==========================================
 // 2. MAIN SCREEN
 // ==========================================
+/// หน้ารายการแปลงสวน
 class PalmplotScreen extends StatefulWidget {
   const PalmplotScreen({super.key});
 
@@ -121,6 +133,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     fetchGardens();
   }
 
+  /// ยืนยันแล้วลบแปลงสวน จากนั้นโหลดรายการใหม่
   Future<void> _deleteGarden(Garden garden) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -187,6 +200,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     }
   }
 
+  /// ดึงแปลงสวนทั้งหมดของ user ที่ล็อกอินอยู่
   Future<void> fetchGardens() async {
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) {
@@ -232,6 +246,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     }
   }
 
+  /// ค้นหาแปลงจากชื่อ (กรองในเครื่อง ไม่เรียก API)
   void _filterGardens(String query) {
     setState(() {
       if (query.isEmpty) {
@@ -247,9 +262,13 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
   }
 
   // ← เพิ่ม: ฟังก์ชันแก้ไขสวน
+  /// เปิด bottom sheet แก้ไขแปลง แล้วส่งข้อมูลใหม่ไปบันทึก
   Future<void> _editGarden(Garden garden) async {
-    final result = await showDialog<Map<String, dynamic>>(
+    // bottom sheet เลื่อนขึ้นจากด้านล่าง (isScrollControlled ให้สูงได้เกินครึ่งจอและดันขึ้นตามคีย์บอร์ด)
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) =>
           _EditGardenDialog(garden: garden, primaryGreen: primaryGreen),
     );
@@ -282,16 +301,20 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     }
   }
 
+  /// จำนวนต้นรวมทุกแปลง
   int get totalPlants => gardens.fold(0, (sum, item) => sum + item.plantCount);
+  /// พื้นที่รวมทุกแปลง (ไร่)
   double get totalArea => gardens.fold(0.0, (sum, item) => sum + item.areaSize);
 
   static const Color _bgColor = Color(0xFFF5F5F5);
   static const Color _textDark = Color(0xFF1F2937);
   static const Color _lightGreen = Color(0xFFE8F5E9);
 
+  /// แสดงพื้นที่ ตัดทศนิยม .0 ทิ้ง (20.0 -> "20")
   String _formatArea(double v) =>
       v.toStringAsFixed(v.truncateToDouble() == v ? 0 : 2);
 
+  /// เปิดหน้าเพิ่มแปลง กลับมาแล้วโหลดรายการใหม่
   void _openAddPlot() {
     Navigator.push(
       context,
@@ -325,6 +348,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
   }
 
   // ส่วนหัวสีเขียว + การ์ดสถิติลอยทับ (แบบเดียวกับหน้าหลัก)
+  /// ส่วนหัวสีเขียว (ปุ่มย้อนกลับ, ชื่อหน้า, ปุ่มเพิ่ม)
   Widget _buildHeader() {
     // หน้านี้เป็นทั้งแท็บในแถบล่างและหน้าที่ push มาจากเมนู → แสดงปุ่มย้อนกลับเฉพาะตอนที่ย้อนได้
     final canPop = Navigator.of(context).canPop();
@@ -385,6 +409,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     );
   }
 
+  /// ปุ่มกลมในส่วนหัว
   Widget _buildHeaderButton({
     required IconData icon,
     required VoidCallback onTap,
@@ -403,6 +428,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     );
   }
 
+  /// การ์ดสถิติรวม 3 ช่อง
   Widget _buildStatsCard() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -429,6 +455,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     );
   }
 
+  /// สถิติ 1 ช่อง (ตัวเลข + คำอธิบาย)
   Widget _buildSummary(String value, String label) {
     return Expanded(
       child: Column(
@@ -456,6 +483,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     );
   }
 
+  /// ช่องค้นหาแปลง
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -486,6 +514,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     );
   }
 
+  /// หัวข้อ "รายการแปลงสวน" พร้อมจำนวน
   Widget _buildListTitle() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
@@ -510,6 +539,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     );
   }
 
+  /// รายการการ์ดแปลงสวน (หรือข้อความเมื่อกำลังโหลด/ผิดพลาด/ว่าง)
   Widget _buildListSliver() {
     if (isLoading) {
       return SliverToBoxAdapter(
@@ -569,6 +599,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     );
   }
 
+  /// หน้าข้อความกลางจอ (โหลดไม่สำเร็จ / ยังไม่มีแปลง)
   Widget _buildMessageState({
     required String emoji,
     required String title,
@@ -626,6 +657,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
   }
 
   // การ์ดแปลงสวน: สไตล์เดียวกับการ์ดกิจกรรมในหน้าหลัก
+  /// การ์ดแปลงสวน 1 แปลง พร้อมเมนูแก้ไข/ลบ
   Widget _buildPlotCard({
     required Garden garden,
     required VoidCallback onEdit,
@@ -773,8 +805,9 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
 }
 
 // ==========================================
-// ← เพิ่มใหม่: Dialog แก้ไขสวน
+// Bottom sheet แก้ไขแปลงสวน
 // ==========================================
+/// bottom sheet แก้ไขแปลงสวน คืนค่า Map ข้อมูลใหม่เมื่อกดบันทึก
 class _EditGardenDialog extends StatefulWidget {
   final Garden garden;
   final Color primaryGreen;
@@ -786,107 +819,401 @@ class _EditGardenDialog extends StatefulWidget {
 }
 
 class _EditGardenDialogState extends State<_EditGardenDialog> {
+  final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
   late final TextEditingController _addressCtrl;
   late final TextEditingController _areaCtrl;
-  late final TextEditingController _yearCtrl;
   late final TextEditingController _countCtrl;
+
+  /// เก็บเป็น ค.ศ. (ตามฐานข้อมูล) แต่แสดงผลเป็น พ.ศ.
+  int? _plantYear;
+
+  Color get _green => widget.primaryGreen;
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.garden.gardenName);
-    _addressCtrl = TextEditingController(text: widget.garden.address ?? '');
-    _areaCtrl = TextEditingController(text: widget.garden.areaSize.toString());
-    _yearCtrl = TextEditingController(
-      text: widget.garden.plantYear?.toString() ?? '',
+    final g = widget.garden;
+    _nameCtrl = TextEditingController(text: g.gardenName);
+    _addressCtrl = TextEditingController(text: g.address ?? '');
+    _areaCtrl = TextEditingController(text: g.areaSize > 0 ? _trimZero(g.areaSize) : '');
+    _countCtrl = TextEditingController(text: g.plantCount > 0 ? '${g.plantCount}' : '');
+    _plantYear = g.plantYear;
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _addressCtrl.dispose();
+    _areaCtrl.dispose();
+    _countCtrl.dispose();
+    super.dispose();
+  }
+
+  // 20.0 -> "20", 12.5 -> "12.5"
+  /// ตัดทศนิยม .0 ทิ้ง (20.0 -> "20")
+  String _trimZero(double v) => v % 1 == 0 ? v.toInt().toString() : v.toString();
+
+  /// อายุต้นปาล์ม (ปี) คำนวณจากปีที่ปลูก
+  int? get _plantAge {
+    if (_plantYear == null) return null;
+    final age = DateTime.now().year - _plantYear!;
+    return age < 0 ? null : age;
+  }
+
+  /// เปิดรายการให้เลือกปีที่ปลูก (แสดงเป็น พ.ศ. เก็บเป็น ค.ศ.)
+  Future<void> _pickYear() async {
+    final now = DateTime.now().year;
+    final years = List.generate(41, (i) => now - i); // ย้อนหลัง 40 ปี
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: 360,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('เลือกปีที่ปลูก',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: years.length,
+                  itemBuilder: (context, i) {
+                    final y = years[i];
+                    final selected = y == _plantYear;
+                    return ListTile(
+                      title: Text(
+                        'พ.ศ. ${y + 543}',
+                        style: TextStyle(
+                          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                          color: selected ? _green : null,
+                        ),
+                      ),
+                      trailing: Text(
+                        now - y == 0 ? 'ปีนี้' : '${now - y} ปี',
+                        style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                      ),
+                      selected: selected,
+                      onTap: () => Navigator.pop(context, y),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
-    _countCtrl = TextEditingController(
-      text: widget.garden.plantCount.toString(),
-    );
+    if (picked != null) setState(() => _plantYear = picked);
+  }
+
+  /// ตรวจฟอร์ม แล้วปิด sheet พร้อมส่งข้อมูลกลับ
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.pop(context, {
+      'garden_name': _nameCtrl.text.trim(),
+      'address': _addressCtrl.text.trim(),
+      'area_size': double.tryParse(_areaCtrl.text.trim()) ?? 0,
+      'plant_year': _plantYear,
+      'plant_count': int.tryParse(_countCtrl.text.trim()) ?? 0,
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text(
-        'แก้ไขแปลงสวน',
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF1F2937),
+    // ดันฟอร์มขึ้นตามความสูงคีย์บอร์ด ช่องล่างๆ จะได้ไม่ถูกบัง
+    final keyboard = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboard),
+      child: Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-      ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildField('ชื่อแปลงสวน', _nameCtrl),
-            _buildField('ที่อยู่', _addressCtrl),
-            _buildField('ขนาด (ไร่)', _areaCtrl, TextInputType.number),
-            _buildField('ปีที่ปลูก', _yearCtrl, TextInputType.number),
-            _buildField('จำนวนต้น', _countCtrl, TextInputType.number),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('ยกเลิก', style: TextStyle(color: Colors.grey[700])),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: widget.primaryGreen,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+        child: SafeArea(
+          top: false,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── หัว: แถบจับ + ชื่อ + ปุ่มปิด ──
+                const SizedBox(height: 10),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 8, 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Center(child: Text('🌴', style: TextStyle(fontSize: 22))),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'แก้ไขแปลงสวน',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1F2937),
+                              ),
+                            ),
+                            Text(
+                              widget.garden.gardenId,
+                              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close, color: Colors.grey[600]),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 16),
+
+                // ── ฟอร์ม ──
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _sectionTitle('ข้อมูลทั่วไป'),
+                        _field(
+                          label: 'ชื่อแปลงสวน *',
+                          controller: _nameCtrl,
+                          icon: Icons.forest_outlined,
+                          validator: (v) =>
+                              (v == null || v.trim().isEmpty) ? 'กรุณากรอกชื่อแปลงสวน' : null,
+                        ),
+                        _field(
+                          label: 'ที่อยู่ / ตำแหน่งแปลง',
+                          hint: 'เช่น ม.3 ต.ท่าข้าม อ.พุนพิน',
+                          controller: _addressCtrl,
+                          icon: Icons.location_on_outlined,
+                          maxLines: 2,
+                        ),
+                        const SizedBox(height: 8),
+                        _sectionTitle('ข้อมูลการปลูก'),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _field(
+                                label: 'ขนาดพื้นที่',
+                                controller: _areaCtrl,
+                                icon: Icons.square_foot,
+                                suffix: 'ไร่',
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) return null;
+                                  final n = double.tryParse(v.trim());
+                                  return (n == null || n < 0) ? 'ตัวเลขไม่ถูกต้อง' : null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _field(
+                                label: 'จำนวนต้น',
+                                controller: _countCtrl,
+                                icon: Icons.park_outlined,
+                                suffix: 'ต้น',
+                                keyboardType: TextInputType.number,
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) return null;
+                                  final n = int.tryParse(v.trim());
+                                  return (n == null || n < 0) ? 'ใส่เป็นจำนวนเต็ม' : null;
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        _yearSelector(),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // ── ปุ่ม ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey[700],
+                            side: BorderSide(color: Colors.grey[300]!),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('ยกเลิก', style: TextStyle(fontSize: 15)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton.icon(
+                          onPressed: _save,
+                          icon: const Icon(Icons.check, size: 20),
+                          label: const Text(
+                            'บันทึกการแก้ไข',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _green,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          onPressed: () {
-            Navigator.pop(context, {
-              'garden_name': _nameCtrl.text.trim(),
-              'address': _addressCtrl.text.trim(),
-              'area_size': double.tryParse(_areaCtrl.text.trim()) ?? 0,
-              'plant_year': int.tryParse(_yearCtrl.text.trim()),
-              'plant_count': int.tryParse(_countCtrl.text.trim()) ?? 0,
-            });
-          },
-          child: const Text('บันทึก'),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildField(
-    String label,
-    TextEditingController ctrl, [
-    TextInputType? type,
-  ]) {
+  /// หัวข้อหมวดในฟอร์ม
+  Widget _sectionTitle(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: ctrl,
-        keyboardType: type,
-        cursorColor: widget.primaryGreen,
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(color: Colors.grey[600]),
-          floatingLabelStyle: TextStyle(color: widget.primaryGreen),
-          filled: true,
-          fillColor: const Color(0xFFF9FAFB),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: widget.primaryGreen, width: 1.5),
-          ),
+      padding: const EdgeInsets.only(bottom: 10, top: 4),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600]),
+      ),
+    );
+  }
+
+  /// ช่องเลือกปีที่ปลูก พร้อมป้ายบอกอายุต้น
+  Widget _yearSelector() {
+    final age = _plantAge;
+    return InkWell(
+      onTap: _pickYear,
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: _decoration(label: 'ปีที่ปลูก', icon: Icons.calendar_month_outlined),
+        child: Row(
+          children: [
+            Text(
+              _plantYear == null ? 'เลือกปี' : 'พ.ศ. ${_plantYear! + 543}',
+              style: TextStyle(
+                fontSize: 15,
+                color: _plantYear == null ? Colors.grey[400] : const Color(0xFF1F2937),
+              ),
+            ),
+            const Spacer(),
+            if (age != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  age == 0 ? 'ปลูกปีนี้' : 'อายุ $age ปี',
+                  style: TextStyle(fontSize: 12, color: _green, fontWeight: FontWeight.w600),
+                ),
+              ),
+            const SizedBox(width: 4),
+            Icon(Icons.keyboard_arrow_down, color: Colors.grey[500]),
+          ],
         ),
+      ),
+    );
+  }
+
+  /// หน้าตาช่องกรอกที่ใช้ร่วมกันในฟอร์ม
+  InputDecoration _decoration({
+    required String label,
+    required IconData icon,
+    String? hint,
+    String? suffix,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      suffixText: suffix,
+      prefixIcon: Icon(icon, color: _green, size: 20),
+      labelStyle: TextStyle(color: Colors.grey[600]),
+      floatingLabelStyle: TextStyle(color: _green),
+      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+      filled: true,
+      fillColor: const Color(0xFFF9FAFB),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: _green, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.red),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.red, width: 1.5),
+      ),
+    );
+  }
+
+  /// ช่องกรอกข้อความ 1 ช่อง
+  Widget _field({
+    required String label,
+    required TextEditingController controller,
+    required IconData icon,
+    String? hint,
+    String? suffix,
+    int maxLines = 1,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        validator: validator,
+        cursorColor: _green,
+        decoration: _decoration(label: label, icon: icon, hint: hint, suffix: suffix),
       ),
     );
   }

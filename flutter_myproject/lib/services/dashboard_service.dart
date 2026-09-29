@@ -1,3 +1,11 @@
+// ============================================================
+// dashboard_service.dart — ข้อมูลหน้า Dashboard และกิจกรรม
+//
+// - ActivityItem: กิจกรรม 1 รายการ (เก็บเกี่ยว / ดูแลสวน / รายรับ / รายจ่าย)
+// - DashboardData: ข้อมูลสรุปทั้งหมดของหน้า Dashboard
+// - DashboardService: เรียก API /dashboard และ /activities
+// ============================================================
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
@@ -16,6 +24,29 @@ class ActivityItem {
   /// ข้อมูลดิบทั้งหมดจาก API ไว้ส่งต่อให้ฟอร์มแก้ไข
   final Map<String, dynamic> raw;
 
+  /// ชื่อกิจกรรมดูแลสวนเป็นภาษาไทย (ใส่ปุ๋ย / ตัดแต่ง / ให้น้ำ ...)
+  String get careLabel {
+    if (raw['fertilizer_id'] != null) return 'ใส่ปุ๋ย';
+    switch (raw['action_type']) {
+      case 'fertilizer':
+        return 'ใส่ปุ๋ย';
+      case 'pruning':
+        return 'ตัดแต่ง';
+      case 'weeding':
+        return 'กำจัดวัชพืช';
+      case 'watering':
+        return 'ให้น้ำ';
+      case 'spraying':
+        return 'พ่นยา';
+      default:
+        return 'ดูแลสวน';
+    }
+  }
+
+  /// หน่วยของจำนวน: ดูแลสวนใช้หน่วยที่บันทึกไว้ (ต้น / ครั้ง / กก.) ส่วนเก็บเกี่ยวเป็น กก.
+  String get quantityUnit =>
+      type == 'care' ? (raw['quantity_type']?.toString() ?? 'กก.') : 'กก.';
+
   ActivityItem({
     required this.type,
     this.id = '',
@@ -28,6 +59,7 @@ class ActivityItem {
     required this.recordDate,
   });
 
+  /// แปลง JSON จาก API เป็น ActivityItem
   factory ActivityItem.fromJson(Map<String, dynamic> json) {
     return ActivityItem(
       type: json['type'] as String,
@@ -51,20 +83,33 @@ class ActivityItem {
 /// ข้อมูลสรุปทั้งหมดของหน้า Dashboard
 class DashboardData {
   final int gardenCount;
+  final double totalArea; // ไร่
+  final int totalPlants;
   final double monthlyProduction;
   final double monthlyIncome;
+  final int pendingHarvestCount; // ผลผลิตที่ยังรอขาย
+  final double pendingHarvestKg;
   final List<ActivityItem> activities;
 
   DashboardData({
     required this.gardenCount,
+    this.totalArea = 0,
+    this.totalPlants = 0,
     required this.monthlyProduction,
     required this.monthlyIncome,
+    this.pendingHarvestCount = 0,
+    this.pendingHarvestKg = 0,
     required this.activities,
   });
 
+  /// แปลง JSON จาก API เป็น DashboardData
   factory DashboardData.fromJson(Map<String, dynamic> json) {
     return DashboardData(
       gardenCount: int.tryParse(json['garden_count'].toString()) ?? 0,
+      totalArea: double.tryParse(json['total_area']?.toString() ?? '') ?? 0,
+      totalPlants: int.tryParse(json['total_plants']?.toString() ?? '') ?? 0,
+      pendingHarvestCount: int.tryParse(json['pending_harvest_count']?.toString() ?? '') ?? 0,
+      pendingHarvestKg: double.tryParse(json['pending_harvest_kg']?.toString() ?? '') ?? 0,
       monthlyProduction:
           double.tryParse(json['monthly_production'].toString()) ?? 0,
       monthlyIncome: double.tryParse(json['monthly_income'].toString()) ?? 0,
@@ -75,9 +120,11 @@ class DashboardData {
   }
 }
 
+/// เรียก API ที่เกี่ยวกับหน้า Dashboard
 class DashboardService {
   static String get baseUrl => AppConfig.apiBaseUri;
 
+  /// ดึงข้อมูลสรุปของ Dashboard ของ user คนนี้ (GET /dashboard/:userId)
   Future<DashboardData> fetchDashboard(String userId) async {
     final uri = Uri.parse('$baseUrl/dashboard/$userId');
     final response = await http.get(uri);

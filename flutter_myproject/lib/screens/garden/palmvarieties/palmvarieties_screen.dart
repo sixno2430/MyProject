@@ -1,3 +1,10 @@
+// ============================================================
+// palmvarieties_screen.dart — หน้าพันธุ์ปาล์ม (เวอร์ชันที่เพิ่ม/แก้ไข/ลบได้)
+//
+// แสดงพันธุ์ทั้งหมดพร้อมจำนวนต้นที่ user ปลูก ค้นหาได้ กดค้างเพื่อแก้ไข/ลบ
+// หมายเหตุ: ตอนนี้เมนูเปิดหน้าใน plamvarieties/ แทน หน้านี้จึงยังไม่มีทางเข้า
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -7,6 +14,7 @@ import 'package:flutter_myproject/widgets/item_actions.dart';
 import 'add_palmvariety_screen.dart';
 import 'palm_variety.dart';
 
+/// หน้ารายการพันธุ์ปาล์ม
 class PalmVarietiesScreen extends StatefulWidget {
   const PalmVarietiesScreen({super.key});
 
@@ -38,6 +46,7 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
     _fetchVarieties();
   }
 
+  /// ดึงรายชื่อพันธุ์ พร้อมจำนวนต้น/แปลงที่ user นี้ปลูก
   Future<void> _fetchVarieties() async {
     setState(() {
       _isLoading = true;
@@ -65,6 +74,7 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
     }
   }
 
+  /// พันธุ์ที่ตรงกับคำค้นหา (ชื่อ หรือชื่อวิทยาศาสตร์)
   List<PalmVariety> get _filtered {
     if (_query.isEmpty) return _varieties;
     final q = _query.toLowerCase();
@@ -75,6 +85,7 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
         .toList();
   }
 
+  /// เปิดฟอร์มเพิ่ม/แก้ไขพันธุ์ กลับมาแล้วโหลดใหม่
   Future<void> _openForm({PalmVariety? existing}) async {
     final result = await Navigator.push(
       context,
@@ -83,6 +94,7 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
     if (result == true) _fetchVarieties();
   }
 
+  /// กดค้างที่การ์ด: แก้ไข หรือลบ (ลบไม่ได้ถ้ามีแปลงปลูกพันธุ์นี้อยู่)
   Future<void> _onLongPress(PalmVariety v) async {
     final action = await showItemActionsSheet(context);
     if (action == null || !mounted) return;
@@ -232,6 +244,7 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
     );
   }
 
+  /// ช่องค้นหาพันธุ์ปาล์ม
   Widget _buildSearchBox() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -266,6 +279,7 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
     );
   }
 
+  /// การ์ดพันธุ์ปาล์ม 1 พันธุ์
   Widget _buildVarietyCard(PalmVariety v, Color color) {
     final isUsed = v.plantCount > 0;
     return GestureDetector(

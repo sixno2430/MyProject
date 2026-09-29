@@ -1,7 +1,14 @@
+// ============================================================
+// profile_service.dart — เรียก API ข้อมูลโปรไฟล์ผู้ใช้
+//
+// ดึงและแก้ไขข้อมูลส่วนตัว (ชื่อ, เบอร์โทร ฯลฯ) ผ่าน /api/profile/:userId
+// ============================================================
+
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 
+/// รวมฟังก์ชันเรียก API โปรไฟล์ (เรียกแบบ static)
 class ProfileService {
   /// ใช้ apiBaseUri จาก AppConfig โดยตรง
   /// AppConfig.apiBaseUri = "http://localhost:3000/api"

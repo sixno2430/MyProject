@@ -1,3 +1,10 @@
+// ============================================================
+// splash_screen.dart — หน้าเปิดแอป (อนิเมชันประมาณ 2 วินาที)
+//
+// โลโก้เด้งขึ้น -> ชื่อแอปค่อยๆ ปรากฏ -> แถบโหลดวิ่งจนเต็ม -> ไปหน้า Login
+// โลโก้ใช้ Hero ทำให้ลอยต่อไปยังตำแหน่งเดียวกันในหน้า Login
+// ============================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
 
@@ -55,6 +62,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     _controller.forward().whenComplete(_goToLogin);
   }
 
+  /// อนิเมชันจบแล้ว เปลี่ยนไปหน้า Login แบบค่อยๆ จางเข้า
   void _goToLogin() {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(

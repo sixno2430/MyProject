@@ -1,3 +1,10 @@
+// ============================================================
+// harvest.js — model การเก็บเกี่ยว (ตาราง harvest)
+//
+// status: 'sold' = ขายแล้ว, 'pending' = รอขาย (รายได้นับเฉพาะ sold)
+// ทุกคำสั่งแก้ไข/ลบ เช็กว่าแปลงเป็นของ user นั้นจริง
+// ============================================================
+
 const db = require('../libs/db_pool');
 
 const harvest = {
@@ -65,8 +72,9 @@ const harvest = {
       const summaryQuery = `
         SELECT 
           COALESCE(SUM(total_quantity), 0) AS totalQuantityKg,
-          COALESCE(SUM(total_price), 0) AS totalRevenue,
-          COALESCE(AVG(price_per_kg), 0) AS averagePrice
+          -- รายได้และราคาเฉลี่ย นับเฉพาะที่ขายแล้ว (น้ำหนักยังนับทุกรายการ)
+          COALESCE(SUM(CASE WHEN COALESCE(status, 'sold') = 'sold' THEN total_price END), 0) AS totalRevenue,
+          COALESCE(AVG(CASE WHEN COALESCE(status, 'sold') = 'sold' THEN price_per_kg END), 0) AS averagePrice
         FROM harvest
         ${whereClause}
       `;
@@ -187,6 +195,29 @@ const harvest = {
     } catch (error) {
       console.error('Error updateHarvest:', error);
       return { isError: true, data: null, errorMessage: 'แก้ไขรายการไม่สำเร็จ' };
+    }
+  },
+
+  // 4.1 ทำเครื่องหมายว่า "ขายแล้ว" พร้อมราคาที่ขายได้จริง
+  //     ราคารวมคำนวณใหม่จากน้ำหนักในฐานข้อมูล (total_quantity × ราคา) กันตัวเลขไม่ตรงกัน
+  sellHarvest: async (harvestId, userId, pricePerKg) => {
+    try {
+      const price = parseFloat(pricePerKg);
+      if (!(price > 0)) {
+        return { isError: true, data: null, errorMessage: 'กรุณาใส่ราคาขายต่อกิโลกรัม' };
+      }
+      const result = await db.query(`
+        UPDATE harvest
+        SET status = 'sold', price_per_kg = ?, total_price = total_quantity * ?
+        WHERE harvest_id = ? AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?)
+      `, [price, price, harvestId, userId]);
+      if (!result.affectedRows) {
+        return { isError: true, data: null, errorMessage: 'ไม่พบรายการ หรือไม่มีสิทธิ์แก้ไข' };
+      }
+      return { isError: false, data: null, errorMessage: "" };
+    } catch (error) {
+      console.error('Error sellHarvest:', error);
+      return { isError: true, data: null, errorMessage: 'บันทึกการขายไม่สำเร็จ' };
     }
   },
 

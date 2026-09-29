@@ -1,3 +1,10 @@
+// ============================================================
+// add_transaction_screen.dart — ฟอร์มบันทึก/แก้ไขรายรับ-รายจ่าย
+//
+// เลือกประเภท (รายรับ/รายจ่าย), หมวด, ชื่อรายการ, จำนวนเงิน, วันที่ และแปลงที่เกี่ยวข้อง
+// ส่ง existing มา = แก้ไข (PUT /api/finance/:id) ไม่ส่ง = เพิ่มใหม่ (POST /api/finance/add)
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -6,6 +13,7 @@ import 'package:intl/intl.dart';
 import 'finance_screen.dart' show TransactionItem;
 import 'package:flutter_myproject/services/auth_server.dart';
 
+/// ฟอร์มบันทึกรายการเงิน
 class AddTransactionScreen extends StatefulWidget {
   /// ข้อมูลเดิม (ส่งมา = โหมดแก้ไข, ไม่ส่ง = เพิ่มใหม่)
   final TransactionItem? existing;
@@ -59,6 +67,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   // ดึงแปลงสวนจาก Backend
+  /// โหลดแปลงสวนของ user มาใส่ dropdown "แปลงที่เกี่ยวข้อง"
   Future<void> _fetchGardens() async {
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) return;
@@ -85,6 +94,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   // เลือกวันที่
+  /// เลือกวันที่ของรายการ
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -110,6 +120,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   // ส่งข้อมูลบันทึกเข้า DB
+  /// ตรวจข้อมูลแล้วบันทึก (เพิ่มใหม่หรือแก้ไข) สำเร็จแล้วปิดหน้า
   Future<void> _submitData() async {
     final title = _titleController.text.trim();
     final amountText = _amountController.text.trim();
@@ -181,6 +192,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
   }
 
+  /// วันที่แบบไทย ปี พ.ศ. สำหรับแสดงในฟอร์ม
   String _formatThaiDate(DateTime dt) {
     final thaiYear = dt.year + 543;
     final months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
@@ -376,10 +388,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
+  /// หัวข้อเหนือช่องกรอก
   Widget _buildLabel(String text) {
     return Text(text, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14));
   }
 
+  /// กรอบของ dropdown ให้หน้าตาเหมือนช่องกรอกอื่น
   Widget _buildDropdownContainer({required Widget child}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -392,6 +406,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
+  /// ช่องกรอกข้อความ
   Widget _buildTextField(
     String label,
     String hint, {

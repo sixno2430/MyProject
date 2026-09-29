@@ -1,5 +1,10 @@
+// ============================================================
+// activity_empty_state.dart — หน้าว่างเมื่อไม่มีกิจกรรมในหมวดที่กรองอยู่
+// ============================================================
+
 import 'package:flutter/material.dart';
 
+/// แสดงไอคอนและข้อความ "ยังไม่มีกิจกรรม" ตามหมวดที่เลือก
 class ActivityEmptyState extends StatelessWidget {
   final String filter;
   const ActivityEmptyState({super.key, required this.filter});

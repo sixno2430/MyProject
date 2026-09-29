@@ -1,5 +1,12 @@
+// ============================================================
+// activity_filter_bar.dart — แถบปุ่มกรองกิจกรรม
+//
+// ทั้งหมด / เก็บเกี่ยว / ดูแล / รายรับ / รายจ่าย (ใช้ในหน้าประวัติกิจกรรม)
+// ============================================================
+
 import 'package:flutter/material.dart';
 
+/// แถบปุ่มกรอง เลื่อนแนวนอนได้ แจ้งหมวดที่เลือกผ่าน onFilterChanged
 class ActivityFilterBar extends StatelessWidget {
   final String selectedFilter;
   final ValueChanged<String> onFilterChanged;
@@ -73,6 +80,7 @@ class ActivityFilterBar extends StatelessWidget {
   }
 }
 
+/// ข้อมูลปุ่มกรอง 1 ปุ่ม
 class _FilterItem {
   final String label;
   final String value;

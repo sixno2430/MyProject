@@ -1,3 +1,13 @@
+// ============================================================
+// server.js — เซิร์ฟเวอร์ API ของ PalmTrack (Express, พอร์ต 3000)
+//
+// รวมทุก route ของแอป แบ่งเป็นหมวด: ผู้ใช้/ล็อกอิน, Dashboard, แปลงสวน, ดูแลสวน,
+// พันธุ์ปาล์ม, เก็บเกี่ยว, การเงิน, รหัสผ่าน/ร้านรับซื้อ/รายงาน, โปรไฟล์
+// การคำนวณและ SQL อยู่ในโฟลเดอร์ models/ — ไฟล์นี้แค่รับ request แล้วเรียก model
+//
+// วิธีรัน: node server.js  (แก้ไฟล์แล้วต้องปิดตัวเก่าก่อนเปิดใหม่ ไม่งั้นตัวเก่ายังถือพอร์ตอยู่)
+// ============================================================
+
 const http = require('http');
 const express = require('express');
 const bp = require('body-parser');
@@ -14,6 +24,9 @@ const care = require('./models/care');
 const harvest = require('./models/harvest');
 const finance = require('./models/finance');
 const palmVariety = require('./models/palm_variety');
+const report = require('./models/report');
+const shop = require('./models/shop');
+const fertilizer = require('./models/fertilizer');
 
 const app = express();
 app.use(cors());
@@ -32,6 +45,7 @@ const port = 3000;
 // USER & AUTHENTICATION API
 // ==========================================
 
+/** ปิดไว้: ไม่อนุญาตให้ดึงรายชื่อผู้ใช้ทั้งหมด */
 app.get("/api/users", (req, res) => {
   res.status(401).json({
     isError: true,
@@ -39,6 +53,7 @@ app.get("/api/users", (req, res) => {
   });
 });
 
+/** ข้อมูลผู้ใช้ 1 คน */
 app.get('/api/user/:user_id', async (req, res) => {
   try {
     const userId = req.params.user_id;
@@ -138,6 +153,7 @@ app.post('/api/access_request', async (req, res) => {
 // DASHBOARD API
 // ==========================================
 
+/** ข้อมูลสรุปหน้า Dashboard */
 app.get('/api/dashboard/:user_id', async (req, res) => {
   try {
     const userId = req.params.user_id;
@@ -148,10 +164,22 @@ app.get('/api/dashboard/:user_id', async (req, res) => {
   }
 });
 
+/** ประวัติกิจกรรมทั้งหมด ?limit= จำกัดจำนวนได้ */
+app.get('/api/activities/:user_id', async (req, res) => {
+  try {
+    // ประวัติกิจกรรมทั้งหมด (เก็บเกี่ยว / ดูแล / รายรับ / รายจ่าย)
+    const result = await dashboard.getActivities(req.params.user_id, req.query.limit);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
 // ==========================================
 // GARDEN API
 // ==========================================
 
+/** แปลงสวนทั้งหมดในระบบ (ทุก user) */
 app.get('/api/gardens', async (req, res) => {
   try {
     if (garden && typeof garden.getGardensByUserId === 'function') {
@@ -167,6 +195,7 @@ app.get('/api/gardens', async (req, res) => {
   }
 });
 
+/** แปลงสวนของ user */
 app.get('/api/gardens/:user_id', async (req, res) => {
   try {
     const userId = req.params.user_id;
@@ -181,6 +210,7 @@ app.get('/api/gardens/:user_id', async (req, res) => {
   }
 });
 
+/** เพิ่มแปลงสวน */
 app.post('/api/gardens', async (req, res) => {
   try {
     if (garden && typeof garden.createGarden === 'function') {
@@ -195,6 +225,7 @@ app.post('/api/gardens', async (req, res) => {
   }
 });
 
+/** แก้ไขแปลงสวน */
 app.put('/api/gardens/:garden_id', async (req, res) => {
   try {
     const { garden_id } = req.params;
@@ -205,6 +236,7 @@ app.put('/api/gardens/:garden_id', async (req, res) => {
   }
 });
 
+/** ลบแปลงสวน */
 app.delete('/api/gardens/:garden_id', async (req, res) => {
   try {
     const { garden_id } = req.params;
@@ -215,6 +247,7 @@ app.delete('/api/gardens/:garden_id', async (req, res) => {
   }
 });
 
+/** พันธุ์ปาล์มที่ปลูกในแปลง */
 app.get('/api/gardens/:garden_id/varieties', async (req, res) => {
   try {
     const { garden_id } = req.params;
@@ -229,9 +262,10 @@ app.get('/api/gardens/:garden_id/varieties', async (req, res) => {
 // PALM CARE & VARIETIES API
 // ==========================================
 
+/** รายการดูแลสวน ?user_id= (คืนเป็น array ตรงๆ) */
 app.get('/api/care-logs', async (req, res) => {
   try {
-    const result = await care.getCareLogs();
+    const result = await care.getCareLogs(req.query.user_id);
     if (result.isError) {
       return res.status(500).json({ message: 'Error fetching care logs', error: result.errorMessage });
     }
@@ -241,6 +275,17 @@ app.get('/api/care-logs', async (req, res) => {
   }
 });
 
+// รายชื่อปุ๋ย สำหรับ dropdown ตอนบันทึก "ใส่ปุ๋ย"
+app.get('/api/fertilizers', async (req, res) => {
+  try {
+    const result = await fertilizer.getAll();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message, data: [] });
+  }
+});
+
+/** เพิ่มรายการดูแลสวน (body ต้องมี user_id) */
 app.post('/api/care-logs', async (req, res) => {
   try {
     const result = await care.createCareLog(req.body);
@@ -250,40 +295,95 @@ app.post('/api/care-logs', async (req, res) => {
   }
 });
 
+/** แก้ไขรายการดูแลสวน (body ต้องมี user_id) */
+app.put('/api/care-logs/:care_id', async (req, res) => {
+  try {
+    const result = await care.updateCareLog(req.params.care_id, req.body.user_id, req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** ลบรายการดูแลสวน ?user_id= */
+app.delete('/api/care-logs/:care_id', async (req, res) => {
+  try {
+    const result = await care.deleteCareLog(req.params.care_id, req.query.user_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
 // API สำหรับดึงข้อมูลพันธุ์ปาล์มน้ำมัน
 app.get('/api/varieties', async (req, res) => {
   try {
-    const result = await palmVariety.getAll();
+    // ?user_id=... จะได้จำนวนต้น/แปลงที่ user นั้นปลูกแต่ละพันธุ์มาด้วย
+    const result = await palmVariety.getAll(req.query.user_id);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message, data: [] });
   }
 });
 
+/** เพิ่มพันธุ์ปาล์ม */
+app.post('/api/varieties', async (req, res) => {
+  try {
+    const result = await palmVariety.create(req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** แก้ไขพันธุ์ปาล์ม */
+app.put('/api/varieties/:variety_id', async (req, res) => {
+  try {
+    const result = await palmVariety.update(req.params.variety_id, req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** ลบพันธุ์ปาล์ม (ลบไม่ได้ถ้ามีแปลงปลูกอยู่) */
+app.delete('/api/varieties/:variety_id', async (req, res) => {
+  try {
+    const result = await palmVariety.remove(req.params.variety_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+
 // ==========================================
 // HARVEST API
 // ==========================================
 
+/** รายการเก็บเกี่ยวปีนี้ ?user_id= &garden_id= */
 app.get('/api/harvests', async (req, res) => {
   try {
-    const gardenId = req.query.garden_id;
-    const result = await harvest.getAllHarvests(gardenId);
+    const { garden_id: gardenId, user_id: userId } = req.query;
+    const result = await harvest.getAllHarvests(gardenId, userId);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
   }
 });
 
+/** สรุปการเก็บเกี่ยวปีนี้ ?user_id= &garden_id= */
 app.get('/api/harvests/summary', async (req, res) => {
   try {
-    const gardenId = req.query.garden_id;
-    const result = await harvest.getSummary(gardenId);
+    const { garden_id: gardenId, user_id: userId } = req.query;
+    const result = await harvest.getSummary(gardenId, userId);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
   }
 });
 
+/** บันทึกการเก็บเกี่ยว */
 app.post('/api/harvests', async (req, res) => {
   try {
     const result = await harvest.createHarvest(req.body);
@@ -296,10 +396,41 @@ app.post('/api/harvests', async (req, res) => {
   }
 });
 
+// เปลี่ยนสถานะ "รอขาย" -> "ขายแล้ว" body: { user_id, price_per_kg }
+app.put('/api/harvests/:harvest_id/sell', async (req, res) => {
+  try {
+    const result = await harvest.sellHarvest(req.params.harvest_id, req.body.user_id, req.body.price_per_kg);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** แก้ไขการเก็บเกี่ยว (body ต้องมี user_id) */
+app.put('/api/harvests/:harvest_id', async (req, res) => {
+  try {
+    const result = await harvest.updateHarvest(req.params.harvest_id, req.body.user_id, req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** ลบการเก็บเกี่ยว ?user_id= */
+app.delete('/api/harvests/:harvest_id', async (req, res) => {
+  try {
+    const result = await harvest.deleteHarvest(req.params.harvest_id, req.query.user_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
 // ==========================================
 // FINANCE API (รายรับ - รายจ่าย)
 // ==========================================
 
+/** ยอดรวมรายรับ-รายจ่าย ?month=yyyy-MM &user_id= */
 app.get('/api/finance/summary', async (req, res) => {
   try {
     const { month, user_id } = req.query;
@@ -310,6 +441,7 @@ app.get('/api/finance/summary', async (req, res) => {
   }
 });
 
+/** รายการเงิน ?month= &type=income|expense|all &user_id= */
 app.get('/api/finance/transactions', async (req, res) => {
   try {
     const { month, type, user_id } = req.query;
@@ -320,9 +452,75 @@ app.get('/api/finance/transactions', async (req, res) => {
   }
 });
 
+/** บันทึกรายการเงินใหม่ */
 app.post('/api/finance/add', async (req, res) => {
   try {
     const result = await finance.createTransaction(req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** แก้ไขรายการเงิน (เฉพาะ FN...) */
+app.put('/api/finance/:finance_id', async (req, res) => {
+  try {
+    // แก้ไขธุรกรรมทั่วไป (เฉพาะรายการ FN... ที่บันทึกเอง)
+    const result = await finance.updateTransaction(req.params.finance_id, req.body.user_id, req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** ลบรายการเงิน (เฉพาะ FN...) ?user_id= */
+app.delete('/api/finance/:finance_id', async (req, res) => {
+  try {
+    const result = await finance.deleteTransaction(req.params.finance_id, req.query.user_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+// ==========================================
+// PASSWORD / SHOP / REPORT
+// ==========================================
+
+/** เปลี่ยนรหัสผ่าน body: { old_password, new_password } */
+app.put('/api/user/:user_id/password', async (req, res) => {
+  try {
+    const { old_password, new_password } = req.body;
+    if (!old_password || !new_password) {
+      return res.json({ isError: true, errorMessage: 'กรุณากรอกรหัสผ่านให้ครบ' });
+    }
+    if (new_password.length < 8) {
+      return res.json({ isError: true, errorMessage: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัว' });
+    }
+    const result = await userAccount.changePassword(req.params.user_id, old_password, new_password);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** รายชื่อร้านรับซื้อ + ราคาล่าสุด ?user_id= */
+app.get('/api/shops', async (req, res) => {
+  try {
+    // รายชื่อร้านรับซื้อ + ราคาล่าสุด + ประวัติที่ user เคยขายให้
+    const result = await shop.getShops(req.query.user_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** รายงานสรุปประจำปี ?year= */
+app.get('/api/report/:user_id', async (req, res) => {
+  try {
+    // รายงานสรุปประจำปี ?year=2026
+    const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+    const result = await report.getYearlyReport(req.params.user_id, year);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });

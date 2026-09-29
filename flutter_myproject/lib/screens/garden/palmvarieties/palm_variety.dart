@@ -1,3 +1,8 @@
+// ============================================================
+// palm_variety.dart — โมเดลพันธุ์ปาล์ม (ใช้กับหน้าใน palmvarieties/ และ PalmVarietyDropdown)
+// ============================================================
+
+/// พันธุ์ปาล์ม 1 พันธุ์
 class PalmVariety {
   final String varietyId;
   final String varietyName;
@@ -16,6 +21,7 @@ class PalmVariety {
     this.gardenCount = 0,
   });
 
+  /// แปลง JSON จาก API เป็น PalmVariety
   factory PalmVariety.fromJson(Map<String, dynamic> json) => PalmVariety(
         varietyId: json['variety_id'] as String,
         varietyName: json['variety_name'] as String,

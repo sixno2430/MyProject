@@ -1,3 +1,10 @@
+// ============================================================
+// activity_screen.dart — หน้า "ประวัติกิจกรรม" ทั้งหมด
+//
+// เปิดจากปุ่ม "ดูทั้งหมด" บน Dashboard ดึงจาก GET /api/activities/:userId
+// กรองตามประเภทได้ และมีปุ่มเพิ่มกิจกรรม (เลือกประเภทก่อนแล้วเปิดฟอร์มของประเภทนั้น)
+// ============================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/widgets/activity_widgets/activity_card.dart';
 import 'package:flutter_myproject/widgets/activity_widgets/activity_empty_state.dart';
@@ -8,6 +15,7 @@ import 'package:flutter_myproject/screens/garden/harvest/add_harvest_screen.dart
 import 'package:flutter_myproject/screens/garden/gardencare/add_gardencare_screen.dart';
 import 'package:flutter_myproject/screens/finance/add_transaction_screen.dart';
 
+/// หน้าประวัติกิจกรรม
 class ActivityScreen extends StatefulWidget {
   const ActivityScreen({super.key});
 
@@ -26,6 +34,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
     _activitiesFuture = _fetch();
   }
 
+  /// ดึงกิจกรรมทั้งหมดของ user ที่ล็อกอินอยู่
   Future<List<ActivityItem>> _fetch() async {
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) {
@@ -34,12 +43,14 @@ class _ActivityScreenState extends State<ActivityScreen> {
     return DashboardService().fetchActivities(userId);
   }
 
+  /// โหลดรายการใหม่ (เช่น หลังเพิ่ม/แก้ไข/ลบ)
   void _reload() {
     setState(() {
       _activitiesFuture = _fetch();
     });
   }
 
+  /// ดึงหน้าจอลงเพื่อโหลดใหม่
   Future<void> _onRefresh() async {
     _reload();
     try {
@@ -88,6 +99,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
     if (saved == true) _reload();
   }
 
+  /// กรองรายการตามแท็บที่เลือก (ทั้งหมด / เก็บเกี่ยว / ดูแล / รายรับ / รายจ่าย)
   List<ActivityItem> _filterList(List<ActivityItem> list) {
     if (_selectedFilter == 'all') return list;
     return list.where((a) => a.type == _selectedFilter).toList();

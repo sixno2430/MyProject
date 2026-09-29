@@ -1,12 +1,17 @@
+// ============================================================
+// report.js — model รายงานสรุปประจำปี
+// ============================================================
+
 const db = require('../libs/db_pool');
 
 // รายรับ/รายจ่ายทั้งหมดของ user รวมจาก 3 แหล่ง (แบบเดียวกับหน้าการเงิน)
-//   - ขายผลผลิต (harvest.total_price)       = รายรับ
+//   - ขายผลผลิต (harvest.total_price)       = รายรับ (เฉพาะที่ขายแล้ว ไม่นับรอขาย)
 //   - ค่าดูแลสวน (palm_care.cost)            = รายจ่าย
 //   - รายการที่บันทึกเองในตาราง finance        = ตาม record_type
 const MONEY_SOURCES = `
   SELECT h.harvest_date AS date, 'INCOME' AS type, h.total_price AS amount, g.user_id
   FROM harvest h JOIN garden g ON h.garden_id = g.garden_id
+  WHERE COALESCE(h.status, 'sold') = 'sold'
   UNION ALL
   SELECT c.record_date, 'EXPENSE', c.cost, g.user_id
   FROM palm_care c JOIN garden g ON c.garden_id = g.garden_id

@@ -1,3 +1,10 @@
+// ============================================================
+// add_plot_screen.dart — หน้าเพิ่มแปลงสวนใหม่
+//
+// กรอกชื่อ, พื้นที่, จำนวนต้น, ปีที่ปลูก, ที่อยู่ และเลือกพันธุ์ปาล์ม
+// ส่งไป POST /api/gardens โดยผูกกับ user ที่ล็อกอินอยู่
+// ============================================================
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -5,6 +12,7 @@ import 'package:intl/intl.dart';
 import '../../../config/app_config.dart'; // ← ใช้ config ที่มีอยู่
 import 'package:flutter_myproject/services/auth_server.dart';
 
+/// หน้าเพิ่มแปลงสวน
 class AddPlotScreen extends StatefulWidget {
   const AddPlotScreen({super.key});
 
@@ -38,6 +46,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
   }
 
   // ← เพิ่มตรงนี้: ฟังก์ชันดึงพันธุ์จาก API
+  /// โหลดรายชื่อพันธุ์ปาล์มมาใส่ dropdown
   Future<void> _fetchVarieties() async {
     try {
       final response = await http.get(Uri.parse('$apiUrl/varieties'));
@@ -55,6 +64,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
     }
   }
 
+  /// เลือกวันที่ปลูก (ใช้เฉพาะปี)
   Future<void> _selectDate(BuildContext context) async {
     final picked = await showDatePicker(
       context: context,
@@ -69,6 +79,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
+  /// ตรวจข้อมูลแล้วบันทึกแปลงใหม่ สำเร็จแล้วปิดหน้า
   Future<void> _save() async {
     if (_nameCtrl.text.trim().isEmpty || _areaCtrl.text.trim().isEmpty || _treeCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -255,6 +266,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
     );
   }
 
+  /// ช่องกรอกข้อความ 1 ช่อง
   Widget _field(String label, TextEditingController ctrl, [TextInputType? type, int lines = 1]) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),

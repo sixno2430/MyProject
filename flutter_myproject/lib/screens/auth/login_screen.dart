@@ -1,3 +1,12 @@
+// ============================================================
+// login_screen.dart — หน้าเข้าสู่ระบบ
+//
+// ขั้นตอนล็อกอิน 2 ขั้น:
+//   1) ส่ง username/password ไป /authen_request ได้ token ชั่วคราว (5 นาที)
+//   2) เอา token นั้นไปแลก access token ที่ /access_request (อายุ 1 วัน)
+// แล้วเก็บ user_id + token ไว้ในเครื่อง (AuthService) และเปิดหน้าหลัก (HomeScreen)
+// ============================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/screens/auth/register_screen.dart';
 import 'package:flutter_myproject/screens/auth/splash_screen.dart';
@@ -11,6 +20,7 @@ import 'package:flutter_myproject/services/auth_server.dart';
 // ← import HomeScreen
 import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
 
+/// หน้าเข้าสู่ระบบ
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -35,6 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
   static const _requestTimeout = Duration(seconds: 10);
 
   // 🔥 แก้: return user_id ด้วย
+  /// ขั้นที่ 1: ตรวจ username/password คืนค่า (isError, authenToken, userId, errorMessage)
   Future<(bool, String, String, String)> _authenRequest() async {
     final username = _usernameController.text;
     final password = _passwordController.text;
@@ -60,6 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  /// ขั้นที่ 2: แลก authenToken เป็น access token ที่ใช้งานจริง
   Future<({bool isError, String errorMessage, String data})> _accessRequest(
     String token,
   ) async {
@@ -80,11 +92,13 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  /// เก็บ access token ลงเครื่อง (SharedPreferences)
   Future<void> _saveAccessToken(String accessToken) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('access_token', accessToken);
   }
 
+  /// ทำงานเมื่อกดปุ่มเข้าสู่ระบบ: ล็อกอิน 2 ขั้น, เก็บข้อมูล แล้วไปหน้าหลัก ถ้าผิดพลาดแสดง dialog
   void _doLogin(BuildContext context) async {
     setState(() => _isLoading = true);
 

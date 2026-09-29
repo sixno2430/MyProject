@@ -1,3 +1,10 @@
+// ============================================================
+// home_screen.dart — หน้าหลักหลังล็อกอิน (โครงของแอป)
+//
+// มีแถบเมนูด้านล่าง 5 แท็บ และสลับหน้าด้วย IndexedStack
+// (ทุกแท็บถูกสร้างพร้อมกันตั้งแต่เข้าหน้า จึงจำสถานะของแต่ละแท็บไว้ได้)
+// ============================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/widgets/button_nav.dart';
 
@@ -8,6 +15,7 @@ import 'package:flutter_myproject/screens/finance/finance_screen.dart';     // �
 import 'package:flutter_myproject/screens/main/report/report_screen.dart';      // หน้ารายงาน
 import 'package:flutter_myproject/screens/main/profile/profile_screen.dart';     // หน้าโปรไฟล์
 
+/// หน้าหลักที่มีแถบเมนูด้านล่าง
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   
@@ -29,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ProfileScreen(),     // index 4: 👤 โปรไฟล์
   ];
 
+  /// เปลี่ยนแท็บเมื่อกดปุ่มในแถบด้านล่าง
   void _onNavTapped(int index) {
     setState(() {
       _currentIndex = index;

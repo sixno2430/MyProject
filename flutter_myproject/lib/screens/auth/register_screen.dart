@@ -1,9 +1,17 @@
+// ============================================================
+// register_screen.dart — หน้าสมัครสมาชิก
+//
+// กรอกข้อมูล (ชื่อ, เลขบัตร, เบอร์โทร, username, รหัสผ่าน) และเลือกประเภทผู้ใช้
+// ส่งไป POST /api/register สำเร็จแล้วกลับไปหน้า Login
+// ============================================================
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_myproject/config/app_config.dart';  // ← เพิ่ม
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
 
+/// หน้าสมัครสมาชิก
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -32,6 +40,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     {'label': 'ร้านรับซื้อ', 'icon': Icons.store, 'role_id': 'R003'},
   ];
 
+    /// ส่งข้อมูลสมัครสมาชิกไปเซิร์ฟเวอร์ คืน true ถ้าสำเร็จ (ถ้าไม่สำเร็จแสดง SnackBar)
     Future<bool> _registerAPI() async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUri}/register');
@@ -313,10 +322,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  /// หัวข้อเหนือช่องกรอก
   Widget _buildLabel(String text) {
     return Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(text, style: const TextStyle(color: Color(0xFF4B5563), fontSize: 14, fontWeight: FontWeight.w500)));
   }
 
+  /// ช่องกรอกข้อมูลรูปแบบเดียวกันทั้งฟอร์ม
   Widget _buildTextField({
     TextEditingController? controller,
     required String hintText,
