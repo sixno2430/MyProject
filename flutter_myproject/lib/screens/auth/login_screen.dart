@@ -1,10 +1,5 @@
 // ============================================================
-// login_screen.dart — หน้าเข้าสู่ระบบ
-//
-// ขั้นตอนล็อกอิน 2 ขั้น:
-//   1) ส่ง username/password ไป /authen_request ได้ token ชั่วคราว (5 นาที)
-//   2) เอา token นั้นไปแลก access token ที่ /access_request (อายุ 1 วัน)
-// แล้วเก็บ user_id + token ไว้ในเครื่อง (AuthService) และเปิดหน้าหลัก (HomeScreen)
+// login_screen.dart 
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -17,10 +12,11 @@ import 'package:flutter_myproject/config/app_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 
-// ← import HomeScreen
+// หน้าหลักเกษตรกร
 import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
+// หน้าหลักร้านรับซื้อ
+import 'package:flutter_myproject/screens/shop/shop_dashboard_screen.dart';
 
-/// หน้าเข้าสู่ระบบ
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -41,17 +37,15 @@ class _LoginScreenState extends State<LoginScreen> {
     {'label': 'ร้านค้า', 'icon': Icons.store},
   ];
 
-  // ถ้าเซิร์ฟเวอร์ไม่ตอบภายในเวลานี้ ให้แจ้ง error แทนการหมุนค้างไปเรื่อยๆ
   static const _requestTimeout = Duration(seconds: 10);
 
-  // 🔥 แก้: return user_id ด้วย
-  /// ขั้นที่ 1: ตรวจ username/password คืนค่า (isError, authenToken, userId, errorMessage)
-  Future<(bool, String, String, String)> _authenRequest() async {
+  /// ขั้นที่ 1: ตรวจสอบ username/password ส่งคืน (isError, authenToken, userId, roleId, errorMessage)
+  Future<(bool, String, String, String, String)> _authenRequest() async {
     final username = _usernameController.text;
     final password = _passwordController.text;
 
     final response = await http.post(
-      Uri.parse("${AppConfig.apiBaseUri}/authen_request"),  // ← เอา \ ออก
+      Uri.parse("${AppConfig.apiBaseUri}/authen_request"),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
@@ -65,18 +59,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return (
       json["isError"] as bool,
-      json["data"] as String,        // authenToken
-      json["user_id"] as String? ?? "",  // ← เพิ่ม user_id
-      json["errorMessage"] as String,
+      json["data"] as String? ?? "",
+      json["user_id"] as String? ?? "",
+      json["role_id"] as String? ?? "", // ดึง role_id กลับมาตรวจสอบ
+      json["errorMessage"] as String? ?? "",
     );
   }
 
-  /// ขั้นที่ 2: แลก authenToken เป็น access token ที่ใช้งานจริง
-  Future<({bool isError, String errorMessage, String data})> _accessRequest(
-    String token,
-  ) async {
+  /// ขั้นที่ 2: แลก Token
+  Future<({bool isError, String errorMessage, String data})> _accessRequest(String token) async {
     final response = await http.post(
-      Uri.parse("${AppConfig.apiBaseUri}/access_request"),  // ← เอา \ ออก
+      Uri.parse("${AppConfig.apiBaseUri}/access_request"),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
@@ -87,56 +80,45 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return (
       isError: json["isError"] as bool,
-      errorMessage: json["errorMessage"] as String,
-      data: json["data"] as String,
+      errorMessage: json["errorMessage"] as String? ?? "",
+      data: json["data"] as String? ?? "",
     );
   }
 
-  /// เก็บ access token ลงเครื่อง (SharedPreferences)
   Future<void> _saveAccessToken(String accessToken) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('access_token', accessToken);
   }
 
-  /// ทำงานเมื่อกดปุ่มเข้าสู่ระบบ: ล็อกอิน 2 ขั้น, เก็บข้อมูล แล้วไปหน้าหลัก ถ้าผิดพลาดแสดง dialog
   void _doLogin(BuildContext context) async {
     setState(() => _isLoading = true);
 
     try {
-      // 🔥 แก้: รับ user_id จาก authenRequest
-      var (isError, authenToken, userId, errorMessage) = await _authenRequest();
+      var (isError, authenToken, userId, roleId, errorMessage) = await _authenRequest();
 
       if (isError) {
         setState(() => _isLoading = false);
         if (context.mounted) {
           showDialog(
             context: context,
-            builder: (context) {
-              return AlertDialog(content: Text(errorMessage));
-            },
+            builder: (context) => AlertDialog(content: Text(errorMessage)),
           );
         }
       } else {
         var result = await _accessRequest(authenToken);
-
         setState(() => _isLoading = false);
 
         if (result.isError) {
           if (context.mounted) {
             showDialog(
               context: context,
-              builder: (context) {
-                return AlertDialog(content: Text(result.errorMessage));
-              },
+              builder: (context) => AlertDialog(content: Text(result.errorMessage)),
             );
           }
         } else {
-          // 🔥🔥🔥 สำคัญ! เก็บ user_id และ token ลง SharedPreferences
           await _saveAccessToken(result.data);
-          await AuthService.setUserId(userId);  // ← เก็บ user_id
-          await AuthService.setToken(result.data);  // ← เก็บ token
-
-          debugPrint("Login success! user_id: $userId");  // ไม่ log token
+          await AuthService.setUserId(userId);
+          await AuthService.setToken(result.data);
 
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -147,16 +129,23 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             );
 
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
-            );
+            // แยกหน้าจอตาม Role ทันที
+            if (roleId == 'R003' || selectedRole == 1) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const ShopDashboardScreen()),
+              );
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
+            }
           }
         }
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      debugPrint("เกิดข้อผิดพลาดตอน login: $e");
       if (context.mounted) {
         showDialog(
           context: context,
@@ -195,7 +184,6 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 40),
-                // Hero tag เดียวกับหน้า Splash -> โลโก้ลอยจากกลางจอขึ้นมาตรงนี้
                 const Hero(tag: SplashScreen.logoHeroTag, child: AppLogo()),
                 const SizedBox(height: 12),
                 const Text(
@@ -219,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
+                        color: Colors.black.withOpacity(0.2),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
@@ -247,8 +235,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 right: index < roles.length - 1 ? 8 : 0,
                               ),
                               child: GestureDetector(
-                                onTap: () =>
-                                    setState(() => selectedRole = index),
+                                onTap: () => setState(() => selectedRole = index),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 10,
@@ -321,15 +308,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           fillColor: const Color(0xFFFAFAF9),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE5E7EB),
-                            ),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE5E7EB),
-                            ),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -367,10 +350,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: () => setState(
                               () => obscurePassword = !obscurePassword,
                             ),
-                            child: Text(
+                            child: const Text(
                               'แสดง',
                               style: TextStyle(
-                                color: const Color(0xFF15803D),
+                                color: Color(0xFF15803D),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -380,15 +363,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           fillColor: const Color(0xFFFAFAF9),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE5E7EB),
-                            ),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE5E7EB),
-                            ),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -413,18 +392,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(
-                                0xFF22C55E,
-                              ).withValues(alpha: 0.3),
+                              color: const Color(0xFF22C55E).withOpacity(0.3),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
                           ],
                         ),
                         child: ElevatedButton(
-                          onPressed: _isLoading
-                              ? null
-                              : () => _doLogin(context),
+                          onPressed: _isLoading ? null : () => _doLogin(context),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
@@ -458,10 +433,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: () {},
                           child: const Text(
                             'ลืมรหัสผ่าน?',
-                            style: TextStyle(
-                              color: Color(0xFF6B7280),
-                              fontSize: 14,
-                            ),
+                            style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
                           ),
                         ),
                       ),

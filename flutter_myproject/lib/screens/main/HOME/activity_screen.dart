@@ -2,7 +2,7 @@
 // activity_screen.dart — หน้า "ประวัติกิจกรรม" ทั้งหมด
 //
 // เปิดจากปุ่ม "ดูทั้งหมด" บน Dashboard ดึงจาก GET /api/activities/:userId
-// กรองตามประเภทได้ และมีปุ่มเพิ่มกิจกรรม (เลือกประเภทก่อนแล้วเปิดฟอร์มของประเภทนั้น)
+// กรองตามประเภทได้ และมีปุ่มเพิ่มกิจกรรม
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -30,7 +30,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
   @override
   void initState() {
     super.initState();
-    // เดิม initState ถูก comment ไว้ ทำให้ _activitiesFuture (late) ไม่เคยถูกกำหนดค่า -> เปิดหน้าแล้ว crash
     _activitiesFuture = _fetch();
   }
 
@@ -72,7 +71,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
           children: [
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('เพิ่มกิจกรรม', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: Text(
+                'เพิ่มกิจกรรม',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
             ListTile(
               leading: const Text('🧺', style: TextStyle(fontSize: 24)),
@@ -95,7 +97,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
       ),
     );
     if (page == null || !mounted) return;
-    final saved = await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    final saved = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => page),
+    );
     if (saved == true) _reload();
   }
 
@@ -109,11 +114,24 @@ class _ActivityScreenState extends State<ActivityScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
+      // 1. AppBar แบบปกติ ไม่ชนปุ่มย้อนกลับ และไม่บั๊กตอนเลื่อน
+      appBar: AppBar(
+        title: const Text(
+          'ประวัติกิจกรรม',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        backgroundColor: const Color(0xFF2D6A4F),
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
       body: FutureBuilder<List<ActivityItem>>(
         future: _activitiesFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(color: Color(0xFF2D6A4F)),
+            );
           }
 
           if (snapshot.hasError) {
@@ -123,7 +141,10 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 children: [
                   const Icon(Icons.error_outline, color: Colors.red, size: 48),
                   const SizedBox(height: 12),
-                  Text('โหลดข้อมูลไม่สำเร็จ', style: TextStyle(color: Colors.grey[700])),
+                  Text(
+                    'โหลดข้อมูลไม่สำเร็จ',
+                    style: TextStyle(color: Colors.grey[700]),
+                  ),
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: _reload,
@@ -140,46 +161,22 @@ class _ActivityScreenState extends State<ActivityScreen> {
 
           return RefreshIndicator(
             onRefresh: _onRefresh,
-            child: CustomScrollView(
-            slivers: [
-              // AppBar
-              SliverAppBar(
-                expandedHeight: 120,
-                pinned: true,
-                backgroundColor: const Color(0xFF2D6A4F),
-                foregroundColor: Colors.white,
-                flexibleSpace: FlexibleSpaceBar(
-                  titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
-                  title: const Text(
-                    'ประวัติกิจกรรม',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  background: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF2D6A4F), Color(0xFF40916C)],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // Filter Chips
-              SliverToBoxAdapter(
-                child: Padding(
+            color: const Color(0xFF2D6A4F),
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                // Filter Chips
+                Padding(
                   padding: const EdgeInsets.only(top: 16, bottom: 8),
                   child: ActivityFilterBar(
                     selectedFilter: _selectedFilter,
-                    onFilterChanged: (val) => setState(() => _selectedFilter = val),
+                    onFilterChanged: (val) =>
+                        setState(() => _selectedFilter = val),
                   ),
                 ),
-              ),
 
-              // Summary
-              SliverToBoxAdapter(
-                child: Padding(
+                // สรุปจำนวน
+                Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Row(
                     children: [
@@ -191,11 +188,11 @@ class _ActivityScreenState extends State<ActivityScreen> {
                       if (_selectedFilter != 'all')
                         GestureDetector(
                           onTap: () => setState(() => _selectedFilter = 'all'),
-                          child: Text(
+                          child: const Text(
                             'รีเซ็ต',
                             style: TextStyle(
                               fontSize: 13,
-                              color: const Color(0xFF2D6A4F),
+                              color: Color(0xFF2D6A4F),
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -203,38 +200,35 @@ class _ActivityScreenState extends State<ActivityScreen> {
                     ],
                   ),
                 ),
-              ),
 
-              // List
-              if (filtered.isEmpty)
-                SliverFillRemaining(
-                  child: ActivityEmptyState(filter: _selectedFilter),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => ActivityCard(
-                        activity: filtered[index],
-                        onChanged: _reload,
-                      ),
-                      childCount: filtered.length,
+                // List รายการ
+                if (filtered.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: ActivityEmptyState(filter: _selectedFilter),
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) => ActivityCard(
+                      activity: filtered[index],
+                      onChanged: _reload,
                     ),
                   ),
-                ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
-            ],
+              ],
             ),
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      // 2. เปลี่ยนปุ่มเพิ่มกิจกรรมเป็นเครื่องหมาย + กลมๆ
+      floatingActionButton: FloatingActionButton(
         onPressed: _addActivity,
         backgroundColor: const Color(0xFF2D6A4F),
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('เพิ่มกิจกรรม', style: TextStyle(color: Colors.white)),
+        elevation: 3,
+        child: const Icon(Icons.add, color: Colors.white, size: 28),
       ),
     );
   }

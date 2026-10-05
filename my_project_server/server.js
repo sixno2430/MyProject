@@ -2,7 +2,7 @@
 // server.js — เซิร์ฟเวอร์ API ของ PalmTrack (Express, พอร์ต 3000)
 //
 // รวมทุก route ของแอป แบ่งเป็นหมวด: ผู้ใช้/ล็อกอิน, Dashboard, แปลงสวน, ดูแลสวน,
-// พันธุ์ปาล์ม, เก็บเกี่ยว, การเงิน, รหัสผ่าน/ร้านรับซื้อ/รายงาน, โปรไฟล์
+// พันธุ์ปาล์ม, เก็บเกี่ยว, การเงิน, ร้านรับซื้อ/รายงาน, โปรไฟล์
 // การคำนวณและ SQL อยู่ในโฟลเดอร์ models/ — ไฟล์นี้แค่รับ request แล้วเรียก model
 //
 // วิธีรัน: node server.js  (แก้ไฟล์แล้วต้องปิดตัวเก่าก่อนเปิดใหม่ ไม่งั้นตัวเก่ายังถือพอร์ตอยู่)
@@ -126,6 +126,7 @@ app.post('/api/authen_request', async (req, res) => {
       isError: false, 
       data: authenToken, 
       user_id: user.user_id,
+      role_id: user.role_id, 
       errorMessage: "" 
     });
   } catch (error) {
@@ -149,7 +150,7 @@ app.post('/api/access_request', async (req, res) => {
 });
 
 // ==========================================
-// DASHBOARD API
+// DASHBOARD API (เกษตรกร)
 // ==========================================
 
 /** ข้อมูลสรุปหน้า Dashboard */
@@ -166,7 +167,6 @@ app.get('/api/dashboard/:user_id', async (req, res) => {
 /** ประวัติกิจกรรมทั้งหมด ?limit= จำกัดจำนวนได้ */
 app.get('/api/activities/:user_id', async (req, res) => {
   try {
-    // ประวัติกิจกรรมทั้งหมด (เก็บเกี่ยว / ดูแล / รายรับ / รายจ่าย)
     const result = await dashboard.getActivities(req.params.user_id, req.query.limit);
     res.json(result);
   } catch (error) {
@@ -317,7 +317,6 @@ app.delete('/api/care-logs/:care_id', async (req, res) => {
 // API สำหรับดึงข้อมูลพันธุ์ปาล์มน้ำมัน
 app.get('/api/varieties', async (req, res) => {
   try {
-    // ?user_id=... จะได้จำนวนต้น/แปลงที่ user นั้นปลูกแต่ละพันธุ์มาด้วย
     const result = await palmVariety.getAll(req.query.user_id);
     res.json(result);
   } catch (error) {
@@ -345,7 +344,7 @@ app.put('/api/varieties/:variety_id', async (req, res) => {
   }
 });
 
-/** ลบพันธุ์ปาล์ม (ลบไม่ได้ถ้ามีแปลงปลูกอยู่) */
+/** ลบพันธุ์ปาล์ม */
 app.delete('/api/varieties/:variety_id', async (req, res) => {
   try {
     const result = await palmVariety.remove(req.params.variety_id);
@@ -354,7 +353,6 @@ app.delete('/api/varieties/:variety_id', async (req, res) => {
     res.status(500).json({ isError: true, errorMessage: error.message });
   }
 });
-
 
 // ==========================================
 // HARVEST API
@@ -464,7 +462,6 @@ app.post('/api/finance/add', async (req, res) => {
 /** แก้ไขรายการเงิน (เฉพาะ FN...) */
 app.put('/api/finance/:finance_id', async (req, res) => {
   try {
-    // แก้ไขธุรกรรมทั่วไป (เฉพาะรายการ FN... ที่บันทึกเอง)
     const result = await finance.updateTransaction(req.params.finance_id, req.body.user_id, req.body);
     res.json(result);
   } catch (error) {
@@ -483,7 +480,7 @@ app.delete('/api/finance/:finance_id', async (req, res) => {
 });
 
 // ==========================================
-// PASSWORD / SHOP / REPORT
+// PASSWORD / REPORT / เกษตรกรดูร้านค้า
 // ==========================================
 
 /** เปลี่ยนรหัสผ่าน body: { old_password, new_password } */
@@ -503,10 +500,9 @@ app.put('/api/user/:user_id/password', async (req, res) => {
   }
 });
 
-/** รายชื่อร้านรับซื้อ + ราคาล่าสุด ?user_id= */
+/** รายชื่อร้านรับซื้อ + ราคาล่าสุด สำหรับเกษตรกร ?user_id= */
 app.get('/api/shops', async (req, res) => {
   try {
-    // รายชื่อร้านรับซื้อ + ราคาล่าสุด + ประวัติที่ user เคยขายให้
     const result = await shop.getShops(req.query.user_id);
     res.json(result);
   } catch (error) {
@@ -517,12 +513,95 @@ app.get('/api/shops', async (req, res) => {
 /** รายงานสรุปประจำปี ?year= */
 app.get('/api/report/:user_id', async (req, res) => {
   try {
-    // รายงานสรุปประจำปี ?year=2026
     const year = parseInt(req.query.year, 10) || new Date().getFullYear();
     const result = await report.getYearlyReport(req.params.user_id, year);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+// ==========================================
+// SHOP OWNER API (ฝั่งร้านรับซื้อ - ภาพ 4.3.1 ถึง 4.3.5)
+// ==========================================
+
+/** 1. ภาพ 4.3.2 ข้อมูลร้านของฉัน: ดึงข้อมูลร้านตาม user_id ที่ล็อกอิน */
+app.get('/api/shop/profile/:user_id', async (req, res) => {
+  try {
+    const result = await shop.getShopByUserId(req.params.user_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message, data: null });
+  }
+});
+
+/** แก้ไขข้อมูลร้าน / เปิด-ปิดร้าน */
+app.put('/api/shop/profile/:shop_id', async (req, res) => {
+  try {
+    const result = await shop.updateShopProfile(req.params.shop_id, req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** 2. ภาพ 4.3.3 กำหนดและจัดการราคารับซื้อ: ดึงรายการราคาตาม shop_id */
+app.get('/api/shop/:shop_id/prices', async (req, res) => {
+  try {
+    const result = await shop.getPriceRates(req.params.shop_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message, data: [] });
+  }
+});
+
+/** บันทึก/อัปเดตราคาปาล์มตามเกรด */
+app.post('/api/shop/prices', async (req, res) => {
+  try {
+    const result = await shop.savePriceRate(req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** 3. ภาพ 4.3.4 บันทึกการรับซื้อผลผลิต: ดึงประวัติการรับซื้อของร้าน */
+app.get('/api/shop/:shop_id/purchases', async (req, res) => {
+  try {
+    const result = await shop.getPurchasesByShop(req.params.shop_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message, data: [] });
+  }
+});
+
+/** บันทึกรายการชั่ง/รับซื้อผลผลิตใหม่ */
+app.post('/api/shop/purchases', async (req, res) => {
+  try {
+    const result = await shop.createPurchase(req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** 4. ภาพ 4.3.1 แดชบอร์ดสรุปภาพรวมร้านรับซื้อ */
+app.get('/api/shop/:shop_id/dashboard', async (req, res) => {
+  try {
+    const result = await shop.getShopDashboard(req.params.shop_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message, data: null });
+  }
+});
+
+/** 5. ภาพ 4.3.5 รายงานสรุปการรับซื้อ (ยอดรับซื้อรายเดือน + Top เกษตรกร) */
+app.get('/api/shop/:shop_id/reports', async (req, res) => {
+  try {
+    const result = await shop.getShopReports(req.params.shop_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message, data: null });
   }
 });
 
