@@ -430,7 +430,24 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 16),
                       Center(
                         child: TextButton(
-                          onPressed: () {},
+                          // ยังไม่มีระบบรีเซ็ตรหัสผ่านด้วยตัวเอง (ต้องมี OTP/อีเมล) จึงแนะนำให้ติดต่อผู้ดูแล
+                          onPressed: () => showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('ลืมรหัสผ่าน'),
+                              content: const Text(
+                                'กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ตรหัสผ่าน\n\n'
+                                'ถ้ายังจำรหัสเดิมได้ สามารถเปลี่ยนรหัสผ่านได้ที่\n'
+                                'โปรไฟล์ → เปลี่ยนรหัสผ่าน',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('ตกลง'),
+                                ),
+                              ],
+                            ),
+                          ),
                           child: const Text(
                             'ลืมรหัสผ่าน?',
                             style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),

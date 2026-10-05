@@ -12,8 +12,8 @@ import 'package:flutter_myproject/screens/garden/harvest/harvest_screen.dart';
 import 'package:flutter_myproject/screens/main/report/report_screen.dart';
 import 'package:flutter_myproject/screens/garden/plamvarieties/palmvarieties_screen.dart';
 import 'package:flutter_myproject/screens/finance/finance_screen.dart';
-import 'package:flutter_myproject/widgets/dashboard_widget/menu_item.dart';
 import 'package:flutter_myproject/screens/store/store_screen.dart';
+import 'package:flutter_myproject/widgets/dashboard_widget/menu_item.dart';
 
 /// ตารางเมนูหลัก (ต้องส่ง token ไปให้หน้าพันธุ์ปาล์ม)
 class MenuGrid extends StatelessWidget {
@@ -37,7 +37,7 @@ class MenuGrid extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // ตาราง 4 คอลัมน์ ทุกช่องกว้างเท่ากัน (แทน Row + SizedBox ดันช่องว่าง)
+          // ตาราง 4 คอลัมน์ ทุกช่องกว้างเท่ากัน
           Container(
             padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
             decoration: BoxDecoration(
@@ -99,7 +99,6 @@ class MenuGrid extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 MenuItem(
                   emoji: '💵',
                   label: 'รายรับ-จ่าย',

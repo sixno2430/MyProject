@@ -2,12 +2,13 @@
 // profile_routes.js — API โปรไฟล์ผู้ใช้ (ผูกไว้ที่ /api/profile ใน server.js)
 //
 // GET /api/profile/:user_id -> ข้อมูลผู้ใช้ + บทบาท + วันที่สมัคร + จำนวนแปลงสวน
-// หมายเหตุ: ยังไม่มี PUT /api/profile/:user_id ที่แอปใช้ตอนแก้ไขโปรไฟล์
+// PUT /api/profile/:user_id -> แก้ไขชื่อ-นามสกุล และเบอร์โทร
 // ============================================================
 
 const express = require('express');
 const router = express.Router();
 const dbPool = require('../libs/db_pool');
+const userAccount = require('../models/user_account');
 
 // GET /api/profile/:user_id
 router.get('/:user_id', async (req, res) => {
@@ -130,6 +131,38 @@ router.get('/:user_id', async (req, res) => {
       message: 'เกิดข้อผิดพลาดในการดึงข้อมูล',
       error: error.message
     });
+  }
+});
+
+/**
+ * แก้ไขชื่อ-นามสกุล และเบอร์โทร
+ * body: { full_name, phone }  ตอบกลับ { success, message } ตามที่แอป (ProfileService) รอรับ
+ */
+router.put('/:user_id', async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    const fullName = (req.body.full_name || '').trim();
+    const phone = (req.body.phone || '').trim().replace(/-/g, '');
+
+    if (!fullName) {
+      return res.json({ success: false, message: 'กรุณากรอกชื่อ-นามสกุล' });
+    }
+    if (!/^0\d{8,9}$/.test(phone)) {
+      return res.json({ success: false, message: 'เบอร์โทรไม่ถูกต้อง (ต้องขึ้นต้นด้วย 0 และมี 9-10 หลัก)' });
+    }
+
+    const result = await userAccount.updateUser(user_id, fullName, phone);
+    if (result.isError) {
+      console.error('🔴 [Profile API] Update error:', result.errorMessage);
+      return res.json({ success: false, message: 'บันทึกข้อมูลไม่สำเร็จ' });
+    }
+    if (!result.data || !result.data.affectedRows) {
+      return res.json({ success: false, message: 'ไม่พบผู้ใช้นี้' });
+    }
+    res.json({ success: true, message: 'บันทึกข้อมูลเรียบร้อยแล้ว' });
+  } catch (error) {
+    console.error('🔴 [Profile API] Update error:', error);
+    res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' });
   }
 });
 

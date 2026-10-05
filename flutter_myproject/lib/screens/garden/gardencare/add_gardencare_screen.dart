@@ -1,7 +1,8 @@
 // ============================================================
 // add_gardencare_screen.dart — ฟอร์มเพิ่ม/แก้ไขรายการดูแลสวน
 //
-// เลือกแปลง, ประเภทกิจกรรม, ชนิดปุ๋ย (ถ้าใส่ปุ๋ย), วันที่, จำนวน และค่าใช้จ่าย
+// แบ่งเป็น 3 การ์ด: 1) เลือกกิจกรรม  2) รายละเอียด (แปลง, ปุ๋ย, วันที่, ปริมาณ, ค่าใช้จ่าย)  3) หมายเหตุ
+// ปุ่มบันทึกติดอยู่ด้านล่างจอเสมอ
 // ส่ง existing มา = โหมดแก้ไข (PUT) ไม่ส่ง = เพิ่มใหม่ (POST) — รหัสรายการใหม่เซิร์ฟเวอร์สร้างให้
 // ============================================================
 
@@ -11,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/config/app_config.dart';
+import 'package:flutter_myproject/screens/garden/gardencare/care_types.dart';
 
 /// ฟอร์มบันทึกการดูแลสวน
 class AddGardenCareScreen extends StatefulWidget {
@@ -24,39 +26,30 @@ class AddGardenCareScreen extends StatefulWidget {
 }
 
 class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
-  final Color primaryGreen = const Color(0xFF2D6A4F);
+  static const Color primaryGreen = Color(0xFF2D6A4F);
   final _formKey = GlobalKey<FormState>();
 
   String get apiUrl => AppConfig.apiBaseUri;
 
+  // แปลงสวน
   String? _selectedGardenId;
-  List<Map<String, dynamic>> _plots = [];
+  List<Map<String, String>> _plots = [];
   bool _isLoadingPlots = true;
 
-  String _selectedType = 'ใส่ปุ๋ย';
+  // ประเภทกิจกรรม
+  CareType _type = careTypes.first; // ค่าเริ่มต้น: ใส่ปุ๋ย
+  bool get _isFertilizer => _type.type == 'fertilizer';
 
-  // ชนิดปุ๋ย (โหลดจาก /api/fertilizers) ใช้เมื่อเลือกประเภท "ใส่ปุ๋ย"
+  // ชนิดปุ๋ย (โหลดจาก /api/fertilizers) ใช้เมื่อเลือก "ใส่ปุ๋ย"
   List<Map<String, String>> _fertilizers = [];
   String? _selectedFertilizerId;
 
-  bool get _isFertilizer => _selectedType == 'ใส่ปุ๋ย';
   DateTime _selectedDate = DateTime.now();
-  final _detailController = TextEditingController();
-  final _costController = TextEditingController();
   final _amountController = TextEditingController();
+  final _costController = TextEditingController();
   final _noteController = TextEditingController();
 
   bool _isSubmitting = false;
-
-  final List<Map<String, dynamic>> _careTypes = [
-    {'label': 'ใส่ปุ๋ย', 'icon': '💊', 'color': const Color(0xFF4CAF50), 'type': 'fertilizer', 'unit': 'กก.'},
-    {'label': 'ตัดแต่ง', 'icon': '✂️', 'color': const Color(0xFFFF9800), 'type': 'pruning', 'unit': 'ต้น'},
-    {'label': 'กำจัดวัชพืช', 'icon': '🌿', 'color': const Color(0xFF9C27B0), 'type': 'weeding', 'unit': 'แปลง'},
-    {'label': 'ให้น้ำ', 'icon': '💧', 'color': const Color(0xFF2196F3), 'type': 'watering', 'unit': 'ครั้ง'},
-    {'label': 'พ่นยา', 'icon': '🔫', 'color': const Color(0xFFF44336), 'type': 'spraying', 'unit': 'ครั้ง'},
-    {'label': 'อื่นๆ', 'icon': '🛠️', 'color': const Color(0xFF607D8B), 'type': 'other', 'unit': 'รายการ'},
-  ];
-
   bool get _isEdit => widget.existing != null;
 
   @override
@@ -67,19 +60,54 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
       _selectedGardenId = e['garden_id']?.toString();
       _selectedDate = DateTime.tryParse(e['record_date']?.toString() ?? '')?.toLocal() ?? DateTime.now();
       final hasFertilizer = e['fertilizer_id'] != null && e['fertilizer_id'].toString().isNotEmpty;
-      _selectedType = hasFertilizer
-          ? 'ใส่ปุ๋ย'
-          : _careTypes.firstWhere(
-              (t) => t['type'] == e['action_type'],
-              orElse: () => _careTypes.last,
-            )['label'];
+      _type = hasFertilizer ? careTypeOf('fertilizer') : careTypeOf(e['action_type']?.toString());
       _selectedFertilizerId = hasFertilizer ? e['fertilizer_id'].toString() : null;
-      _detailController.text = e['note']?.toString() ?? '';
+      _noteController.text = e['note']?.toString() ?? '';
       _amountController.text = _numText(e['quantity']);
       _costController.text = _numText(e['cost']);
     }
-    _fetchPlotsFromBackend();
+    _fetchPlots();
     _fetchFertilizers();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _costController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  /// แปลงตัวเลขจาก DB เป็นข้อความในช่องกรอก (40.00 -> "40", 0 -> "")
+  String _numText(dynamic v) {
+    final n = double.tryParse(v?.toString() ?? '');
+    if (n == null || n == 0) return '';
+    return n % 1 == 0 ? n.toInt().toString() : n.toString();
+  }
+
+  /// โหลดแปลงสวนของ user มาใส่ dropdown
+  Future<void> _fetchPlots() async {
+    final userId = await AuthService.getUserId();
+    try {
+      if (userId == null || userId.isEmpty) return;
+      final response = await http.get(Uri.parse('$apiUrl/gardens/$userId'));
+      final body = jsonDecode(response.body);
+      final List data = body is Map && body['data'] is List ? body['data'] : [];
+      if (!mounted) return;
+      setState(() {
+        _plots = data
+            .map((g) => {'id': g['garden_id'].toString(), 'name': g['garden_name'].toString()})
+            .toList();
+        // โหมดแก้ไขคงแปลงเดิมไว้ ถ้าไม่มีค่อยเลือกแปลงแรก
+        if (!_plots.any((p) => p['id'] == _selectedGardenId) && _plots.isNotEmpty) {
+          _selectedGardenId = _plots.first['id'];
+        }
+      });
+    } catch (_) {
+      // โหลดไม่ได้ -> แสดงข้อความ "ยังไม่มีแปลงสวน" แทน
+    } finally {
+      if (mounted) setState(() => _isLoadingPlots = false);
+    }
   }
 
   /// โหลดรายชื่อปุ๋ยจาก /api/fertilizers มาใส่ dropdown
@@ -89,15 +117,11 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
       final body = jsonDecode(response.body);
       if (body is! Map || body['isError'] == true) return;
       final list = (body['data'] as List)
-          .map((f) => {
-                'id': f['fertilizer_id'].toString(),
-                'name': f['fertilizer_name'].toString(),
-              })
+          .map((f) => {'id': f['fertilizer_id'].toString(), 'name': f['fertilizer_name'].toString()})
           .toList();
       if (!mounted) return;
       setState(() {
         _fertilizers = list;
-        // ยังไม่ได้เลือก (หรือค่าเดิมไม่มีในรายการ) -> เลือกตัวแรกให้
         if (!list.any((f) => f['id'] == _selectedFertilizerId) && list.isNotEmpty) {
           _selectedFertilizerId = list.first['id'];
         }
@@ -107,446 +131,377 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
     }
   }
 
-  // แปลงตัวเลขจาก DB เป็นข้อความ เช่น 40.00 -> "40"
-  /// แปลงตัวเลขจาก DB เป็นข้อความในช่องกรอก (40.00 -> "40")
-  String _numText(dynamic v) {
-    final n = double.tryParse(v?.toString() ?? '');
-    if (n == null || n == 0) return '';
-    return n % 1 == 0 ? n.toInt().toString() : n.toString();
-  }
-
-  /// โหลดแปลงสวนของ user มาใส่ dropdown
-  Future<void> _fetchPlotsFromBackend() async {
-    final userId = await AuthService.getUserId();
-    if (userId == null || userId.isEmpty) {
-      setState(() => _isLoadingPlots = false);
-      return;
-    }
-
-    try {
-      final response = await http.get(Uri.parse('$apiUrl/gardens/$userId'));
-      if (response.statusCode == 200) {
-        final resBody = jsonDecode(response.body);
-        final List<dynamic> data = (resBody is Map && resBody.containsKey('data'))
-            ? resBody['data']
-            : (resBody is List ? resBody : []);
-
-        setState(() {
-          _plots = data.map((e) => {
-            'id': e['garden_id'].toString(),
-            'name': e['garden_name'].toString(),
-          }).toList();
-
-          // โหมดแก้ไขให้คงแปลงเดิมไว้ ถ้าไม่มีค่อยเลือกแปลงแรก
-          final keepCurrent = _plots.any((p) => p['id'] == _selectedGardenId);
-          if (!keepCurrent && _plots.isNotEmpty) {
-            _selectedGardenId = _plots.first['id'];
-          }
-          _isLoadingPlots = false;
-        });
-      }
-    } catch (e) {
-      setState(() => _isLoadingPlots = false);
-    }
-  }
-
-  /// เลือกวันที่ดำเนินการ
+  /// เลือกวันที่ดำเนินการ (เลือกวันในอนาคตไม่ได้)
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      lastDate: DateTime.now(),
       builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.light(primary: primaryGreen),
-        ),
+        data: Theme.of(context).copyWith(colorScheme: const ColorScheme.light(primary: primaryGreen)),
         child: child!,
       ),
     );
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
-  /// วันที่ที่เลือก แสดงเป็นภาษาไทย ปี พ.ศ.
-  String get _thaiDate {
-    final d = DateFormat('d MMMM yyyy', 'th_TH').format(_selectedDate);
-    return d.replaceFirst(
-      _selectedDate.year.toString(),
-      (_selectedDate.year + 543).toString(),
-    );
-  }
+  /// วันที่ที่เลือก แสดงเป็นภาษาไทย ปี พ.ศ. เช่น "29 กันยายน 2569"
+  String get _thaiDate =>
+      '${DateFormat('d MMMM', 'th_TH').format(_selectedDate)} ${_selectedDate.year + 543}';
 
   /// ตรวจฟอร์ม แล้วส่งบันทึก (เพิ่มใหม่หรือแก้ไข) สำเร็จแล้วปิดหน้า
-  Future<void> _saveCareLog() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _save() async {
     if (_selectedGardenId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กรุณาเลือกแปลงสวน')),
-      );
+      _showMessage('กรุณาเลือกแปลงสวน');
       return;
     }
+    if (!_formKey.currentState!.validate()) return;
 
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่')),
-        );
-      }
+      _showMessage('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่');
       return;
     }
 
     setState(() => _isSubmitting = true);
-
     try {
-      // รหัสรายการใหม่ให้เซิร์ฟเวอร์สร้าง (ต่อจากเลขล่าสุด) ส่งเฉพาะตอนแก้ไข
-      final String? careId = _isEdit ? widget.existing!['care_id'].toString() : null;
-      String formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate);
-
-      // ดึงข้อมูลประเภทกิจกรรมและหน่วยนับที่เลือก
-      final currentTypeObj = _careTypes.firstWhere(
-        (element) => element['label'] == _selectedType,
-        orElse: () => _careTypes.first,
-      );
-
-      // 🛠️ ดึงเฉพาะตัวเลขและจุดทศนิยมจากช่องกรอกปริมาณ
-      String rawAmountText = _amountController.text.trim();
-      String numericOnly = rawAmountText.replaceAll(RegExp(r'[^0-9.]'), '');
-      double quantityVal = double.tryParse(numericOnly) ?? 0.0;
-
-      double costVal = double.tryParse(_costController.text.replaceAll(',', '')) ?? 0.0;
-
-      // รวมข้อความรายละเอียดและหมายเหตุ
-      String fullDetail = _detailController.text.trim();
-      if (_noteController.text.trim().isNotEmpty) {
-        fullDetail += ' (${_noteController.text.trim()})';
-      }
-
-      Map<String, dynamic> bodyData = {
+      final body = jsonEncode({
+        'user_id': userId,
         'garden_id': _selectedGardenId,
         'fertilizer_id': _isFertilizer ? _selectedFertilizerId : null,
-        'action_type': currentTypeObj['type'], // บันทึกประเภทกิจกรรมจริงลง DB
-        'quantity': quantityVal,
-        'quantity_type': currentTypeObj['unit'], // บันทึกหน่วยตามประเภทกิจกรรม
-        'cost': costVal,
-        'record_date': formattedDate,
-        'note': fullDetail, // บันทึกรายละเอียดลง DB
-        'user_id': userId,
-      };
+        'action_type': _type.type,
+        'quantity': double.tryParse(_amountController.text.replaceAll(',', '').trim()) ?? 0,
+        'quantity_type': _type.unit,
+        'cost': double.tryParse(_costController.text.replaceAll(',', '').trim()) ?? 0,
+        'record_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+        'note': _noteController.text.trim(),
+      });
+      const headers = {'Content-Type': 'application/json'};
 
       final response = _isEdit
-          ? await http.put(
-              Uri.parse('$apiUrl/care-logs/$careId'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(bodyData),
-            )
-          : await http.post(
-              Uri.parse('$apiUrl/care-logs'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(bodyData),
-            );
+          ? await http.put(Uri.parse('$apiUrl/care-logs/${widget.existing!['care_id']}'),
+              headers: headers, body: body)
+          : await http.post(Uri.parse('$apiUrl/care-logs'), headers: headers, body: body);
 
-      final resBody = jsonDecode(response.body);
-      if (resBody is Map && resBody['isError'] == true) {
-        throw Exception(resBody['errorMessage'] ?? 'บันทึกไม่สำเร็จ');
+      final res = jsonDecode(response.body);
+      if (res is Map && res['isError'] == true) {
+        throw Exception(res['errorMessage'] ?? 'บันทึกไม่สำเร็จ');
       }
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(_isEdit ? 'แก้ไขรายการเรียบร้อยแล้ว' : 'บันทึกการดูแลรักษาสวนเรียบร้อยแล้ว')),
-          );
-          Navigator.pop(context, true);
-        }
-      } else {
-        throw Exception('Server ตอบกลับสถานะ: ${response.statusCode}');
-      }
+      if (!mounted) return;
+      _showMessage(_isEdit ? 'แก้ไขรายการเรียบร้อยแล้ว' : 'บันทึกการดูแลเรียบร้อยแล้ว', success: true);
+      Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เกิดข้อผิดพลาด: $e')),
-        );
-      }
+      _showMessage(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
+  void _showMessage(String text, {bool success = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(text),
+      backgroundColor: success ? primaryGreen : null,
+    ));
+  }
+
+  // ==========================================
+  // BUILD
+  // ==========================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF4F6F5),
       appBar: AppBar(
         backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
         elevation: 0,
-        leading: GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: Container(
-            margin: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-          ),
-        ),
-        title: Column(
-          children: [
-            const Text('การดูแลรักษาสวน', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 2),
-            Text(_isEdit ? 'แก้ไขรายการ' : 'บันทึกการดูแล / การใส่ปุ๋ย', style: const TextStyle(fontSize: 12, color: Colors.white70)),
-          ],
-        ),
         centerTitle: true,
+        title: Text(
+          _isEdit ? 'แก้ไขการดูแล' : 'บันทึกการดูแล',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildLabel('แปลงสวน *'),
-                    const SizedBox(height: 6),
-                    _isLoadingPlots
-                        ? const Center(child: Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator()))
-                        : Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: primaryGreen, width: 1.5),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                isExpanded: true,
-                                value: _selectedGardenId,
-                                icon: Icon(Icons.keyboard_arrow_down, color: primaryGreen),
-                                style: const TextStyle(color: Colors.black87, fontSize: 15),
-                                items: _plots.map((plot) {
-                                  return DropdownMenuItem<String>(
-                                    value: plot['id'],
-                                    child: Text(plot['name']),
-                                  );
-                                }).toList(),
-                                onChanged: (val) {
-                                  if (val != null) setState(() => _selectedGardenId = val);
-                                },
-                              ),
-                            ),
-                          ),
-                    const SizedBox(height: 20),
-
-                    _buildLabel('ประเภทกิจกรรม *'),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: _careTypes.map((type) {
-                        final isSelected = _selectedType == type['label'];
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedType = type['label']),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: isSelected ? (type['color'] as Color).withValues(alpha: 0.15) : Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected ? type['color'] as Color : Colors.grey[300]!,
-                                width: isSelected ? 1.5 : 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(type['icon'], style: const TextStyle(fontSize: 18)),
-                                const SizedBox(width: 6),
-                                Text(
-                                  type['label'],
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: isSelected ? type['color'] as Color : Colors.grey[700],
-                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // เลือกชนิดปุ๋ย เฉพาะตอนเลือกประเภท "ใส่ปุ๋ย"
-                    if (_isFertilizer && _fertilizers.isNotEmpty) ...[
-                      _buildLabel('ชนิดปุ๋ย *'),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            isExpanded: true,
-                            value: _selectedFertilizerId,
-                            icon: Icon(Icons.keyboard_arrow_down, color: primaryGreen),
-                            style: const TextStyle(color: Colors.black87, fontSize: 15),
-                            items: _fertilizers
-                                .map((f) => DropdownMenuItem<String>(
-                                      value: f['id'],
-                                      child: Text('💊 ${f['name']}'),
-                                    ))
-                                .toList(),
-                            onChanged: (v) => setState(() => _selectedFertilizerId = v),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-
-                    _buildLabel('วันที่ดำเนินการ *'),
-                    const SizedBox(height: 6),
-                    GestureDetector(
-                      onTap: _pickDate,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                        child: Row(
-                          children: [
-                            const Text('📅 ', style: TextStyle(fontSize: 16)),
-                            Text(_thaiDate, style: const TextStyle(fontSize: 15)),
-                            const Spacer(),
-                            Icon(Icons.calendar_today, size: 18, color: Colors.grey[400]),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ใส่ปุ๋ยมีชนิดปุ๋ยแล้ว รายละเอียดจึงไม่บังคับ
-                    _buildLabel(_isFertilizer ? 'รายละเอียด' : 'รายละเอียด *'),
-                    const SizedBox(height: 6),
-                    _buildTextField(
-                      controller: _detailController,
-                      hint: _isFertilizer
-                          ? 'เช่น ใส่รอบโคนต้น ต้นละ 2 กก.'
-                          : 'เช่น ตัดแต่งทางใบใกล้วางกอง',
-                      maxLines: 2,
-                      isRequired: !_isFertilizer,
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildLabel('ปริมาณ / จำนวน'),
-                    const SizedBox(height: 6),
-                    _buildTextField(
-                      controller: _amountController, // 👈 ผูก Controller แล้ว
-                      hint: 'เช่น 40 (กก. / ต้น / ครั้ง)',
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildLabel('ค่าใช้จ่าย (บาท)'),
-                    const SizedBox(height: 6),
-                    _buildTextField(
-                      controller: _costController,
-                      hint: 'เช่น 1,200',
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      prefix: const Text('💰 ', style: TextStyle(fontSize: 16)),
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildLabel('หมายเหตุเพิ่มเติม'),
-                    const SizedBox(height: 6),
-                    _buildTextField(
-                      controller: _noteController,
-                      hint: 'เพิ่มเติม...',
-                      maxLines: 2,
-                    ),
+      // ปุ่มบันทึกติดด้านล่างจอเสมอ ไม่ต้องเลื่อนหา
+      bottomNavigationBar: _buildSaveBar(),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: [
+            _section(
+              step: '1',
+              title: 'ทำกิจกรรมอะไร',
+              child: _buildTypeGrid(),
+            ),
+            _section(
+              step: '2',
+              title: 'รายละเอียด',
+              child: Column(
+                children: [
+                  _buildGardenField(),
+                  if (_isFertilizer && _fertilizers.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    _buildFertilizerField(),
                   ],
+                  const SizedBox(height: 14),
+                  _buildDateField(),
+                  const SizedBox(height: 14),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _numberField(
+                          controller: _amountController,
+                          label: 'ปริมาณ',
+                          icon: Icons.scale_outlined,
+                          suffix: _type.unit, // หน่วยเปลี่ยนตามประเภท
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _numberField(
+                          controller: _costController,
+                          label: 'ค่าใช้จ่าย',
+                          icon: Icons.payments_outlined,
+                          suffix: 'บาท',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            _section(
+              step: '3',
+              title: _type.type == 'other' ? 'หมายเหตุ *' : 'หมายเหตุ (ไม่บังคับ)',
+              child: TextFormField(
+                controller: _noteController,
+                maxLines: 3,
+                minLines: 2,
+                // "อื่นๆ" ต้องบอกว่าทำอะไร ไม่งั้นดูย้อนหลังแล้วไม่รู้เรื่อง
+                validator: (v) => _type.type == 'other' && (v == null || v.trim().isEmpty)
+                    ? 'กรุณาบอกว่าทำกิจกรรมอะไร'
+                    : null,
+                decoration: _decoration(
+                  hint: _isFertilizer ? 'เช่น ใส่รอบโคนต้น ต้นละ 2 กก.' : 'เช่น ตัดทางใบแห้ง จ้างคนงาน 2 คน',
                 ),
               ),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+  }
 
-          Container(
-            color: const Color(0xFFF5F5F5),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            child: ElevatedButton.icon(
-              onPressed: _isSubmitting ? null : _saveCareLog,
-              icon: _isSubmitting
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('🛠️', style: TextStyle(fontSize: 18)),
-              label: Text(
-                _isSubmitting ? 'กำลังบันทึก...' : (_isEdit ? 'บันทึกการแก้ไข' : 'บันทึกการดูแล'),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+  // ---------- การ์ดแต่ละส่วน ----------
+
+  Widget _section({required String step, required String title, required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: const BoxDecoration(color: primaryGreen, shape: BoxShape.circle),
+                child: Center(
+                  child: Text(step,
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF40916C),
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 52),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
               ),
-            ),
+            ],
           ),
+          const SizedBox(height: 14),
+          child,
         ],
       ),
     );
   }
 
-  /// หัวข้อเหนือช่องกรอก
-  Widget _buildLabel(String text) {
-    return Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600));
+  /// ตารางเลือกประเภทกิจกรรม 3 คอลัมน์
+  Widget _buildTypeGrid() {
+    return GridView.count(
+      crossAxisCount: 3,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      childAspectRatio: 1.15,
+      children: careTypes.map((t) {
+        final selected = t.type == _type.type;
+        return GestureDetector(
+          onTap: () => setState(() => _type = t),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            decoration: BoxDecoration(
+              color: selected ? t.bgColor : const Color(0xFFF7F8F7),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: selected ? t.color : Colors.transparent, width: 2),
+            ),
+            padding: const EdgeInsets.all(6),
+            // FittedBox: จอแคบจะย่อ emoji + ชื่อลงให้พอดีช่อง แทนการล้น
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(t.emoji, style: const TextStyle(fontSize: 26)),
+                  const SizedBox(height: 6),
+                  Text(
+                    t.label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                      color: selected ? t.color : Colors.grey[700],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
   }
 
-  /// ช่องกรอกข้อความ (ตั้งให้บังคับกรอกได้)
-  Widget _buildTextField({
-    required TextEditingController? controller,
-    required String hint,
-    TextInputType keyboardType = TextInputType.text,
-    int maxLines = 1,
-    Widget? prefix,
-    bool isRequired = false,
+  Widget _buildGardenField() {
+    if (_isLoadingPlots) {
+      return const Padding(
+        padding: EdgeInsets.all(8),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_plots.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(12)),
+        child: const Text('ยังไม่มีแปลงสวน กรุณาเพิ่มแปลงสวนก่อนบันทึกการดูแล',
+            style: TextStyle(color: Color(0xFFE65100))),
+      );
+    }
+    return DropdownButtonFormField<String>(
+      initialValue: _plots.any((p) => p['id'] == _selectedGardenId) ? _selectedGardenId : null,
+      isExpanded: true,
+      decoration: _decoration(label: 'แปลงสวน', icon: Icons.forest_outlined),
+      items: _plots
+          .map((p) => DropdownMenuItem<String>(value: p['id'], child: Text(p['name']!)))
+          .toList(),
+      onChanged: (v) => setState(() => _selectedGardenId = v),
+    );
+  }
+
+  Widget _buildFertilizerField() {
+    return DropdownButtonFormField<String>(
+      // key: สร้างใหม่เมื่อรายการปุ๋ยโหลดเสร็จ ให้แสดงค่าที่เลือกไว้ถูกต้อง
+      key: ValueKey('fert-${_fertilizers.length}'),
+      initialValue: _fertilizers.any((f) => f['id'] == _selectedFertilizerId) ? _selectedFertilizerId : null,
+      isExpanded: true,
+      decoration: _decoration(label: 'ชนิดปุ๋ย', icon: Icons.science_outlined),
+      items: _fertilizers
+          .map((f) => DropdownMenuItem<String>(value: f['id'], child: Text(f['name']!)))
+          .toList(),
+      onChanged: (v) => setState(() => _selectedFertilizerId = v),
+    );
+  }
+
+  Widget _buildDateField() {
+    return InkWell(
+      onTap: _pickDate,
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: _decoration(label: 'วันที่ดำเนินการ', icon: Icons.calendar_today_outlined),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(_thaiDate, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15)),
+            ),
+            Icon(Icons.keyboard_arrow_down, color: Colors.grey[500]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _numberField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required String suffix,
   }) {
     return TextFormField(
       controller: controller,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      validator: (value) {
-        if (isRequired && (value == null || value.trim().isEmpty)) {
-          return 'กรุณากรอกข้อมูลในช่องนี้';
-        }
-        return null;
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      validator: (v) {
+        if (v == null || v.trim().isEmpty) return null; // ไม่กรอก = 0
+        return double.tryParse(v.replaceAll(',', '').trim()) == null ? 'ใส่เป็นตัวเลข' : null;
       },
-      decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: prefix != null ? Padding(padding: const EdgeInsets.only(left: 12), child: prefix) : null,
-        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
+      decoration: _decoration(label: label, icon: icon, suffix: suffix),
+    );
+  }
+
+  InputDecoration _decoration({String? label, String? hint, IconData? icon, String? suffix}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      suffixText: suffix,
+      prefixIcon: icon == null ? null : Icon(icon, color: primaryGreen, size: 20),
+      floatingLabelStyle: const TextStyle(color: primaryGreen),
+      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+      filled: true,
+      fillColor: const Color(0xFFF7F8F7),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: primaryGreen, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.red),
+      ),
+    );
+  }
+
+  Widget _buildSaveBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, -2))],
+      ),
+      child: SafeArea(
+        top: false,
+        child: ElevatedButton.icon(
+          onPressed: _isSubmitting || _plots.isEmpty ? null : _save,
+          icon: _isSubmitting
+              ? const SizedBox(
+                  width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : const Icon(Icons.check),
+          label: Text(
+            _isSubmitting ? 'กำลังบันทึก...' : (_isEdit ? 'บันทึกการแก้ไข' : 'บันทึก${_type.label}'),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: primaryGreen,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(52),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            elevation: 0,
+          ),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: primaryGreen, width: 1.5),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }

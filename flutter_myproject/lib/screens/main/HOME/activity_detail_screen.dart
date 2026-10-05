@@ -42,6 +42,7 @@ class ActivityDetailScreen extends StatelessWidget {
           existing: HarvestData(
             id: activity.id,
             gardenId: activity.gardenId,
+            shopId: raw['shop_id']?.toString() ?? '', // คงร้านเดิมไว้ตอนแก้ไข
             code: raw['code']?.toString() ?? activity.id,
             plotName: activity.gardenName,
             buyer: '',

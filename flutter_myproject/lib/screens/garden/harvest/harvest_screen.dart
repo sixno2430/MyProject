@@ -22,6 +22,9 @@ import 'package:flutter_myproject/widgets/item_actions.dart';
 class HarvestData {
   final String id;
   final String gardenId;
+
+  /// รหัสร้านที่ขายให้ ('' = ไม่ระบุ) — ชื่อร้านอยู่ใน buyer
+  final String shopId;
   final String code;
   final String plotName;
   final String buyer;
@@ -34,6 +37,7 @@ class HarvestData {
   HarvestData({
     required this.id,
     this.gardenId = '',
+    this.shopId = '',
     required this.code,
     required this.plotName,
     required this.buyer,
@@ -49,6 +53,7 @@ class HarvestData {
     return HarvestData(
       id: json['id']?.toString() ?? '',
       gardenId: json['gardenId']?.toString() ?? '',
+      shopId: json['shopId']?.toString() ?? '',
       code: json['code'] ?? '',
       plotName: json['plotName'] ?? json['plot_name'] ?? '',
       buyer: json['buyer'] ?? '',
@@ -99,7 +104,24 @@ class HarvestService {
   static String get baseUrl => AppConfig.apiBaseUri;
 
   // สร้าง query ที่มี user_id ของคนที่ล็อกอินอยู่เสมอ (+ garden_id ถ้ามี)
-  Future<Map<String, String>> _buildQuery(String? gardenId) async {
+  /// รายชื่อร้านรับซื้อ [{id, name}] สำหรับ dropdown (โหลดไม่ได้ = รายการว่าง)
+  static Future<List<Map<String, String>>> fetchShops() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/shops'));
+      final body = jsonDecode(response.body);
+      if (body is! Map || body['isError'] == true) return [];
+      return (body['data'] as List)
+          .map((s) => {
+                'id': s['shop_id'].toString(),
+                'name': s['shop_name'].toString(),
+              })
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Map<String, String>> _buildQuery(String? gardenId, int? year) async {
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) {
       throw Exception('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่');
@@ -107,13 +129,14 @@ class HarvestService {
     return {
       'user_id': userId,
       'garden_id': ?gardenId,
+      if (year != null) 'year': '$year',
     };
   }
 
-  /// ดึงรายการเก็บเกี่ยวของปีนี้
-  Future<List<HarvestData>> fetchHarvestRecords({String? gardenId}) async {
+  /// ดึงรายการเก็บเกี่ยวของปีที่กำหนด (ไม่ส่ง year = ปีนี้)
+  Future<List<HarvestData>> fetchHarvestRecords({String? gardenId, int? year}) async {
     final uri = Uri.parse('$baseUrl/harvests').replace(
-      queryParameters: await _buildQuery(gardenId),
+      queryParameters: await _buildQuery(gardenId, year),
     );
 
     final response = await http.get(uri);
@@ -150,9 +173,9 @@ class HarvestService {
   }
 
   /// ดึงข้อมูลสรุปและผลผลิตรายเดือนของปีนี้
-  Future<HarvestSummary> fetchHarvestSummary({String? gardenId}) async {
+  Future<HarvestSummary> fetchHarvestSummary({String? gardenId, int? year}) async {
     final uri = Uri.parse('$baseUrl/harvests/summary').replace(
-      queryParameters: await _buildQuery(gardenId),
+      queryParameters: await _buildQuery(gardenId, year),
     );
 
     final response = await http.get(uri);
@@ -194,6 +217,9 @@ class _HarvestScreenState extends State<HarvestScreen> {
 
   String? _selectedMonth;
 
+  /// ปีที่กำลังดู (ค.ศ.) เลื่อนดูปีก่อนๆ ได้
+  int _year = DateTime.now().year;
+
   /// แท็บกรองรายการ: 'all' | 'pending' | 'sold'
   String _statusFilter = 'all';
 
@@ -206,8 +232,8 @@ class _HarvestScreenState extends State<HarvestScreen> {
   /// โหลดสรุปและรายการใหม่ทั้งคู่
   void _refreshData() {
     setState(() {
-      _summaryFuture = _service.fetchHarvestSummary();
-      _harvestsFuture = _service.fetchHarvestRecords();
+      _summaryFuture = _service.fetchHarvestSummary(year: _year);
+      _harvestsFuture = _service.fetchHarvestRecords(year: _year);
     });
   }
 
@@ -246,6 +272,39 @@ class _HarvestScreenState extends State<HarvestScreen> {
   }
 
   /// เปิดฟอร์มบันทึกการเก็บเกี่ยวใหม่ กลับมาแล้วโหลดใหม่
+  /// แถบเลือกปี (ลูกศรซ้าย/ขวา) ไม่ให้เลือกปีอนาคต
+  Widget _buildYearSelector() {
+    const green = Color(0xFF1E5631);
+    final isCurrentYear = _year >= DateTime.now().year;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left, color: green),
+          onPressed: () {
+            _year--;
+            _selectedMonth = null;
+            _refreshData();
+          },
+        ),
+        Text(
+          'ปี พ.ศ. ${_year + 543}',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: green),
+        ),
+        IconButton(
+          icon: Icon(Icons.chevron_right, color: isCurrentYear ? Colors.grey[300] : green),
+          onPressed: isCurrentYear
+              ? null
+              : () {
+                  _year++;
+                  _selectedMonth = null;
+                  _refreshData();
+                },
+        ),
+      ],
+    );
+  }
+
   Future<void> _navigateToAddHarvest() async {
     final result = await Navigator.push(
       context,
@@ -299,6 +358,10 @@ class _HarvestScreenState extends State<HarvestScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // --- 0. เลือกปี ---
+              _buildYearSelector(),
+              const SizedBox(height: 8),
+
               // --- 1. สรุปภาพรวม (Summary) ---
               FutureBuilder<HarvestSummary>(
                 future: _summaryFuture,
@@ -323,7 +386,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
 
                   final String cardTitle = _selectedMonth != null
                       ? 'ผลผลิตเดือน $_selectedMonth'
-                      : 'ผลผลิตปีนี้';
+                      : 'ผลผลิตทั้งปี';
 
                   return Column(
                     children: [
@@ -449,20 +512,20 @@ class _HarvestScreenState extends State<HarvestScreen> {
 
   // ── เปลี่ยน "รอขาย" เป็น "ขายแล้ว": ถามราคาขายจริงก่อน แล้วค่อยบันทึก ──
   Future<void> _markAsSold(HarvestData item) async {
-    final price = await showModalBottomSheet<double>(
+    final sale = await showModalBottomSheet<({double price, String? shopId})>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _SellSheet(item: item),
     );
-    if (price == null || !mounted) return;
+    if (sale == null || !mounted) return;
 
     final userId = await AuthService.getUserId();
     try {
       final response = await http.put(
         Uri.parse('${HarvestService.baseUrl}/harvests/${item.id}/sell'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'user_id': userId, 'price_per_kg': price}),
+        body: jsonEncode({'user_id': userId, 'price_per_kg': sale.price, 'shop_id': sale.shopId}),
       );
       final body = jsonDecode(response.body);
       if (body['isError'] == true) throw Exception(body['errorMessage']);
@@ -723,7 +786,7 @@ class _InteractiveChartCardState extends State<_InteractiveChartCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'ผลผลิต 12 เดือนล่าสุด (กก.)',
+            'ผลผลิตรายเดือน ม.ค.–ธ.ค. (กก.)',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
@@ -827,10 +890,16 @@ class _SellSheetState extends State<_SellSheet> {
   static const green = Color(0xFF1E5631);
   late final TextEditingController _priceCtrl;
   String? _error;
+  List<Map<String, String>> _shops = [];
+  String? _shopId;
 
   @override
   void initState() {
     super.initState();
+    _shopId = widget.item.shopId.isNotEmpty ? widget.item.shopId : null;
+    HarvestService.fetchShops().then((list) {
+      if (mounted) setState(() => _shops = list);
+    });
     final p = widget.item.pricePerKg;
     _priceCtrl = TextEditingController(
       text: p > 0 ? (p % 1 == 0 ? p.toInt().toString() : p.toString()) : '',
@@ -847,14 +916,14 @@ class _SellSheetState extends State<_SellSheet> {
   /// ราคาที่กรอก (null ถ้าไม่ใช่ตัวเลข)
   double? get _price => double.tryParse(_priceCtrl.text.trim());
 
-  /// ตรวจว่าราคามากกว่า 0 แล้วปิด sheet พร้อมส่งราคากลับ
+  /// ตรวจว่าราคามากกว่า 0 แล้วปิด sheet พร้อมส่งราคาและร้านกลับ
   void _confirm() {
     final price = _price;
     if (price == null || price <= 0) {
       setState(() => _error = 'กรุณาใส่ราคาที่มากกว่า 0');
       return;
     }
-    Navigator.pop(context, price);
+    Navigator.pop(context, (price: price, shopId: _shopId));
   }
 
   @override
@@ -915,6 +984,12 @@ class _SellSheetState extends State<_SellSheet> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                ShopDropdown(
+                  shops: _shops,
+                  value: _shopId,
+                  onChanged: (v) => setState(() => _shopId = v),
+                ),
                 const SizedBox(height: 16),
                 Container(
                   width: double.infinity,
@@ -955,6 +1030,48 @@ class _SellSheetState extends State<_SellSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ==========================================
+// 5. DROPDOWN เลือกร้านรับซื้อ (ใช้ในฟอร์มเก็บเกี่ยว และหน้าต่าง "ขายแล้ว")
+// ==========================================
+
+/// Dropdown เลือกร้านรับซื้อ ตัวเลือกแรกคือ "ไม่ระบุร้าน" (value = null)
+class ShopDropdown extends StatelessWidget {
+  final List<Map<String, String>> shops;
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  const ShopDropdown({
+    super.key,
+    required this.shops,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // ค่าที่เลือกต้องมีอยู่ในรายการ ไม่งั้น Dropdown จะ error (เช่น ตอนรายชื่อร้านยังโหลดไม่เสร็จ)
+    final safeValue = shops.any((s) => s['id'] == value) ? value : null;
+    return DropdownButtonFormField<String?>(
+      // initialValue ถูกอ่านแค่ตอนสร้าง -> เปลี่ยน key เมื่อรายชื่อร้าน/ค่าที่เลือกเปลี่ยน ให้สร้างใหม่แสดงค่าที่ถูกต้อง
+      key: ValueKey('${shops.length}-$safeValue'),
+      initialValue: safeValue,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: 'ร้านที่ขายให้',
+        prefixIcon: const Icon(Icons.storefront_outlined, color: Color(0xFF1E5631)),
+        filled: true,
+        fillColor: const Color(0xFFF9FAFB),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      items: [
+        const DropdownMenuItem<String?>(value: null, child: Text('ไม่ระบุร้าน')),
+        ...shops.map((s) => DropdownMenuItem<String?>(value: s['id'], child: Text(s['name']!))),
+      ],
+      onChanged: onChanged,
     );
   }
 }

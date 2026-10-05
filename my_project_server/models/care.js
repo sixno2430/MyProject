@@ -110,17 +110,34 @@ const careModel = {
   },
 
   // 4. ลบรายการ (ลบได้เฉพาะรายการในสวนของ userId เท่านั้น)
+  //    ลบรายการเงินที่ผูกกับรายการนี้ (ref_care_id) ด้วย ไม่งั้นจะโผล่เป็น "รายการที่บันทึกเอง"
   deleteCareLog: async (careId, userId) => {
+    let conn;
     try {
-      const sql = `DELETE FROM palm_care WHERE care_id = ? AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?)`;
-      const result = await db.query(sql, [careId, userId]);
+      conn = await db.getConnection();
+      await conn.beginTransaction();
+      await conn.query(`
+        DELETE fn FROM finance fn
+        JOIN palm_care c ON fn.ref_care_id = c.care_id
+        JOIN garden g ON c.garden_id = g.garden_id
+        WHERE c.care_id = ? AND g.user_id = ?
+      `, [careId, userId]);
+      const result = await conn.query(
+        `DELETE FROM palm_care WHERE care_id = ? AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?)`,
+        [careId, userId]
+      );
       if (!result.affectedRows) {
+        await conn.rollback();
         return { isError: true, data: null, errorMessage: 'ไม่พบรายการ หรือไม่มีสิทธิ์ลบ' };
       }
+      await conn.commit();
       return { isError: false, data: null, errorMessage: "" };
     } catch (error) {
+      if (conn) await conn.rollback().catch(() => {});
       console.error('Error in deleteCareLog:', error.message);
       return { isError: true, data: null, errorMessage: 'ลบรายการไม่สำเร็จ' };
+    } finally {
+      if (conn) conn.release();
     }
   }
 };

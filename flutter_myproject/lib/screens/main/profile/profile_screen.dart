@@ -9,6 +9,7 @@ import 'package:flutter_myproject/services/profile_service.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
 import 'package:flutter_myproject/screens/main/profile/change_password_screen.dart';
+import 'package:flutter_myproject/notifications/notifications_screen.dart';
 
 /// แท็บโปรไฟล์
 class ProfileScreen extends StatefulWidget {
@@ -413,21 +414,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _buildMenuItem(
                         icon: Icons.notifications,
                         title: 'การแจ้งเตือน',
-                        onTap: () {},
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const NotificationsScreen()),
+                        ),
                       ),
                       const Divider(height: 1),
                       _buildMenuItem(
                         icon: Icons.language,
                         title: 'ภาษา / Language',
                         trailing: 'ภาษาไทย',
-                        onTap: () {},
+                        onTap: () => showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('ภาษา / Language'),
+                            content: const Text(
+                                'แอปเวอร์ชันนี้รองรับภาษาไทยเท่านั้น\nThis version supports Thai only.'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('ตกลง'),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                       const Divider(height: 1),
                       _buildMenuItem(
                         icon: Icons.info,
                         title: 'เกี่ยวกับแอป',
                         trailing: 'v1.0.0',
-                        onTap: () {},
+                        onTap: () => showAboutDialog(
+                          context: context,
+                          applicationName: 'PalmTrack',
+                          applicationVersion: 'v1.0.0',
+                          applicationIcon: const Text('🌴',
+                              style: TextStyle(fontSize: 40)),
+                          children: const [
+                            Text(
+                                'ระบบจัดการสวนปาล์มน้ำมัน: บันทึกแปลงสวน การดูแล '
+                                'การเก็บเกี่ยว รายรับ-รายจ่าย และดูรายงานสรุปรายปี'),
+                          ],
+                        ),
                       ),
                     ],
                   ),

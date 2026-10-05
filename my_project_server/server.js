@@ -68,6 +68,11 @@ app.get('/api/user/:user_id', async (req, res) => {
 app.post('/api/register', async (req, res) => {
   const { role_id, full_name, id_card, phone, username, password } = req.body;
 
+  // สมัครเองได้แค่ เกษตรกร (R002) หรือ ร้านรับซื้อ (R003) — กันการยิง API สมัครเป็นแอดมิน (R001)
+  if (role_id && !['R002', 'R003'].includes(role_id)) {
+    return res.json({ isError: true, errorMessage: 'ประเภทผู้ใช้ไม่ถูกต้อง', data: null });
+  }
+
   if (!role_id || !full_name || !id_card || !phone || !username || !password) {
     return res.json({
       isError: true,
@@ -186,7 +191,7 @@ app.get('/api/gardens', async (req, res) => {
       return res.json(result);
     }
     
-    const [rows] = await db.query(`SELECT garden_id AS id, garden_name AS name FROM garden`);
+    const rows = await db.query(`SELECT garden_id AS id, garden_name AS name FROM garden`);
     res.json({ isError: false, data: rows });
   } catch (error) {
     console.error('Error fetching gardens:', error);
@@ -224,7 +229,7 @@ app.post('/api/gardens', async (req, res) => {
   }
 });
 
-/** แก้ไขแปลงสวน */
+/** แก้ไขแปลงสวน (body ต้องมี user_id) */
 app.put('/api/gardens/:garden_id', async (req, res) => {
   try {
     const { garden_id } = req.params;
@@ -235,11 +240,11 @@ app.put('/api/gardens/:garden_id', async (req, res) => {
   }
 });
 
-/** ลบแปลงสวน */
+/** ลบแปลงสวน ?user_id= (ลบผลผลิต/การดูแล/รายการเงินที่ผูกกับแปลงนี้ด้วย) */
 app.delete('/api/gardens/:garden_id', async (req, res) => {
   try {
     const { garden_id } = req.params;
-    const result = await garden.deleteGarden(garden_id);
+    const result = await garden.deleteGarden(garden_id, req.query.user_id);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -358,22 +363,22 @@ app.delete('/api/varieties/:variety_id', async (req, res) => {
 // HARVEST API
 // ==========================================
 
-/** รายการเก็บเกี่ยวปีนี้ ?user_id= &garden_id= */
+/** รายการเก็บเกี่ยว ?user_id= &garden_id= &year= (ไม่ส่ง year = ปีนี้) */
 app.get('/api/harvests', async (req, res) => {
   try {
-    const { garden_id: gardenId, user_id: userId } = req.query;
-    const result = await harvest.getAllHarvests(gardenId, userId);
+    const { garden_id: gardenId, user_id: userId, year } = req.query;
+    const result = await harvest.getAllHarvests(gardenId, userId, parseInt(year, 10) || null);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
   }
 });
 
-/** สรุปการเก็บเกี่ยวปีนี้ ?user_id= &garden_id= */
+/** สรุปการเก็บเกี่ยว ?user_id= &garden_id= &year= (ไม่ส่ง year = ปีนี้) */
 app.get('/api/harvests/summary', async (req, res) => {
   try {
-    const { garden_id: gardenId, user_id: userId } = req.query;
-    const result = await harvest.getSummary(gardenId, userId);
+    const { garden_id: gardenId, user_id: userId, year } = req.query;
+    const result = await harvest.getSummary(gardenId, userId, parseInt(year, 10) || null);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -393,10 +398,10 @@ app.post('/api/harvests', async (req, res) => {
   }
 });
 
-// เปลี่ยนสถานะ "รอขาย" -> "ขายแล้ว" body: { user_id, price_per_kg }
+// เปลี่ยนสถานะ "รอขาย" -> "ขายแล้ว" body: { user_id, price_per_kg, shop_id? }
 app.put('/api/harvests/:harvest_id/sell', async (req, res) => {
   try {
-    const result = await harvest.sellHarvest(req.params.harvest_id, req.body.user_id, req.body.price_per_kg);
+    const result = await harvest.sellHarvest(req.params.harvest_id, req.body.user_id, req.body.price_per_kg, req.body.shop_id);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });

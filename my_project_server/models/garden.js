@@ -108,15 +108,19 @@ const garden = {
    */
   updateGarden: async (gardenId, gardenData) => {
     try {
-      const { garden_name, address, area_size, plant_year, plant_count } = gardenData;
+      const { user_id, garden_name, address, area_size, plant_year, plant_count } = gardenData;
 
+      // แก้ได้เฉพาะแปลงของตัวเอง (user_id ต้องตรงกับเจ้าของแปลง)
       const query = `
         UPDATE garden 
         SET garden_name = ?, address = ?, area_size = ?, 
             plant_year = ?, plant_count = ?
-        WHERE garden_id = ?
+        WHERE garden_id = ? AND user_id = ?
       `;
-      await db.query(query, [garden_name, address, area_size, plant_year, plant_count, gardenId]);
+      const result = await db.query(query, [garden_name, address, area_size, plant_year, plant_count, gardenId, user_id]);
+      if (!result.affectedRows) {
+        return { isError: true, data: null, errorMessage: 'ไม่พบแปลงสวน หรือไม่มีสิทธิ์แก้ไข' };
+      }
 
       return { isError: false, data: { garden_id: gardenId }, errorMessage: "" };
     } catch (error) {
@@ -128,18 +132,45 @@ const garden = {
   /**
    * ลบแปลง
    */
-  deleteGarden: async (gardenId) => {
+  //    - ลบได้เฉพาะแปลงของตัวเอง
+  //    - ทำในธุรกรรมเดียว: ถ้าขั้นไหนพัง จะย้อนกลับทั้งหมด (เดิมอาจลบไปครึ่งเดียว)
+  //    - ลบรายการเงินที่ผูกกับการขาย/การดูแลของแปลงนี้ด้วย กันรายการเงินผีโผล่
+  deleteGarden: async (gardenId, userId) => {
+    let conn;
     try {
-      await db.query("DELETE FROM garden_variety WHERE garden_id = ?", [gardenId]);
-      await db.query("DELETE FROM harvest WHERE garden_id = ?", [gardenId]);
-      await db.query("DELETE FROM palm_care WHERE garden_id = ?", [gardenId]);
+      conn = await db.getConnection();
+      await conn.beginTransaction();
 
-      await db.query("DELETE FROM garden WHERE garden_id = ?", [gardenId]);
+      const owned = await conn.query(
+        "SELECT garden_id FROM garden WHERE garden_id = ? AND user_id = ?",
+        [gardenId, userId]
+      );
+      if (owned.length === 0) {
+        await conn.rollback();
+        return { isError: true, data: null, errorMessage: 'ไม่พบแปลงสวน หรือไม่มีสิทธิ์ลบ' };
+      }
 
+      await conn.query(`
+        DELETE FROM finance
+        WHERE ref_purchase_id IN (
+                SELECT p.purchase_id FROM purchase p
+                JOIN harvest h ON p.harvest_id = h.harvest_id
+                WHERE h.garden_id = ?)
+           OR ref_care_id IN (SELECT care_id FROM palm_care WHERE garden_id = ?)
+      `, [gardenId, gardenId]);
+      await conn.query("DELETE FROM garden_variety WHERE garden_id = ?", [gardenId]);
+      await conn.query("DELETE FROM harvest WHERE garden_id = ?", [gardenId]);
+      await conn.query("DELETE FROM palm_care WHERE garden_id = ?", [gardenId]);
+      await conn.query("DELETE FROM garden WHERE garden_id = ?", [gardenId]);
+
+      await conn.commit();
       return { isError: false, data: { garden_id: gardenId }, errorMessage: "" };
     } catch (error) {
+      if (conn) await conn.rollback().catch(() => {});
       console.error("❌ Error in garden.js (deleteGarden):", error.message);
-      return { isError: true, data: null, errorMessage: error.message };
+      return { isError: true, data: null, errorMessage: 'ลบแปลงสวนไม่สำเร็จ' };
+    } finally {
+      if (conn) conn.release();
     }
   },
 

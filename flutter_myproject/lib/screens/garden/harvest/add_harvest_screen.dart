@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
-import 'harvest_screen.dart' show HarvestData;
+import 'harvest_screen.dart' show HarvestData, HarvestService, ShopDropdown;
 import 'package:flutter_myproject/services/auth_server.dart';
 
 /// ฟอร์มบันทึกการเก็บเกี่ยว
@@ -39,7 +39,9 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _pricePerKgController = TextEditingController();
   final TextEditingController _totalPriceController = TextEditingController();
-  final TextEditingController _buyerController = TextEditingController();
+  // ร้านที่ขายให้ (เลือกจากตาราง shop) แทนช่องพิมพ์ชื่อผู้รับซื้อเดิมที่ไม่ได้บันทึกลงฐานข้อมูล
+  List<Map<String, String>> _shops = [];
+  String? _selectedShopId;
   final TextEditingController _noteController = TextEditingController();
 
   // สถานะ: sold = ขายแล้ว, pending = รอขาย / รอดำเนินการ
@@ -54,6 +56,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     final e = widget.existing;
     if (e != null) {
       _selectedGardenId = e.gardenId.isNotEmpty ? e.gardenId : null;
+      _selectedShopId = e.shopId.isNotEmpty ? e.shopId : null;
       _selectedDate = DateTime.tryParse(e.date) ?? DateTime.now();
       _quantityController.text = _numText(e.quantityKg);
       _pricePerKgController.text = _numText(e.pricePerKg);
@@ -61,6 +64,9 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     }
     _updateDateDisplay();
     _fetchGardens();
+    HarvestService.fetchShops().then((list) {
+      if (mounted) setState(() => _shops = list);
+    });
 
     // ฟังค่าเมื่อผู้ใช้พิมพ์ผลผลิตหรือราคา เพื่อคำนวณราคารวมทันที
     _quantityController.addListener(_calculateTotal);
@@ -73,7 +79,6 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     _quantityController.dispose();
     _pricePerKgController.dispose();
     _totalPriceController.dispose();
-    _buyerController.dispose();
     _noteController.dispose();
     super.dispose();
   }
@@ -243,7 +248,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       'total_quantity': qty,
       'price_per_kg': price,
       'total_price': qty * price,
-      'buyer': _buyerController.text.trim(),
+      'shop_id': _selectedShopId,
       'note': _noteController.text.trim(),
       'status': _status, // ส่งค่า 'sold' หรือ 'pending'
       'user_id': userId,
@@ -405,9 +410,10 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
 
               // 7. ผู้รับซื้อ
               _buildLabel('ผู้รับซื้อ'),
-              TextFormField(
-                controller: _buyerController,
-                decoration: _buildInputDecoration(hintText: 'สหกรณ์ปาล์มน้ำมันบ้านหนองกวาง'),
+              ShopDropdown(
+                shops: _shops,
+                value: _selectedShopId,
+                onChanged: (v) => setState(() => _selectedShopId = v),
               ),
               const SizedBox(height: 16),
 
