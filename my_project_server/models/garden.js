@@ -196,18 +196,6 @@ const garden = {
       console.error("❌ Error in garden.js (getGardenVarieties):", error.message);
       return { isError: true, data: [], errorMessage: error.message };
     }
-  },
-
-  // ✅ แก้ไขแล้ว: ตัดคำว่า static ออกสำหรับ Object Literal
-  getAllGardens: async () => {
-    try {
-      const result = await db.query('SELECT garden_id, garden_name FROM garden ORDER BY garden_name ASC');
-      const rows = Array.isArray(result[0]) ? result[0] : (result.data || result);
-      return { isError: false, data: rows || [], errorMessage: "" };
-    } catch (error) {
-      console.error('Error getAllGardens:', error);
-      return { isError: true, data: [], errorMessage: error.message };
-    }
   }
 };
 

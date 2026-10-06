@@ -10,6 +10,7 @@ import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
 import 'package:flutter_myproject/screens/main/profile/change_password_screen.dart';
 import 'package:flutter_myproject/notifications/notifications_screen.dart';
+import 'package:flutter_myproject/theme/role_theme.dart';
 
 /// แท็บโปรไฟล์
 class ProfileScreen extends StatefulWidget {
@@ -203,9 +204,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             _loadProfile(); // โหลดข้อมูลใหม่มาแสดงทันที
                             if (mounted) {
                               ScaffoldMessenger.of(this.context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว'),
-                                  backgroundColor: Color(0xFF4A7C59),
+                                SnackBar(
+                                  content: const Text('บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว'),
+                                  backgroundColor: _accent,
                                 ),
                               );
                             }
@@ -222,7 +223,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           }
                         },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4A7C59),
+                    backgroundColor: _accent,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -250,6 +251,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  /// บัญชีร้านรับซื้อ (R003) ใช้โทนส้ม นอกนั้นใช้เขียวเดิมของหน้านี้
+  bool get _isShop => profile?['role']?['role_id'] == 'R003';
+  Color get _accent => _isShop ? RoleTheme.shop.primary : const Color(0xFF4A7C59);
+  Color get _accentSoft => _isShop ? RoleTheme.shop.soft : const Color(0xFFE8F5E9);
 
   @override
   Widget build(BuildContext context) {
@@ -292,8 +298,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.only(top: 60, bottom: 30),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF4A7C59),
+                decoration: BoxDecoration(
+                  color: _accent,
                   borderRadius: BorderRadius.only(
                     bottomLeft: Radius.circular(30),
                     bottomRight: Radius.circular(30),
@@ -380,7 +386,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       style: TextStyle(color: Colors.white),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4A7C59),
+                      backgroundColor: _accent,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -539,7 +545,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFE8F5E9),
+              color: _accentSoft,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
@@ -549,9 +555,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(width: 4),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF4A7C59),
+                    color: _accent,
                     fontWeight: FontWeight.w500,
                   ),
                 ),

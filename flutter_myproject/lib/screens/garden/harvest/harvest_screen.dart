@@ -104,7 +104,7 @@ class HarvestService {
   static String get baseUrl => AppConfig.apiBaseUri;
 
   // สร้าง query ที่มี user_id ของคนที่ล็อกอินอยู่เสมอ (+ garden_id ถ้ามี)
-  /// รายชื่อร้านรับซื้อ [{id, name}] สำหรับ dropdown (โหลดไม่ได้ = รายการว่าง)
+  /// รายชื่อร้านรับซื้อในแอป [{id, name}] สำหรับ dropdown (โหลดไม่ได้ = รายการว่าง)
   static Future<List<Map<String, String>>> fetchShops() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/shops'));
@@ -240,6 +240,13 @@ class _HarvestScreenState extends State<HarvestScreen> {
   // กดค้างที่รายการ -> เลือกแก้ไข / ลบ
   /// กดค้างที่การ์ด: เลือกแก้ไข (เปิดฟอร์ม) หรือลบ
   Future<void> _onHarvestLongPress(HarvestData item) async {
+    // มีร้านผูกอยู่ = ร้านในระบบบันทึกรับซื้อแล้ว แก้/ลบเองไม่ได้ (กันข้อมูลร้านกับเกษตรกรไม่ตรงกัน)
+    if (item.shopId.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('${item.buyer} บันทึกการรับซื้อรายการนี้แล้ว แก้ไขหรือลบไม่ได้ หากผิดพลาดให้ติดต่อร้าน'),
+      ));
+      return;
+    }
     final action = await showItemActionsSheet(context);
     if (action == null || !mounted) return;
 
@@ -510,7 +517,8 @@ class _HarvestScreenState extends State<HarvestScreen> {
     );
   }
 
-  // ── เปลี่ยน "รอขาย" เป็น "ขายแล้ว": ถามราคาขายจริงก่อน แล้วค่อยบันทึก ──
+  // ── เปลี่ยน "รอขาย" เป็น "ขายแล้ว": ถามราคาขายจริง + ร้านที่ขายให้ แล้วค่อยบันทึก ──
+  //    เลือกร้านในแอป = เซิร์ฟเวอร์บันทึกการรับซื้อให้ร้านด้วย (ร้านเห็นในประวัติของร้าน)
   Future<void> _markAsSold(HarvestData item) async {
     final sale = await showModalBottomSheet<({double price, String? shopId})>(
       context: context,
@@ -877,7 +885,7 @@ class _InteractiveChartCardState extends State<_InteractiveChartCard> {
 // 4. BOTTOM SHEET: ยืนยันการขาย
 // ==========================================
 
-/// ถามราคาขายต่อกิโลกรัม คำนวณราคารวมให้ดูทันที แล้วคืนค่าราคาที่กรอก
+/// ถามราคาขายต่อกิโลกรัม + ร้านที่ขายให้ คำนวณราคารวมให้ดูทันที แล้วคืนค่าที่เลือก
 class _SellSheet extends StatefulWidget {
   final HarvestData item;
   const _SellSheet({required this.item});
@@ -891,12 +899,11 @@ class _SellSheetState extends State<_SellSheet> {
   late final TextEditingController _priceCtrl;
   String? _error;
   List<Map<String, String>> _shops = [];
-  String? _shopId;
+  String? _shopId; // null = ร้านนอกระบบ
 
   @override
   void initState() {
     super.initState();
-    _shopId = widget.item.shopId.isNotEmpty ? widget.item.shopId : null;
     HarvestService.fetchShops().then((list) {
       if (mounted) setState(() => _shops = list);
     });
@@ -990,6 +997,10 @@ class _SellSheetState extends State<_SellSheet> {
                   value: _shopId,
                   onChanged: (v) => setState(() => _shopId = v),
                 ),
+                const SizedBox(height: 6),
+                ShopSaleHint(
+                  shopName: _shops.where((s) => s['id'] == _shopId).map((s) => s['name']!).firstOrNull,
+                ),
                 const SizedBox(height: 16),
                 Container(
                   width: double.infinity,
@@ -1035,10 +1046,10 @@ class _SellSheetState extends State<_SellSheet> {
 }
 
 // ==========================================
-// 5. DROPDOWN เลือกร้านรับซื้อ (ใช้ในฟอร์มเก็บเกี่ยว และหน้าต่าง "ขายแล้ว")
+// 5. เลือกร้านรับซื้อ (ใช้ในฟอร์มเก็บเกี่ยว และหน้าต่าง "ขายแล้ว")
 // ==========================================
 
-/// Dropdown เลือกร้านรับซื้อ ตัวเลือกแรกคือ "ไม่ระบุร้าน" (value = null)
+/// Dropdown เลือกร้านรับซื้อ ตัวเลือกแรกคือ "ร้านนอกระบบ" (value = null)
 class ShopDropdown extends StatelessWidget {
   final List<Map<String, String>> shops;
   final String? value;
@@ -1068,10 +1079,36 @@ class ShopDropdown extends StatelessWidget {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
       items: [
-        const DropdownMenuItem<String?>(value: null, child: Text('ไม่ระบุร้าน')),
+        const DropdownMenuItem<String?>(value: null, child: Text('ร้านนอกระบบ (ไม่อยู่ในแอป)')),
         ...shops.map((s) => DropdownMenuItem<String?>(value: s['id'], child: Text(s['name']!))),
       ],
       onChanged: onChanged,
+    );
+  }
+}
+
+/// ข้อความใต้ช่องเลือกร้าน บอกว่าการเลือกนี้มีผลกับฝั่งร้านยังไง
+class ShopSaleHint extends StatelessWidget {
+  final String? shopName; // null = ร้านนอกระบบ
+  const ShopSaleHint({super.key, required this.shopName});
+
+  @override
+  Widget build(BuildContext context) {
+    final inApp = shopName != null;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(inApp ? Icons.sync_alt : Icons.info_outline, size: 15, color: Colors.grey[600]),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            inApp
+                ? 'ร้าน $shopName จะเห็นรายการนี้ในประวัติการรับซื้อของร้านด้วย'
+                : 'นับเป็นรายได้ของคุณ แต่ไม่มีร้านในแอปเห็นรายการนี้',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+          ),
+        ),
+      ],
     );
   }
 }

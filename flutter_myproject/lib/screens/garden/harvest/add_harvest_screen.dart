@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
-import 'harvest_screen.dart' show HarvestData, HarvestService, ShopDropdown;
+import 'harvest_screen.dart' show HarvestData, HarvestService, ShopDropdown, ShopSaleHint;
 import 'package:flutter_myproject/services/auth_server.dart';
 
 /// ฟอร์มบันทึกการเก็บเกี่ยว
@@ -39,13 +39,13 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _pricePerKgController = TextEditingController();
   final TextEditingController _totalPriceController = TextEditingController();
-  // ร้านที่ขายให้ (เลือกจากตาราง shop) แทนช่องพิมพ์ชื่อผู้รับซื้อเดิมที่ไม่ได้บันทึกลงฐานข้อมูล
+  // ร้านที่ขายให้ (เลือกได้เมื่อสถานะเป็นขายแล้ว) null = ร้านนอกระบบ
   List<Map<String, String>> _shops = [];
   String? _selectedShopId;
   final TextEditingController _noteController = TextEditingController();
 
-  // สถานะ: sold = ขายแล้ว, pending = รอขาย / รอดำเนินการ
-  String _status = 'sold'; 
+  // สถานะ: pending = รอขาย (ค่าเริ่มต้น), sold = ขายแล้ว (เลือกร้านในแอป หรือร้านนอกระบบ)
+  String _status = 'pending';
   bool _isSubmitting = false;
 
   bool get _isEdit => widget.existing != null;
@@ -56,7 +56,6 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     final e = widget.existing;
     if (e != null) {
       _selectedGardenId = e.gardenId.isNotEmpty ? e.gardenId : null;
-      _selectedShopId = e.shopId.isNotEmpty ? e.shopId : null;
       _selectedDate = DateTime.tryParse(e.date) ?? DateTime.now();
       _quantityController.text = _numText(e.quantityKg);
       _pricePerKgController.text = _numText(e.pricePerKg);
@@ -248,7 +247,8 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       'total_quantity': qty,
       'price_per_kg': price,
       'total_price': qty * price,
-      'shop_id': _selectedShopId,
+      // เลือกร้านในแอป = เซิร์ฟเวอร์บันทึกการรับซื้อให้ร้านด้วย (ส่งเฉพาะตอนขายแล้ว)
+      'shop_id': _status == 'sold' ? _selectedShopId : null,
       'note': _noteController.text.trim(),
       'status': _status, // ส่งค่า 'sold' หรือ 'pending'
       'user_id': userId,
@@ -351,25 +351,25 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
               ),
               const SizedBox(height: 16),
 
-              // 3. สถานะการเก็บเกี่ยว (ติ๊กเลือก ขายแล้ว / รอขาย)
+              // 3. สถานะการเก็บเกี่ยว (รอขาย / ขายแล้ว)
               _buildLabel('สถานะการเก็บเกี่ยว *'),
               Row(
                 children: [
+                  Expanded(
+                    child: _buildStatusChip(
+                      label: 'รอขาย',
+                      value: 'pending',
+                      icon: Icons.access_time_rounded,
+                      activeColor: const Color(0xFFE65100),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _buildStatusChip(
                       label: 'ขายแล้ว',
                       value: 'sold',
                       icon: Icons.check_circle_outline,
                       activeColor: const Color(0xFF1E5631),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatusChip(
-                      label: 'รอขาย / รอดำเนินการ',
-                      value: 'pending',
-                      icon: Icons.access_time_rounded,
-                      activeColor: const Color(0xFFE65100),
                     ),
                   ),
                 ],
@@ -387,12 +387,14 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
               const SizedBox(height: 16),
 
               // 5. ราคาขาย/กก. (บาท)
-              _buildLabel('ราคาขาย/กก. (บาท) *'),
+              // รอขาย = ราคาที่คาดไว้ (ไม่บังคับ ร้านจะใส่ราคาจริงตอนรับซื้อ), ขายแล้ว = ราคาที่ขายได้จริง (บังคับ)
+              _buildLabel(_status == 'pending' ? 'ราคาที่คาดไว้/กก. (บาท)' : 'ราคาขาย/กก. (บาท) *'),
               TextFormField(
                 controller: _pricePerKgController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: _buildInputDecoration(hintText: '5.50'),
-                validator: (val) => (val == null || val.isEmpty) ? 'กรุณากรอกราคาขาย' : null,
+                validator: (val) =>
+                    (_status == 'sold' && (val == null || val.isEmpty)) ? 'กรุณากรอกราคาขาย' : null,
               ),
               const SizedBox(height: 16),
 
@@ -408,14 +410,20 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
               ),
               const SizedBox(height: 16),
 
-              // 7. ผู้รับซื้อ
-              _buildLabel('ผู้รับซื้อ'),
-              ShopDropdown(
-                shops: _shops,
-                value: _selectedShopId,
-                onChanged: (v) => setState(() => _selectedShopId = v),
-              ),
-              const SizedBox(height: 16),
+              // 7. ร้านที่ขายให้ (แสดงเฉพาะตอนขายแล้ว รอขายยังไม่มีร้าน)
+              if (_status == 'sold') ...[
+                _buildLabel('ร้านที่ขายให้'),
+                ShopDropdown(
+                  shops: _shops,
+                  value: _selectedShopId,
+                  onChanged: (v) => setState(() => _selectedShopId = v),
+                ),
+                const SizedBox(height: 6),
+                ShopSaleHint(
+                  shopName: _shops.where((s) => s['id'] == _selectedShopId).map((s) => s['name']!).firstOrNull,
+                ),
+                const SizedBox(height: 16),
+              ],
 
               // 8. หมายเหตุ
               _buildLabel('หมายเหตุ'),

@@ -10,10 +10,14 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_myproject/config/app_config.dart';  // ← เพิ่ม
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
+import 'package:flutter_myproject/theme/role_theme.dart';
 
 /// หน้าสมัครสมาชิก
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  /// บทบาทที่เลือกไว้ตอนเปิดหน้า (0 = เกษตรกร, 1 = ร้านรับซื้อ) ส่งมาจากหน้าล็อกอิน
+  final int initialRole;
+
+  const RegisterScreen({super.key, this.initialRole = 0});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -29,7 +33,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  int selectedRole = 0;
+  late int selectedRole = widget.initialRole;
+
+  /// ชุดสีปัจจุบัน (ไล่สีระหว่างเขียว-ส้มตอนเปลี่ยนบทบาท) ตั้งค่าใน build()
+  RoleTheme _t = RoleTheme.farmer;
   bool obscurePassword = true;
   bool obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -112,13 +119,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ค่อยๆ ไล่สีจากเขียว (เกษตรกร) ไปส้ม (ร้านรับซื้อ) เหมือนหน้าล็อกอิน
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: selectedRole.toDouble()),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+      builder: (context, t, _) {
+        _t = RoleTheme.lerp(RoleTheme.farmer, RoleTheme.shop, t);
+        return _buildPage(context);
+      },
+    );
+  }
+
+  Widget _buildPage(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF064E3B), Color(0xFF15803D)],
+            colors: _t.headerGradient,
           ),
         ),
         child: SafeArea(
@@ -132,15 +152,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF86EFAC), size: 16),
-                        label: const Text('กลับ', style: TextStyle(color: Color(0xFF86EFAC), fontSize: 14)),
+                        icon: Icon(Icons.arrow_back_ios, color: _t.onDarkAccent, size: 16),
+                        label: Text('กลับ', style: TextStyle(color: _t.onDarkAccent, fontSize: 14)),
                         style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                       ),
                     ),
                     const SizedBox(height: 4),
                     const Text('สมัครสมาชิก', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
-                    const Text('กรอกข้อมูลให้ครบถ้วน', style: TextStyle(color: Color(0xFF86EFAC), fontSize: 13)),
+                    Text('กรอกข้อมูลให้ครบถ้วน', style: TextStyle(color: _t.onDarkAccent, fontSize: 13)),
                   ],
                 ),
               ),
@@ -175,18 +195,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
                                       decoration: BoxDecoration(
-                                        color: isSelected ? const Color(0xFF15803D) : const Color(0xFFF0FDF4),
+                                        color: isSelected ? _t.primary : _t.soft,
                                         borderRadius: BorderRadius.circular(14),
-                                        border: isSelected ? null : Border.all(color: const Color(0xFFBBF7D0)),
+                                        border: isSelected ? null : Border.all(color: _t.border),
                                       ),
-                                      child: Row(
+                                      child: FittedBox(
+  // จอแคบ: ย่อไอคอน+ข้อความลงให้พอดีปุ่ม แทนการล้น
+  fit: BoxFit.scaleDown,
+  child: Row(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
-                                          Icon(roles[index]['icon'] as IconData, size: 16, color: isSelected ? Colors.white : const Color(0xFF15803D)),
+                                          Icon(roles[index]['icon'] as IconData, size: 16, color: isSelected ? Colors.white : _t.primary),
                                           const SizedBox(width: 6),
-                                          Text(roles[index]['label'] as String, style: TextStyle(color: isSelected ? Colors.white : const Color(0xFF15803D), fontSize: 13, fontWeight: FontWeight.w500)),
+                                          Text(roles[index]['label'] as String, style: TextStyle(color: isSelected ? Colors.white : _t.primary, fontSize: 13, fontWeight: FontWeight.w500)),
                                         ],
                                       ),
+),
                                     ),
                                   ),
                                 ),
@@ -268,9 +292,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           Container(
                             width: double.infinity,
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [Color(0xFF15803D), Color(0xFF064E3B)]),
+                              gradient: LinearGradient(colors: [_t.primary, _t.primaryDark]),
                               borderRadius: BorderRadius.circular(16),
-                              boxShadow: [BoxShadow(color: const Color(0xFF064E3B).withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4))],
+                              boxShadow: [BoxShadow(color: _t.primaryDark.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4))],
                             ),
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : () async {
@@ -346,10 +370,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         hintText: hintText,
         hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
         filled: true,
-        fillColor: const Color(0xFFF0FDF4).withValues(alpha: 0.5),
+        fillColor: _t.soft.withValues(alpha: 0.5),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFF15803D), width: 2)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: _t.primary, width: 2)),
         errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Colors.red)),
         focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Colors.red, width: 2)),
         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),

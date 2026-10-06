@@ -2,6 +2,7 @@
 // notifications_screen.dart — หน้าการแจ้งเตือน
 //
 // สร้างการแจ้งเตือนจากข้อมูลจริงของ user (ไม่มีตารางแจ้งเตือนในฐานข้อมูล):
+//   0) ขายให้ร้านในแอปแล้ว ภายใน 7 วัน (ร้านบันทึกรับซื้อ) -> แตะแล้วไปหน้าเก็บเกี่ยว
 //   1) ผลผลิตที่ยังรอขาย            -> แตะแล้วไปหน้าเก็บเกี่ยว
 //   2) แปลงที่ไม่มีบันทึกการดูแลเกิน 30 วัน -> แตะแล้วไปหน้าดูแลสวน
 // เปิดจาก: กระดิ่งบน Dashboard และเมนู "การแจ้งเตือน" ในหน้าโปรไฟล์
@@ -48,6 +49,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   /// ไม่มีบันทึกการดูแลนานกว่านี้ (วัน) จะแจ้งเตือน
   static const int careReminderDays = 30;
 
+  /// แจ้งเตือน "ขายให้ร้านแล้ว" ย้อนหลังกี่วัน
+  static const int soldNoticeDays = 7;
+
   late Future<List<AppNotification>> _future;
 
   @override
@@ -89,6 +93,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final gardens = dataOf(results[1]);
     final careLogs = dataOf(results[2]);
     final list = <AppNotification>[];
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // 0) ขายให้ร้านในแอปแล้ว (มีวันที่รับซื้อ) ภายใน 7 วัน ใหม่สุดก่อน
+    //    ให้เกษตรกรรู้ว่าร้านบันทึกรับซื้อแล้ว ผลผลิตเปลี่ยนเป็น "ขายแล้ว" และรายได้เข้าหน้าการเงิน
+    final recentSales = harvests.where((h) {
+      final d = DateTime.tryParse(h['soldDate']?.toString() ?? '');
+      return d != null && today.difference(d).inDays <= soldNoticeDays;
+    }).toList()
+      ..sort((a, b) => b['soldDate'].toString().compareTo(a['soldDate'].toString()));
+    for (final h in recentSales) {
+      final kg = (h['quantityKg'] as num?)?.toDouble() ?? 0;
+      final total = (h['totalPrice'] as num?)?.toDouble() ?? 0;
+      final d = DateTime.parse(h['soldDate'].toString());
+      final days = today.difference(d).inDays;
+      list.add(AppNotification(
+        icon: '🤝',
+        title: 'ขาย ${h['code'] ?? h['id']} ให้ ${h['buyer']} แล้ว',
+        desc: '${kg.toStringAsFixed(0)} กก. · ${total.toStringAsFixed(0)} บาท · '
+            '${days == 0 ? 'วันนี้' : days == 1 ? 'เมื่อวาน' : '$days วันก่อน'}',
+        color: const Color(0xFF2E7D32),
+        destination: () => const HarvestScreen(),
+      ));
+    }
 
     // 1) ผลผลิตรอขาย
     for (final h in harvests.where((h) => h['status'] != 'sold')) {
@@ -110,7 +138,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (id == null || d == null) continue;
       if (lastCare[id] == null || d.isAfter(lastCare[id]!)) lastCare[id] = d;
     }
-    final now = DateTime.now();
     for (final g in gardens) {
       final id = g['garden_id']?.toString();
       final name = g['garden_name']?.toString() ?? 'แปลงสวน';

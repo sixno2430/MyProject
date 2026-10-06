@@ -6,11 +6,13 @@ const db = require('../libs/db_pool');
 
 // รายรับ/รายจ่ายทั้งหมดของ user รวมจาก 3 แหล่ง (แบบเดียวกับหน้าการเงิน)
 //   - ขายผลผลิต (harvest.total_price)       = รายรับ (เฉพาะที่ขายแล้ว ไม่นับรอขาย)
+//     วันที่ = วันที่ร้านรับซื้อ ถ้าไม่มี (ขายร้านนอกระบบ) ใช้วันเก็บเกี่ยว
 //   - ค่าดูแลสวน (palm_care.cost)            = รายจ่าย
 //   - รายการที่บันทึกเองในตาราง finance        = ตาม record_type
 const MONEY_SOURCES = `
-  SELECT h.harvest_date AS date, 'INCOME' AS type, h.total_price AS amount, g.user_id
+  SELECT COALESCE(p.purchase_date, h.harvest_date) AS date, 'INCOME' AS type, h.total_price AS amount, g.user_id
   FROM harvest h JOIN garden g ON h.garden_id = g.garden_id
+  LEFT JOIN purchase p ON p.harvest_id = h.harvest_id
   WHERE COALESCE(h.status, 'sold') = 'sold'
   UNION ALL
   SELECT c.record_date, 'EXPENSE', c.cost, g.user_id

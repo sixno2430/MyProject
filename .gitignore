@@ -1,0 +1,5 @@
+# แพ็กเกจของ Node ติดตั้งใหม่ได้ด้วย npm install ไม่ต้องเก็บใน git
+node_modules/
+
+# ไฟล์ระบบของ macOS
+.DS_Store

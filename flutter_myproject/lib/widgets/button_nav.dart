@@ -1,7 +1,8 @@
 // ============================================================
-// button_nav.dart — แถบเมนูด้านล่างของหน้าหลัก (5 แท็บ)
+// button_nav.dart — แถบเมนูด้านล่าง (ใช้ทั้งฝั่งชาวสวนและร้านรับซื้อ)
 //
-// หน้าหลัก / สวน / การเงิน / รายงาน / โปรไฟล์ ใช้ใน HomeScreen
+// ค่าเริ่มต้น: เมนูชาวสวน หน้าหลัก / สวน / การเงิน / รายงาน / โปรไฟล์ สีเขียว
+// ฝั่งร้านส่ง items และ color (สีส้ม) ของตัวเองมา
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -11,10 +12,27 @@ class ButtonNav extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
 
+  /// รายการเมนู (emoji, ชื่อ) ไม่ส่งมา = เมนูชาวสวน
+  final List<(String, String)> items;
+
+  /// สีของแท็บที่เลือกอยู่
+  final Color color;
+
+  /// เมนูของฝั่งชาวสวน
+  static const farmerItems = [
+    ('🏠', 'หน้าหลัก'),
+    ('🌴', 'สวน'),
+    ('💵', 'การเงิน'),
+    ('📈', 'รายงาน'),
+    ('👤', 'โปรไฟล์'),
+  ];
+
   const ButtonNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.items = farmerItems,
+    this.color = const Color(0xFF2D6A4F),
   });
 
   @override
@@ -36,11 +54,7 @@ class ButtonNav extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildItem('🏠', 'หน้าหลัก', 0),
-              _buildItem('🌴', 'สวน', 1),
-              _buildItem('💵', 'การเงิน', 2),
-              _buildItem('📈', 'รายงาน', 3),
-              _buildItem('👤', 'โปรไฟล์', 4),
+              for (var i = 0; i < items.length; i++) Expanded(child: _buildItem(items[i].$1, items[i].$2, i)),
             ],
           ),
         ),
@@ -51,9 +65,9 @@ class ButtonNav extends StatelessWidget {
   /// ปุ่ม 1 แท็บ (ไอคอน + ชื่อ) ไฮไลต์ถ้าเป็นแท็บที่เลือกอยู่
   Widget _buildItem(String icon, String label, int index) {
     final bool isSelected = currentIndex == index;
-    final Color primaryGreen = const Color(0xFF2D6A4F);
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque, // แตะตรงไหนในช่องของแท็บก็ได้
       onTap: () => onTap(index),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -62,16 +76,18 @@ class ButtonNav extends StatelessWidget {
             icon,
             style: TextStyle(
               fontSize: 22,
-              color: isSelected ? primaryGreen : Colors.grey,
+              color: isSelected ? color : Colors.grey,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 11,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              color: isSelected ? primaryGreen : Colors.grey,
+              color: isSelected ? color : Colors.grey,
             ),
           ),
         ],

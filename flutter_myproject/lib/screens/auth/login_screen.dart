@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/screens/auth/register_screen.dart';
 import 'package:flutter_myproject/screens/auth/splash_screen.dart';
+import 'package:flutter_myproject/theme/role_theme.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -15,7 +16,7 @@ import 'package:flutter_myproject/services/auth_server.dart';
 // หน้าหลักเกษตรกร
 import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
 // หน้าหลักร้านรับซื้อ
-import 'package:flutter_myproject/screens/shop/shop_dashboard_screen.dart';
+import 'package:flutter_myproject/screens/shop/shop_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -137,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
             if (roleId == 'R003') {
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => const ShopDashboardScreen()),
+                MaterialPageRoute(builder: (context) => const ShopHomeScreen()),
               );
             } else {
               Navigator.pushReplacement(
@@ -171,15 +172,29 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  /// คำโปรยใต้ชื่อแอป เปลี่ยนตามบทบาทที่เลือก
+  static const _taglines = ['ระบบจัดการสวนปาล์มน้ำมัน', 'ระบบสำหรับร้านรับซื้อปาล์ม'];
+
   @override
   Widget build(BuildContext context) {
+    // ค่อยๆ ไล่สีจากเขียว (เกษตรกร = 0) ไปส้ม (ร้านค้า = 1) ทุกครั้งที่เปลี่ยนบทบาท
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: selectedRole.toDouble()),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+      builder: (context, t, _) =>
+          _buildPage(RoleTheme.lerp(RoleTheme.farmer, RoleTheme.shop, t)),
+    );
+  }
+
+  Widget _buildPage(RoleTheme theme) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF064E3B), Color(0xFF15803D)],
+            colors: theme.headerGradient,
           ),
         ),
         child: SafeArea(
@@ -200,9 +215,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'ระบบจัดการสวนปาล์มน้ำมัน',
-                  style: TextStyle(color: Color(0xFF86EFAC), fontSize: 14),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: Text(
+                    _taglines[selectedRole],
+                    key: ValueKey(selectedRole),
+                    style: TextStyle(color: theme.onDarkAccent, fontSize: 14),
+                  ),
                 ),
                 const SizedBox(height: 32),
                 Container(
@@ -221,64 +240,46 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'เลือกบทบาท',
-                        style: TextStyle(
-                          color: Color(0xFF4B5563),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      _buildLabel('เลือกบทบาท'),
                       const SizedBox(height: 10),
                       Row(
                         children: List.generate(roles.length, (index) {
                           final isSelected = selectedRole == index;
                           return Expanded(
                             child: Padding(
-                              padding: EdgeInsets.only(
-                                right: index < roles.length - 1 ? 8 : 0,
-                              ),
+                              padding: EdgeInsets.only(right: index < roles.length - 1 ? 8 : 0),
                               child: GestureDetector(
                                 onTap: () => setState(() => selectedRole = index),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                    horizontal: 8,
-                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                                   decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? const Color(0xFF15803D)
-                                        : const Color(0xFFF0FDF4),
+                                    color: isSelected ? theme.primary : theme.soft,
                                     borderRadius: BorderRadius.circular(12),
-                                    border: isSelected
-                                        ? null
-                                        : Border.all(
-                                            color: const Color(0xFFBBF7D0),
-                                          ),
+                                    border: isSelected ? null : Border.all(color: theme.border),
                                   ),
-                                  child: Row(
+                                  child: FittedBox(
+  // จอแคบ: ย่อไอคอน+ข้อความลงให้พอดีปุ่ม แทนการล้น
+  fit: BoxFit.scaleDown,
+  child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Icon(
                                         roles[index]['icon'] as IconData,
                                         size: 16,
-                                        color: isSelected
-                                            ? Colors.white
-                                            : const Color(0xFF15803D),
+                                        color: isSelected ? Colors.white : theme.primary,
                                       ),
                                       const SizedBox(width: 4),
                                       Text(
                                         roles[index]['label'] as String,
                                         style: TextStyle(
-                                          color: isSelected
-                                              ? Colors.white
-                                              : const Color(0xFF15803D),
+                                          color: isSelected ? Colors.white : theme.primary,
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
                                     ],
                                   ),
+),
                                 ),
                               ),
                             ),
@@ -286,103 +287,37 @@ class _LoginScreenState extends State<LoginScreen> {
                         }),
                       ),
                       const SizedBox(height: 20),
-                      const Text(
-                        'ชื่อผู้ใช้',
-                        style: TextStyle(
-                          color: Color(0xFF4B5563),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      _buildLabel('ชื่อผู้ใช้'),
                       const SizedBox(height: 6),
                       TextField(
                         controller: _usernameController,
-                        decoration: InputDecoration(
-                          hintText: 'กรอกชื่อผู้ใช้',
-                          hintStyle: const TextStyle(
-                            color: Color(0xFF9CA3AF),
-                            fontSize: 14,
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.person,
-                            color: Color(0xFF7C3AED),
-                            size: 20,
-                          ),
-                          filled: true,
-                          fillColor: const Color(0xFFFAFAF9),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF15803D),
-                              width: 2,
-                            ),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 16,
-                          ),
+                        cursorColor: theme.primary,
+                        decoration: _inputDecoration(
+                          theme,
+                          hint: 'กรอกชื่อผู้ใช้',
+                          icon: Icons.person,
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
-                        'รหัสผ่าน',
-                        style: TextStyle(
-                          color: Color(0xFF4B5563),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      _buildLabel('รหัสผ่าน'),
                       const SizedBox(height: 6),
                       TextField(
                         controller: _passwordController,
                         obscureText: obscurePassword,
-                        decoration: InputDecoration(
-                          prefixIcon: const Icon(
-                            Icons.lock,
-                            color: Color(0xFFD97706),
-                            size: 20,
-                          ),
-                          suffixIcon: TextButton(
-                            onPressed: () => setState(
-                              () => obscurePassword = !obscurePassword,
-                            ),
-                            child: const Text(
-                              'แสดง',
+                        cursorColor: theme.primary,
+                        decoration: _inputDecoration(
+                          theme,
+                          icon: Icons.lock,
+                          suffix: TextButton(
+                            onPressed: () => setState(() => obscurePassword = !obscurePassword),
+                            child: Text(
+                              obscurePassword ? 'แสดง' : 'ซ่อน',
                               style: TextStyle(
-                                color: Color(0xFF15803D),
+                                color: theme.primary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                          ),
-                          filled: true,
-                          fillColor: const Color(0xFFFAFAF9),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF15803D),
-                              width: 2,
-                            ),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 16,
                           ),
                         ),
                       ),
@@ -390,13 +325,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       Container(
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF16A34A), Color(0xFF22C55E)],
-                          ),
+                          gradient: LinearGradient(colors: theme.buttonGradient),
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF22C55E).withValues(alpha: 0.3),
+                              color: theme.primaryLight.withValues(alpha: 0.3),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -408,18 +341,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
                             padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           child: _isLoading
                               ? const SizedBox(
                                   width: 20,
                                   height: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                                 )
                               : const Text(
                                   'เข้าสู่ระบบ',
@@ -464,14 +392,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const RegisterScreen(),
+                              // เปิดหน้าสมัครโดยเลือกบทบาทเดียวกับที่เลือกอยู่ (สีจะตรงกันด้วย)
+                              builder: (context) => RegisterScreen(initialRole: selectedRole),
                             ),
                           );
                         },
-                        child: const Text(
-                          'สมัครสมาชิก',
-                          style: TextStyle(color: Color(0xFF15803D)),
-                        ),
+                        child: Text('สมัครสมาชิก', style: TextStyle(color: theme.primary)),
                       ),
                     ],
                   ),
@@ -481,6 +407,38 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Text(
+      text,
+      style: const TextStyle(color: Color(0xFF4B5563), fontSize: 14, fontWeight: FontWeight.w500),
+    );
+  }
+
+  /// หน้าตาช่องกรอก (ไอคอนและขอบตอนพิมพ์ใช้สีตามบทบาท)
+  InputDecoration _inputDecoration(RoleTheme theme, {String? hint, required IconData icon, Widget? suffix}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+      prefixIcon: Icon(icon, color: theme.primary, size: 20),
+      suffixIcon: suffix,
+      filled: true,
+      fillColor: const Color(0xFFFAFAF9),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: theme.primary, width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
     );
   }
 }

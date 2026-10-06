@@ -556,7 +556,17 @@ app.get('/api/shop/profile/:user_id', async (req, res) => {
   }
 });
 
-/** แก้ไขข้อมูลร้าน / เปิด-ปิดร้าน */
+/** สร้างร้าน (บัญชีร้านรับซื้อที่ยังไม่มีร้าน) body: { user_id, shop_name, location, phone, open_schedule } */
+app.post('/api/shop/profile', async (req, res) => {
+  try {
+    const result = await shop.createShop(req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** แก้ไขข้อมูลร้าน / เปิด-ปิดร้าน (body ต้องมี user_id ของเจ้าของร้าน) */
 app.put('/api/shop/profile/:shop_id', async (req, res) => {
   try {
     const result = await shop.updateShopProfile(req.params.shop_id, req.body);
@@ -576,7 +586,17 @@ app.get('/api/shop/:shop_id/prices', async (req, res) => {
   }
 });
 
-/** บันทึก/อัปเดตราคาปาล์มตามเกรด */
+/** ลบราคา 1 รายการ ?user_id= */
+app.delete('/api/shop/prices/:price_rate_id', async (req, res) => {
+  try {
+    const result = await shop.deletePriceRate(req.params.price_rate_id, req.query.user_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** บันทึก/อัปเดตราคาปาล์มตามเกรด (body ต้องมี user_id ของเจ้าของร้าน) */
 app.post('/api/shop/prices', async (req, res) => {
   try {
     const result = await shop.savePriceRate(req.body);
@@ -596,13 +616,43 @@ app.get('/api/shop/:shop_id/purchases', async (req, res) => {
   }
 });
 
-/** บันทึกรายการชั่ง/รับซื้อผลผลิตใหม่ */
+/** บันทึกการรับซื้อ แล้วผลผลิตฝั่งเกษตรกรเปลี่ยนเป็น "ขายแล้ว" อัตโนมัติ (body ต้องมี user_id เจ้าของร้าน) */
 app.post('/api/shop/purchases', async (req, res) => {
   try {
     const result = await shop.createPurchase(req.body);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** ยกเลิกการรับซื้อ (บันทึกผิด) -> ผลผลิตฝั่งเกษตรกรกลับเป็น "รอขาย" */
+app.delete('/api/shop/purchases/:purchase_id', async (req, res) => {
+  try {
+    const result = await shop.cancelPurchase(req.params.purchase_id, req.query.user_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** ค้นหาเกษตรกร (ชื่อ / เบอร์โทร / เลขบัตร) สำหรับหน้ารับซื้อ: ?user_id=เจ้าของร้าน&q=คำค้น */
+app.get('/api/shop/farmers/search', async (req, res) => {
+  try {
+    const result = await shop.searchFarmers(req.query.user_id, req.query.q);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message, data: [] });
+  }
+});
+
+/** ผลผลิตที่รอขายของเกษตรกร 1 คน: ?user_id=เจ้าของร้าน */
+app.get('/api/shop/farmers/:farmer_id/harvests', async (req, res) => {
+  try {
+    const result = await shop.getPendingHarvests(req.query.user_id, req.params.farmer_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message, data: [] });
   }
 });
 
@@ -619,7 +669,7 @@ app.get('/api/shop/:shop_id/dashboard', async (req, res) => {
 /** 5. ภาพ 4.3.5 รายงานสรุปการรับซื้อ (ยอดรับซื้อรายเดือน + Top เกษตรกร) */
 app.get('/api/shop/:shop_id/reports', async (req, res) => {
   try {
-    const result = await shop.getShopReports(req.params.shop_id);
+    const result = await shop.getShopReports(req.params.shop_id, req.query.year);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message, data: null });
