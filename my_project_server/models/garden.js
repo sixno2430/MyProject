@@ -14,7 +14,11 @@ const garden = {
     try {
       // 1. ดึงรายการสวน (ถ้าส่ง 'ALL' มา ดึงทุกสวน)
       let gardenQuery = `
-        SELECT garden_id, user_id, garden_name, area_size, plant_count, plant_year, plant_age, address
+        SELECT garden_id, user_id, garden_name, area_size, plant_count, plant_year,
+               -- อายุต้นปาล์ม คำนวณจากปีที่ปลูกทุกครั้ง (ตาราง garden ไม่มีคอลัมน์ plant_age แล้ว
+               -- และค่าที่คำนวณได้ไม่ควรเก็บไว้ เพราะปีหน้าตัวเลขจะผิดทันที)
+               (YEAR(CURDATE()) - plant_year) AS plant_age,
+               address
         FROM garden
       `;
       const params = [];
