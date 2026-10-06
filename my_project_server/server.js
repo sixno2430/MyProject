@@ -106,9 +106,14 @@ app.post('/api/register', async (req, res) => {
 });
 
 // ตอน login
+// body: { username, password, role_id? }
+//   role_id = บทบาทที่ผู้ใช้เลือกในหน้าล็อกอิน (R002 ชาวสวน / R003 ร้านรับซื้อ)
+//   ถ้าไม่ตรงกับบทบาทจริงของบัญชี จะไม่ให้เข้าสู่ระบบ (บัญชีชาวสวนเข้าฝั่งร้านไม่ได้ และกลับกัน)
+const ROLE_LABELS = { R001: 'ผู้ดูแลระบบ', R002: 'ชาวสวน', R003: 'ร้านรับซื้อ' };
+
 app.post('/api/authen_request', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, role_id: requestedRole } = req.body;
     const result = await userAccount.getUserByUsername(username);
 
     if (result.isError || !result.data || result.data.length === 0) {
@@ -121,9 +126,20 @@ app.post('/api/authen_request', async (req, res) => {
     if (!isMatch) {
       return res.json({ isError: true, data: "", errorMessage: 'รหัสผ่านไม่ถูกต้อง' });
     }
-    
+
+    // ตรวจบทบาทหลังรหัสผ่านถูกแล้วเท่านั้น (ไม่บอกคนที่เดารหัสว่าบัญชีนี้เป็นบทบาทอะไร)
+    if (requestedRole && requestedRole !== user.role_id) {
+      const actual = ROLE_LABELS[user.role_id] || 'บทบาทอื่น';
+      return res.json({
+        isError: true,
+        data: "",
+        errorMessage: `บัญชีนี้เป็นบัญชี${actual} กรุณาเลือกบทบาท "${actual}" แล้วเข้าสู่ระบบใหม่`
+      });
+    }
+
+    // ใส่ role_id ไว้ใน token ด้วย วันหลังจะใช้ตรวจสิทธิ์ API เฉพาะร้านรับซื้อ/ชาวสวนได้
     const authenToken = jwt.sign(
-      { user_id: user.user_id, username: user.username },
+      { user_id: user.user_id, username: user.username, role_id: user.role_id },
       '5m'
     );
 
@@ -145,7 +161,7 @@ app.post('/api/access_request', async (req, res) => {
   try {
     const decoded = await jwt.verify(token);
     const accessToken = jwt.sign(
-      { user_id: decoded.user_id, username: decoded.username },
+      { user_id: decoded.user_id, username: decoded.username, role_id: decoded.role_id },
       '1d'
     );
     res.json({ isError: false, data: accessToken, errorMessage: "" });

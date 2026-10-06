@@ -32,9 +32,11 @@ class _LoginScreenState extends State<LoginScreen> {
   int selectedRole = 0;
   bool obscurePassword = true;
 
+  // role_id ต้องตรงกับตาราง role: R002 = ชาวสวน (Owner), R003 = ร้านรับซื้อ (Shop)
+  // เซิร์ฟเวอร์จะไม่ให้เข้าสู่ระบบถ้าบทบาทที่เลือกไม่ตรงกับบัญชี
   final List<Map<String, dynamic>> roles = [
-    {'label': 'เกษตรกร', 'icon': Icons.agriculture},
-    {'label': 'ร้านค้า', 'icon': Icons.store},
+    {'label': 'เกษตรกร', 'icon': Icons.agriculture, 'role_id': 'R002'},
+    {'label': 'ร้านค้า', 'icon': Icons.store, 'role_id': 'R003'},
   ];
 
   static const _requestTimeout = Duration(seconds: 10);
@@ -52,6 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
       body: jsonEncode(<String, String>{
         'username': username,
         'password': password,
+        'role_id': roles[selectedRole]['role_id'] as String, // บทบาทที่เลือก ให้เซิร์ฟเวอร์ตรวจ
       }),
     ).timeout(_requestTimeout);
 
@@ -129,8 +132,9 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             );
 
-            // แยกหน้าจอตาม Role ทันที
-            if (roleId == 'R003' || selectedRole == 1) {
+            // แยกหน้าจอตามบทบาทจริงของบัญชี (เซิร์ฟเวอร์ตรวจแล้วว่าตรงกับที่เลือก)
+            // เดิมมี || selectedRole == 1 ทำให้บัญชีชาวสวนที่กดปุ่ม "ร้านค้า" เข้าหน้าร้านได้
+            if (roleId == 'R003') {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const ShopDashboardScreen()),
