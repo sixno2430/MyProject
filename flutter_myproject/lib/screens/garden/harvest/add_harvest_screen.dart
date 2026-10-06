@@ -1,7 +1,9 @@
 // ============================================================
 // add_harvest_screen.dart — ฟอร์มบันทึก/แก้ไขการเก็บเกี่ยว
 //
-// เลือกแปลง, วันที่, น้ำหนัก, ราคาต่อ กก. (คำนวณราคารวมให้อัตโนมัติ) และสถานะ (ขายแล้ว / รอขาย)
+// เลือกแปลง, วันที่, น้ำหนัก, ราคาต่อ กก. (คำนวณราคารวมให้อัตโนมัติ) และสถานะ
+//   รอขาย          -> เลือกร้านในแอปที่จะขายให้ได้ (ร้านเป็นคนยืนยันรับซื้อ)
+//   ขายนอกระบบแล้ว -> ใส่ชื่อร้าน (ไม่บังคับ) และวันที่ขาย
 // ส่ง existing มา = โหมดแก้ไข (PUT) ไม่ส่ง = เพิ่มใหม่ (POST)
 // ============================================================
 
@@ -39,12 +41,15 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _pricePerKgController = TextEditingController();
   final TextEditingController _totalPriceController = TextEditingController();
-  // ร้านที่ขายให้ (เลือกได้เมื่อสถานะเป็นขายแล้ว) null = ร้านนอกระบบ
+  // รอขาย: ร้านในแอปที่จะขายให้ (null = ยังไม่เลือก)
   List<Map<String, String>> _shops = [];
   String? _selectedShopId;
+  // ขายนอกระบบ: ชื่อร้านที่พิมพ์เอง + วันที่ขาย
+  final TextEditingController _buyerNameController = TextEditingController();
+  DateTime _soldDate = DateTime.now();
   final TextEditingController _noteController = TextEditingController();
 
-  // สถานะ: pending = รอขาย (ค่าเริ่มต้น), sold = ขายแล้ว (เลือกร้านในแอป หรือร้านนอกระบบ)
+  // สถานะ: pending = รอขาย (ค่าเริ่มต้น), sold = ขายนอกระบบไปแล้ว
   String _status = 'pending';
   bool _isSubmitting = false;
 
@@ -60,6 +65,9 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       _quantityController.text = _numText(e.quantityKg);
       _pricePerKgController.text = _numText(e.pricePerKg);
       _status = e.status == 'pending' ? 'pending' : 'sold';
+      _selectedShopId = e.status == 'pending' && e.shopId.isNotEmpty ? e.shopId : null;
+      _buyerNameController.text = e.buyerName;
+      _soldDate = DateTime.tryParse(e.soldDate) ?? _selectedDate;
     }
     _updateDateDisplay();
     _fetchGardens();
@@ -79,6 +87,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     _pricePerKgController.dispose();
     _totalPriceController.dispose();
     _noteController.dispose();
+    _buyerNameController.dispose();
     super.dispose();
   }
 
@@ -247,8 +256,10 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       'total_quantity': qty,
       'price_per_kg': price,
       'total_price': qty * price,
-      // เลือกร้านในแอป = เซิร์ฟเวอร์บันทึกการรับซื้อให้ร้านด้วย (ส่งเฉพาะตอนขายแล้ว)
-      'shop_id': _status == 'sold' ? _selectedShopId : null,
+      // รอขาย -> ร้านในแอปที่จะขายให้, ขายนอกระบบ -> ชื่อร้านที่พิมพ์ + วันที่ขาย
+      'shop_id': _status == 'pending' ? _selectedShopId : null,
+      'buyer_name': _status == 'sold' ? _buyerNameController.text.trim() : null,
+      'sold_date': _status == 'sold' ? DateFormat('yyyy-MM-dd').format(_soldDate) : null,
       'note': _noteController.text.trim(),
       'status': _status, // ส่งค่า 'sold' หรือ 'pending'
       'user_id': userId,
@@ -351,7 +362,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
               ),
               const SizedBox(height: 16),
 
-              // 3. สถานะการเก็บเกี่ยว (รอขาย / ขายแล้ว)
+              // 3. สถานะการเก็บเกี่ยว (รอขาย / ขายนอกระบบแล้ว)
               _buildLabel('สถานะการเก็บเกี่ยว *'),
               Row(
                 children: [
@@ -366,7 +377,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _buildStatusChip(
-                      label: 'ขายแล้ว',
+                      label: 'ขายนอกระบบแล้ว',
                       value: 'sold',
                       icon: Icons.check_circle_outline,
                       activeColor: const Color(0xFF1E5631),
@@ -410,9 +421,10 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
               ),
               const SizedBox(height: 16),
 
-              // 7. ร้านที่ขายให้ (แสดงเฉพาะตอนขายแล้ว รอขายยังไม่มีร้าน)
-              if (_status == 'sold') ...[
-                _buildLabel('ร้านที่ขายให้'),
+              // 7. ผู้รับซื้อ
+              //    รอขาย -> เลือกร้านในแอป (ร้านเป็นคนยืนยัน), ขายนอกระบบ -> พิมพ์ชื่อร้าน + วันที่ขาย
+              if (_status == 'pending') ...[
+                _buildLabel('ร้านที่จะขายให้'),
                 ShopDropdown(
                   shops: _shops,
                   value: _selectedShopId,
@@ -421,6 +433,31 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
                 const SizedBox(height: 6),
                 ShopSaleHint(
                   shopName: _shops.where((s) => s['id'] == _selectedShopId).map((s) => s['name']!).firstOrNull,
+                ),
+                const SizedBox(height: 16),
+              ] else ...[
+                _buildLabel('ชื่อร้านที่ขายให้ (ไม่บังคับ)'),
+                TextFormField(
+                  controller: _buyerNameController,
+                  maxLength: 100,
+                  decoration: _buildInputDecoration(hintText: 'เช่น ลานเทสมชาย').copyWith(counterText: ''),
+                ),
+                const SizedBox(height: 16),
+                _buildLabel('วันที่ขาย *'),
+                TextFormField(
+                  key: ValueKey(_soldDate),
+                  initialValue: '${_soldDate.day}/${_soldDate.month}/${_soldDate.year + 543}',
+                  readOnly: true,
+                  decoration: _buildInputDecoration(suffixIcon: Icons.calendar_today),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _soldDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) setState(() => _soldDate = picked);
+                  },
                 ),
                 const SizedBox(height: 16),
               ],

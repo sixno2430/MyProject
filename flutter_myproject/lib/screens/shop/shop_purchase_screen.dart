@@ -1,7 +1,8 @@
 // ============================================================
 // shop_purchase_screen.dart — แท็บ "รับซื้อ" ของร้านรับซื้อ (ภาพ 4.3.4)
 //
-// - ปุ่ม "บันทึกการรับซื้อ" -> RecordPurchaseScreen
+// - ล็อตที่เกษตรกรเลือกขายให้ร้านนี้ (รอร้านยืนยัน) อยู่บนสุด กด "รับซื้อ" -> RecordPurchaseScreen
+// - ปุ่ม "บันทึกการรับซื้อ" -> RecordPurchaseScreen (ค้นหาเกษตรกรเอง)
 // - ประวัติการรับซื้อ กรองช่วงเวลา (วันนี้ / 7 วัน / เดือนนี้ / ทั้งหมด) จัดกลุ่มตามวัน
 // - กด ⋮ ที่รายการ = ยกเลิกการรับซื้อ (ผลผลิตของเกษตรกรกลับเป็น "รอขาย")
 // ============================================================
@@ -35,6 +36,7 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
   final NumberFormat _kg = NumberFormat('#,##0.##');
 
   Future<List<ShopPurchase>>? _future;
+  List<IncomingLot> _incoming = []; // ล็อตที่เกษตรกรส่งมา รอร้านยืนยันรับซื้อ
   int _range = 3;
 
   @override
@@ -55,6 +57,17 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
     setState(() {
       _future = ShopService.fetchPurchases(shop.shopId);
     });
+    _loadIncoming(shop.shopId);
+  }
+
+  /// โหลดล็อตที่รอรับซื้อ (โหลดไม่ได้ก็ซ่อนส่วนนี้ไป ประวัติรับซื้อยังใช้ได้)
+  Future<void> _loadIncoming(String shopId) async {
+    try {
+      final list = await ShopService.fetchIncoming(await AuthService.getUserId() ?? '', shopId);
+      if (mounted) setState(() => _incoming = list);
+    } catch (_) {
+      if (mounted) setState(() => _incoming = []);
+    }
   }
 
   /// กรองตามช่วงเวลาที่เลือก
@@ -72,10 +85,10 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
     }).toList();
   }
 
-  Future<void> _openRecord() async {
+  Future<void> _openRecord({IncomingLot? lot}) async {
     final saved = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => RecordPurchaseScreen(shop: widget.shop!)),
+      MaterialPageRoute(builder: (_) => RecordPurchaseScreen(shop: widget.shop!, lot: lot)),
     );
     if (saved == true) {
       _load();
@@ -196,7 +209,7 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: widget.shop == null ? null : _openRecord,
+                  onPressed: widget.shop == null ? null : () => _openRecord(),
                   icon: const Icon(Icons.add_circle_outline),
                   label: const Text('บันทึกการรับซื้อ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   style: ElevatedButton.styleFrom(
@@ -255,6 +268,12 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
       children: [
+        if (_incoming.isNotEmpty) ...[
+          _buildIncoming(),
+          const SizedBox(height: 18),
+          Text('ประวัติการรับซื้อ', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[800])),
+          const SizedBox(height: 10),
+        ],
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -315,6 +334,80 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
           ...entry.value.map(_purchaseTile),
         ],
       ],
+    );
+  }
+
+  /// ล็อตที่เกษตรกรเลือกขายให้ร้านนี้ (เก่าสุดก่อน ร้านจะได้ไม่ลืม)
+  Widget _buildIncoming() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.soft,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('📦', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text('ล็อตที่ส่งมาขายร้านนี้ (${_incoming.length})',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: theme.primaryDark)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text('เกษตรกรเลือกขายให้ร้านคุณ ชั่งน้ำหนักแล้วกด "รับซื้อ"',
+              style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+          const SizedBox(height: 10),
+          ..._incoming.map((lot) {
+            final h = lot.harvest;
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(lot.farmer.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Text(
+                          '~${_kg.format(h.quantity)} กก. · ${h.gardenName} · '
+                          '${DateFormat('d MMM', 'th_TH').format(h.date)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () => _openRecord(lot: lot),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('รับซื้อ'),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 

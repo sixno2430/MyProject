@@ -83,7 +83,7 @@ module.exports = {
       // 3) รายรับรวมเดือนนี้ (บาท) — ขายผลผลิต (เฉพาะที่ขายแล้ว) + รายรับที่บันทึกเอง (ให้ตรงกับหน้าการเงิน)
       var incomeSql =
           "SELECT COALESCE(SUM(amount), 0) AS total_income FROM (" +
-          "  SELECT h.total_price AS amount, COALESCE(p.purchase_date, h.harvest_date) AS d " + // วันที่ขาย (ถ้ามี)
+          "  SELECT h.total_price AS amount, COALESCE(p.purchase_date, h.sold_date, h.harvest_date) AS d " + // วันที่ขาย (ถ้ามี)
           "  FROM harvest h JOIN garden g ON h.garden_id = g.garden_id " +
           "  LEFT JOIN purchase p ON p.harvest_id = h.harvest_id " +
           "  WHERE g.user_id = ? AND COALESCE(h.status, 'sold') = 'sold' " +

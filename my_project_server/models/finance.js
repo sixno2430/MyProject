@@ -38,7 +38,7 @@ class FinanceModel {
             h.total_price AS amount, 
             'INCOME' AS type, 
             -- วันที่ของรายได้ = วันที่ร้านรับซื้อ (ถ้ามี) ยอดรายเดือนจะตรงกับฝั่งร้าน
-            COALESCE(p.purchase_date, h.harvest_date) AS date,
+            COALESCE(p.purchase_date, h.sold_date, h.harvest_date) AS date,
             g.user_id AS user_id
           FROM harvest h
           LEFT JOIN garden g ON h.garden_id = g.garden_id
@@ -139,7 +139,7 @@ class FinanceModel {
             'ขายผลผลิต' AS category,
             h.garden_id,
             g.user_id AS user_id,
-            COALESCE(p.purchase_date, h.harvest_date) AS date -- วันที่ขาย (ถ้ามี)
+            COALESCE(p.purchase_date, h.sold_date, h.harvest_date) AS date -- วันที่ขาย (ถ้ามี)
           FROM harvest h
           LEFT JOIN garden g ON h.garden_id = g.garden_id
           LEFT JOIN purchase p ON p.harvest_id = h.harvest_id

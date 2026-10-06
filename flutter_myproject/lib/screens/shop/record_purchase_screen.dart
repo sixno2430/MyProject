@@ -2,6 +2,7 @@
 // record_purchase_screen.dart — บันทึกการรับซื้อ 1 รายการ
 //
 // ขั้นตอน: 1) ค้นหาเกษตรกร  2) เลือกผลผลิตที่ "รอขาย"  3) เลือกเกรด/ราคา + น้ำหนักที่ชั่งจริง
+// เปิดจากล็อตที่เกษตรกรส่งมา (incoming) จะเลือกเกษตรกร + ผลผลิตไว้ให้แล้ว เหลือแค่ขั้น 3
 // บันทึกแล้วเซิร์ฟเวอร์เปลี่ยนผลผลิตฝั่งเกษตรกรเป็น "ขายแล้ว" ให้อัตโนมัติ
 // ปิดหน้าด้วย true เมื่อบันทึกสำเร็จ
 // ============================================================
@@ -15,7 +16,11 @@ import 'package:flutter_myproject/theme/role_theme.dart';
 
 class RecordPurchaseScreen extends StatefulWidget {
   final ShopInfo shop;
-  const RecordPurchaseScreen({super.key, required this.shop});
+
+  /// ล็อตที่เกษตรกรส่งมาขายร้านนี้ (null = เริ่มจากค้นหาเกษตรกรเอง)
+  final IncomingLot? lot;
+
+  const RecordPurchaseScreen({super.key, required this.shop, this.lot});
 
   @override
   State<RecordPurchaseScreen> createState() => _RecordPurchaseScreenState();
@@ -51,6 +56,12 @@ class _RecordPurchaseScreenState extends State<RecordPurchaseScreen> {
   @override
   void initState() {
     super.initState();
+    final lot = widget.lot;
+    if (lot != null) {
+      _farmer = lot.farmer;
+      _harvests = [lot.harvest];
+      _selectHarvest(lot.harvest);
+    }
     _init();
   }
 
@@ -408,6 +419,9 @@ class _RecordPurchaseScreenState extends State<RecordPurchaseScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
+                      if (h.reserved)
+                        Text('เกษตรกรเลือกขายให้ร้านคุณ',
+                            style: TextStyle(fontSize: 11.5, color: theme.primary, fontWeight: FontWeight.w600)),
                       Text(
                         'เก็บเกี่ยว ${DateFormat('d MMM', 'th_TH').format(h.date)} ${h.date.year + 543} · ${h.code}',
                         maxLines: 1,

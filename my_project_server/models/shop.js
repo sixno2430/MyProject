@@ -235,7 +235,8 @@ const shop = {
   // ------------------------------------------------------------
   /**
    * ค้นหาเกษตรกรเพื่อรับซื้อ: ค้นจากชื่อ เบอร์โทร หรือเลขบัตรประชาชน (อย่างน้อย 2 ตัวอักษร)
-   * ส่งกลับเฉพาะบัญชีเกษตรกร (R002) พร้อมจำนวนผลผลิตที่ "รอขาย" อยู่
+   * ส่งกลับเฉพาะบัญชีเกษตรกร (R002) พร้อมจำนวนผลผลิตรอขายที่ร้านนี้รับซื้อได้
+   * (ไม่นับล็อตที่เกษตรกรเลือกขายให้ร้านอื่นไว้)
    * ต้องเป็นบัญชีร้านรับซื้อเท่านั้นถึงค้นได้ (กันคนทั่วไปดึงรายชื่อเกษตรกร)
    */
   searchFarmers: async (userId, keyword) => {
@@ -250,12 +251,13 @@ const shop = {
       const rows = await db.query(`
         SELECT u.user_id, u.full_name, u.phone,
                (SELECT COUNT(*) FROM harvest h JOIN garden g ON h.garden_id = g.garden_id
-                WHERE g.user_id = u.user_id AND h.status = 'pending') AS pending_count
+                WHERE g.user_id = u.user_id AND h.status = 'pending'
+                  AND (h.shop_id IS NULL OR h.shop_id = (SELECT shop_id FROM shop WHERE user_id = ? LIMIT 1))) AS pending_count
         FROM user u
         WHERE u.role_id = 'R002' AND (u.full_name LIKE ? OR u.phone LIKE ? OR u.citizen_id = ?)
         ORDER BY pending_count DESC, u.full_name
         LIMIT 20
-      `, [like, like, q]);
+      `, [userId, like, like, q]);
       // COUNT ได้ค่าเป็น BigInt แปลงเป็น number ก่อนส่ง JSON
       return { isError: false, data: rows.map((r) => ({ ...r, pending_count: Number(r.pending_count) })), errorMessage: '' };
     } catch (error) {
@@ -264,7 +266,10 @@ const shop = {
     }
   },
 
-  /** ผลผลิตที่ "รอขาย" ของเกษตรกร 1 คน (ให้ร้านเลือกว่ารับซื้อล็อตไหน) */
+  /**
+   * ผลผลิตที่ "รอขาย" ของเกษตรกร 1 คน ที่ร้านนี้รับซื้อได้ (ให้ร้านเลือกว่ารับซื้อล็อตไหน)
+   * reserved = 1 คือเกษตรกรเลือกขายให้ร้านนี้ไว้แล้ว
+   */
   getPendingHarvests: async (userId, farmerId) => {
     try {
       const shopOwner = await db.query(`SELECT user_id FROM user WHERE user_id = ? AND role_id = 'R003'`, [userId]);
@@ -275,22 +280,48 @@ const shop = {
         SELECT h.harvest_id, COALESCE(h.code, h.harvest_id) AS code,
                DATE_FORMAT(h.harvest_date, '%Y-%m-%d') AS harvest_date,
                CAST(h.total_quantity AS DOUBLE) AS quantity,
-               COALESCE(g.garden_name, 'แปลงปาล์ม') AS garden_name
+               COALESCE(g.garden_name, 'แปลงปาล์ม') AS garden_name,
+               (h.shop_id IS NOT NULL) AS reserved
         FROM harvest h
         JOIN garden g ON h.garden_id = g.garden_id
-        WHERE g.user_id = ? AND h.status = 'pending'
-        ORDER BY h.harvest_date DESC
-      `, [farmerId]);
-      return { isError: false, data: rows, errorMessage: '' };
+        WHERE g.user_id = ? AND h.status = 'pending' AND (h.shop_id IS NULL OR h.shop_id = (SELECT shop_id FROM shop WHERE user_id = ? LIMIT 1))
+        ORDER BY reserved DESC, h.harvest_date DESC
+      `, [farmerId, userId]);
+      return { isError: false, data: rows.map((r) => ({ ...r, reserved: Boolean(Number(r.reserved)) })), errorMessage: '' };
     } catch (error) {
       console.error('Error getPendingHarvests:', error.message);
       return { isError: true, data: [], errorMessage: 'โหลดผลผลิตไม่สำเร็จ' };
     }
   },
 
+  /** ล็อตที่เกษตรกรเลือกขายให้ร้านนี้ และยังรอร้านยืนยันรับซื้อ (เก่าสุดก่อน ร้านจะได้ไม่ลืม) */
+  getIncomingHarvests: async (shopId, userId) => {
+    try {
+      const owned = await db.query(`SELECT shop_id FROM shop WHERE shop_id = ? AND user_id = ?`, [shopId, userId]);
+      if (owned.length === 0) {
+        return { isError: true, data: [], errorMessage: 'ไม่พบร้าน หรือไม่มีสิทธิ์ดูข้อมูล' };
+      }
+      const rows = await db.query(`
+        SELECT h.harvest_id, COALESCE(h.code, h.harvest_id) AS code,
+               DATE_FORMAT(h.harvest_date, '%Y-%m-%d') AS harvest_date,
+               CAST(h.total_quantity AS DOUBLE) AS quantity,
+               COALESCE(g.garden_name, 'แปลงปาล์ม') AS garden_name,
+               u.user_id AS farmer_id, u.full_name AS farmer_name, u.phone AS farmer_phone
+        FROM harvest h
+        JOIN garden g ON h.garden_id = g.garden_id
+        JOIN user u ON g.user_id = u.user_id
+        WHERE h.shop_id = ? AND h.status = 'pending'
+        ORDER BY h.harvest_date ASC
+      `, [shopId]);
+      return { isError: false, data: rows, errorMessage: '' };
+    } catch (error) {
+      console.error('Error getIncomingHarvests:', error.message);
+      return { isError: true, data: [], errorMessage: 'โหลดล็อตที่รอรับซื้อไม่สำเร็จ' };
+    }
+  },
+
   /**
-   * ส่วนกลางของ "การขาย 1 ครั้ง" ใช้ทั้งตอนร้านบันทึกรับซื้อ และตอนเกษตรกรกดขายแล้วโดยเลือกร้านในระบบ
-   * บันทึก purchase + เปลี่ยน harvest เป็น sold (ร้าน/ราคา/น้ำหนัก) ข้อมูลสองฝั่งจึงตรงกันเสมอ
+   * ส่วนกลางของ "การรับซื้อ 1 ครั้ง": บันทึก purchase + เปลี่ยน harvest เป็น sold (ร้าน/ราคา/น้ำหนัก/วันที่ขาย)
    * ต้องเรียกภายใน transaction ที่เปิดไว้แล้ว (conn) และตรวจสิทธิ์/สถานะรอขายมาก่อน
    */
   recordSaleTx: async (conn, { harvest_id, shop_id, farmer_id, purchase_date, quantity, price_per_kg }) => {
@@ -308,9 +339,10 @@ const shop = {
     // ฝั่งเกษตรกร: ขายแล้ว + ร้าน + ราคา + น้ำหนัก -> รายรับขึ้นในหน้าการเงินทันที
     await conn.query(`
       UPDATE harvest
-      SET status = 'sold', shop_id = ?, total_quantity = ?, price_per_kg = ?, total_price = ?
+      SET status = 'sold', shop_id = ?, total_quantity = ?, price_per_kg = ?, total_price = ?,
+          buyer_name = NULL, sold_date = ?
       WHERE harvest_id = ?
-    `, [shop_id, quantity, price_per_kg, total, harvest_id]);
+    `, [shop_id, quantity, price_per_kg, total, purchase_date, harvest_id]);
 
     return { purchase_id: purchaseId, total_price: total };
   },
@@ -343,7 +375,7 @@ const shop = {
 
       // FOR UPDATE: ล็อกแถวไว้ กันสองร้านกดรับซื้อล็อตเดียวกันพร้อมกัน
       const found = await conn.query(`
-        SELECT h.harvest_id, h.status, g.user_id AS farmer_id
+        SELECT h.harvest_id, h.status, h.shop_id, g.user_id AS farmer_id
         FROM harvest h JOIN garden g ON h.garden_id = g.garden_id
         WHERE h.harvest_id = ? FOR UPDATE
       `, [harvest_id]);
@@ -354,6 +386,11 @@ const shop = {
       if (found[0].status !== 'pending') {
         await conn.rollback();
         return { isError: true, data: null, errorMessage: 'ผลผลิตนี้ขายไปแล้ว' };
+      }
+      // เกษตรกรเลือกขายให้ร้านอื่นไว้ -> ร้านนี้รับซื้อแทนไม่ได้ (กันร้านแย่งล็อตกัน)
+      if (found[0].shop_id && found[0].shop_id !== shop_id) {
+        await conn.rollback();
+        return { isError: true, data: null, errorMessage: 'เกษตรกรเลือกขายล็อตนี้ให้ร้านอื่นไว้แล้ว' };
       }
 
       const sale = await shop.recordSaleTx(conn, {
@@ -372,7 +409,8 @@ const shop = {
   },
 
   /**
-   * ยกเลิกการรับซื้อ (กรณีบันทึกผิด) -> ผลผลิตฝั่งเกษตรกรกลับเป็น "รอขาย"
+   * ยกเลิกการรับซื้อ (กรณีบันทึกผิด) -> ผลผลิตฝั่งเกษตรกรกลับเป็น "รอขาย" และยังรอร้านนี้อยู่
+   * (ร้านบันทึกใหม่ให้ถูกได้ทันที หรือเกษตรกรเปลี่ยนร้านเอง)
    * ลบรายการเงินที่ผูกกับ purchase นี้ด้วย (ถ้ามี) ไม่งั้นจะค้างเป็นรายการลอยๆ
    */
   cancelPurchase: async (purchaseId, userId) => {
@@ -392,7 +430,7 @@ const shop = {
       await conn.query(`DELETE FROM finance WHERE ref_purchase_id = ?`, [purchaseId]);
       await conn.query(`DELETE FROM purchase WHERE purchase_id = ?`, [purchaseId]);
       await conn.query(`
-        UPDATE harvest SET status = 'pending', shop_id = NULL WHERE harvest_id = ?
+        UPDATE harvest SET status = 'pending', sold_date = NULL WHERE harvest_id = ?
       `, [found[0].harvest_id]);
       await conn.commit();
       return { isError: false, data: null, errorMessage: '' };
@@ -479,6 +517,11 @@ const shop = {
         ORDER BY r.price_per_kg DESC
       `, [shopId, shopId]);
 
+      // 2.3 ล็อตที่เกษตรกรส่งมาให้ร้านนี้ และยังรอรับซื้อ
+      const incoming = await db.query(
+        `SELECT COUNT(*) AS c FROM harvest WHERE shop_id = ? AND status = 'pending'`, [shopId]
+      );
+
       // 3. รายการรับซื้อล่าสุด 5 แถว
       const recentPurchases = await db.query(`
         SELECT p.purchase_id, p.purchase_date, p.quantity, p.price_per_kg, p.total_price,
@@ -500,7 +543,8 @@ const shop = {
             today_kg: parseFloat(period[0]?.today_kg || 0),
             today_amount: parseFloat(period[0]?.today_amount || 0),
             month_kg: parseFloat(period[0]?.month_kg || 0),
-            month_amount: parseFloat(period[0]?.month_amount || 0)
+            month_amount: parseFloat(period[0]?.month_amount || 0),
+            incoming_count: Number(incoming[0]?.c || 0)
           },
           currentRates: currentRates.map(r => ({
             quality_grade: r.quality_grade,

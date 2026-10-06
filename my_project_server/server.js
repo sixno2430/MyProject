@@ -417,7 +417,7 @@ app.post('/api/harvests', async (req, res) => {
 // เปลี่ยนสถานะ "รอขาย" -> "ขายแล้ว" body: { user_id, price_per_kg, shop_id? }
 app.put('/api/harvests/:harvest_id/sell', async (req, res) => {
   try {
-    const result = await harvest.sellHarvest(req.params.harvest_id, req.body.user_id, req.body.price_per_kg, req.body.shop_id);
+    const result = await harvest.sellHarvest(req.params.harvest_id, req.body.user_id, req.body.price_per_kg, req.body.buyer_name, req.body.sold_date);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -633,6 +633,16 @@ app.delete('/api/shop/purchases/:purchase_id', async (req, res) => {
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** ล็อตที่เกษตรกรเลือกขายให้ร้านนี้ และยังรอร้านยืนยันรับซื้อ: ?user_id=เจ้าของร้าน */
+app.get('/api/shop/:shop_id/incoming', async (req, res) => {
+  try {
+    const result = await shop.getIncomingHarvests(req.params.shop_id, req.query.user_id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message, data: [] });
   }
 });
 

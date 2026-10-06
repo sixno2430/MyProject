@@ -7,6 +7,7 @@
 // GET  /api/shop/:shopId/prices    ประวัติราคา / POST /api/shop/prices บันทึก / DELETE ลบ
 // GET  /api/shop/:shopId/purchases ประวัติรับซื้อ / POST /api/shop/purchases บันทึก / DELETE ยกเลิก
 // GET  /api/shop/farmers/search    ค้นหาเกษตรกร / GET /api/shop/farmers/:id/harvests ผลผลิตรอขาย
+// GET  /api/shop/:shopId/incoming  ล็อตที่เกษตรกรเลือกขายให้ร้านนี้ (รอร้านยืนยันรับซื้อ)
 // GET  /api/shop/:shopId/reports?year= รายงานรายปี
 // ทุกคำสั่งที่แก้ข้อมูลส่ง user_id ไปให้เซิร์ฟเวอร์ตรวจว่าเป็นเจ้าของร้านจริง
 // ============================================================
@@ -153,6 +154,7 @@ class PendingHarvest {
   final String gardenName;
   final double quantity;
   final DateTime date;
+  final bool reserved; // true = เกษตรกรเลือกขายให้ร้านนี้ไว้แล้ว
 
   PendingHarvest({
     required this.harvestId,
@@ -160,6 +162,7 @@ class PendingHarvest {
     required this.gardenName,
     required this.quantity,
     required this.date,
+    this.reserved = false,
   });
 
   factory PendingHarvest.fromJson(Map<String, dynamic> j) => PendingHarvest(
@@ -168,6 +171,25 @@ class PendingHarvest {
         gardenName: j['garden_name']?.toString() ?? 'แปลงปาล์ม',
         quantity: (j['quantity'] as num?)?.toDouble() ?? 0,
         date: DateTime.tryParse(j['harvest_date']?.toString() ?? '') ?? DateTime.now(),
+        reserved: j['reserved'] == true,
+      );
+}
+
+/// ล็อตที่เกษตรกรส่งมาขายร้านนี้ (ผลผลิตรอขาย + เกษตรกรเจ้าของ)
+class IncomingLot {
+  final PendingHarvest harvest;
+  final FarmerResult farmer;
+
+  IncomingLot({required this.harvest, required this.farmer});
+
+  factory IncomingLot.fromJson(Map<String, dynamic> j) => IncomingLot(
+        harvest: PendingHarvest.fromJson({...j, 'reserved': true}),
+        farmer: FarmerResult(
+          userId: j['farmer_id'].toString(),
+          name: j['farmer_name']?.toString() ?? '-',
+          phone: j['farmer_phone']?.toString() ?? '',
+          pendingCount: 1,
+        ),
       );
 }
 
@@ -237,6 +259,7 @@ class ShopReport {
 class ShopDashboardData {
   final double todayKg, todayAmount, monthKg, monthAmount, totalKg, totalAmount;
   final int totalFarmers;
+  final int incomingCount; // ล็อตที่เกษตรกรส่งมา รอร้านยืนยันรับซื้อ
   final List<ShopPriceRate> rates;
   final List<ShopPurchase> recent;
 
@@ -248,6 +271,7 @@ class ShopDashboardData {
     required this.totalKg,
     required this.totalAmount,
     required this.totalFarmers,
+    this.incomingCount = 0,
     required this.rates,
     required this.recent,
   });
@@ -263,6 +287,7 @@ class ShopDashboardData {
       totalKg: n('total_kg'),
       totalAmount: n('total_amount'),
       totalFarmers: (s['total_farmers'] as num?)?.toInt() ?? 0,
+      incomingCount: (s['incoming_count'] as num?)?.toInt() ?? 0,
       rates: (j['currentRates'] as List? ?? []).map((e) => ShopPriceRate.fromJson(e)).toList(),
       recent: (j['recentPurchases'] as List? ?? []).map((e) => ShopPurchase.fromJson(e)).toList(),
     );
@@ -370,6 +395,14 @@ class ShopService {
     final res = await http.get(Uri.parse('$_base/shop/farmers/$farmerId/harvests?user_id=$userId'));
     return (_decode(res)['data'] as List? ?? [])
         .map((e) => PendingHarvest.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
+  /// ล็อตที่เกษตรกรเลือกขายให้ร้านนี้ และยังรอร้านยืนยันรับซื้อ (เก่าสุดก่อน)
+  static Future<List<IncomingLot>> fetchIncoming(String userId, String shopId) async {
+    final res = await http.get(Uri.parse('$_base/shop/$shopId/incoming?user_id=$userId'));
+    return (_decode(res)['data'] as List? ?? [])
+        .map((e) => IncomingLot.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
