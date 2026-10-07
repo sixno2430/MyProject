@@ -216,34 +216,6 @@ class _ShopDashboardScreenState extends State<ShopDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // มีล็อตที่เกษตรกรส่งมารอร้านยืนยัน -> เตือนไว้บนสุด แตะแล้วไปแท็บรับซื้อ
-          if (d.incomingCount > 0) ...[
-            Material(
-              color: theme.primary,
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => widget.onGoTab(1),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  child: Row(
-                    children: [
-                      const Text('📦', style: TextStyle(fontSize: 22)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'มี ${d.incomingCount} ล็อตที่เกษตรกรส่งมารอรับซื้อ',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right, color: Colors.white),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
           Row(
             children: [
               Expanded(child: _statCard('รับซื้อวันนี้', formatNumber(d.todayKg), 'กก.', Icons.scale_rounded)),
