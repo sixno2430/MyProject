@@ -7,9 +7,6 @@
 
 const express = require('express');
 const router = express.Router();
-
-// /:user_id ต้องเป็นของคนที่ล็อกอินอยู่ (router แยกไฟล์ จึงต้องผูก param เองไม่ได้รับจาก app.param)
-router.param('user_id', require('../libs/auth').checkUserParam);
 const dbPool = require('../libs/db_pool');
 const userAccount = require('../models/user_account');
 

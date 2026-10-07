@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
+import 'package:flutter_myproject/services/auth_server.dart';
 import '../screens/garden/plamvarieties/palm_variety.dart';
 
 /// เรียก API พันธุ์ปาล์ม
@@ -19,8 +20,10 @@ class PalmVarietyService {
   /// รองรับทั้งแบบ { data: [...] } และแบบส่ง List มาตรงๆ
   static Future<List<PalmVariety>> getVarieties(String token) async {
     try {
+      // พันธุ์แยกตามผู้ใช้ -> ส่ง user_id ไปให้เซิร์ฟเวอร์กรองเฉพาะพันธุ์ของตัวเอง
+      final userId = await AuthService.getUserId() ?? '';
       final res = await http.get(
-        Uri.parse('$baseUrl/varieties'),
+        Uri.parse('$baseUrl/varieties?user_id=$userId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

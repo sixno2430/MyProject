@@ -859,7 +859,8 @@ class _EditGardenDialogState extends State<_EditGardenDialog> {
   /// โหลดพันธุ์ปาล์มของผู้ใช้ (พันธุ์แยกตามผู้ใช้ เห็นเฉพาะของตัวเอง)
   Future<void> _loadVarieties() async {
     try {
-      final res = await http.get(Uri.parse('${AppConfig.apiBaseUri}/varieties'));
+      final userId = await AuthService.getUserId() ?? '';
+      final res = await http.get(Uri.parse('${AppConfig.apiBaseUri}/varieties?user_id=$userId'));
       final body = jsonDecode(res.body);
       if (body is Map && body['isError'] == false && body['data'] is List) {
         _varieties = (body['data'] as List)
@@ -990,7 +991,7 @@ class _EditGardenDialogState extends State<_EditGardenDialog> {
           if (_varieties.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6, left: 4),
-              child: Text('ยังไม่มีพันธุ์ปาล์มของคุณ เพิ่มได้ที่เมนู "พันธุ์ปาล์ม"',
+              child: Text('ยังไม่มีพันธุ์ปาล์มในรายการของคุณ',
                   style: TextStyle(fontSize: 12, color: Colors.grey[600])),
             ),
         ],

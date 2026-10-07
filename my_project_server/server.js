@@ -33,13 +33,6 @@ app.use(cors());
 app.use(bp.json());
 app.use(bp.urlencoded({ extended: true }));
 
-// ตรวจ JWT ทุก /api (ยกเว้นล็อกอิน/สมัคร) แล้วใช้ user_id จาก token แทนค่าที่แอปส่งมา (libs/auth.js)
-const auth = require('./libs/auth');
-app.use(auth.requireAuth);
-app.param('user_id', auth.checkUserParam);   // URL ที่มี :user_id ต้องเป็นของตัวเอง
-app.param('shop_id', auth.checkShopParam);   // URL ที่มี :shop_id ต้องเป็นร้านของตัวเอง
-app.use('/api/shop', auth.requireShopRole);  // /api/shop/* เฉพาะบัญชีร้าน (/api/shops ของเกษตรกรไม่โดน)
-
 // แก้ปัญหา BigInt ไม่สามารถ serialize เป็น JSON ได้
 BigInt.prototype.toJSON = function() {
   return Number(this);
@@ -206,15 +199,17 @@ app.get('/api/activities/:user_id', async (req, res) => {
 // GARDEN API
 // ==========================================
 
-/** แปลงสวนของคนที่ล็อกอินอยู่ (เดิมส่งแปลงของทุก user ออกไป) */
+/** แปลงสวนของ user (?user_id=) — เดิมส่งแปลงของทุก user ออกไป ไม่ส่ง user_id = ได้รายการว่าง */
 app.get('/api/gardens', async (req, res) => {
   try {
+    const userId = req.query.user_id;
+    if (!userId) return res.json({ isError: false, data: [], errorMessage: '' });
     if (garden && typeof garden.getGardensByUserId === 'function') {
-      const result = await garden.getGardensByUserId(req.user.user_id);
+      const result = await garden.getGardensByUserId(userId);
       return res.json(result);
     }
     
-    const rows = await db.query(`SELECT garden_id AS id, garden_name AS name FROM garden WHERE user_id = ?`, [req.user.user_id]);
+    const rows = await db.query(`SELECT garden_id AS id, garden_name AS name FROM garden WHERE user_id = ?`, [userId]);
     res.json({ isError: false, data: rows });
   } catch (error) {
     console.error('Error fetching gardens:', error);
@@ -375,7 +370,7 @@ app.put('/api/varieties/:variety_id', async (req, res) => {
 /** ลบพันธุ์ปาล์ม */
 app.delete('/api/varieties/:variety_id', async (req, res) => {
   try {
-    const result = await palmVariety.remove(req.params.variety_id, req.user.user_id);
+    const result = await palmVariety.remove(req.params.variety_id, req.query.user_id);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
