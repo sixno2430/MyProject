@@ -1,11 +1,14 @@
 // ============================================================
 // palmvarieties_screen.dart (plamvarieties/) — หน้าพันธุ์ปาล์มที่เปิดจากเมนูหลัก
 //
-// แสดงรายชื่อพันธุ์ปาล์มจาก PalmVarietyService ค้นหาได้ (ดูอย่างเดียว)
+// รายชื่อพันธุ์ปาล์มของผู้ใช้ (พันธุ์แยกตามผู้ใช้) ค้นหาได้
+//   ปุ่ม + = เพิ่มพันธุ์, แตะการ์ด / ⋮ = แก้ไขหรือลบ (พันธุ์ที่มีแปลงปลูกอยู่ลบไม่ได้)
 // ============================================================
 
 import 'package:flutter/material.dart';
 import '../../../../services/palm_variety_service.dart';
+import 'package:flutter_myproject/widgets/item_actions.dart';
+import 'add_palmvariety_screen.dart';
 import 'palm_variety.dart';
 
 /// หน้ารายการพันธุ์ปาล์ม (ต้องส่ง token มาด้วย)
@@ -47,10 +50,54 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
     });
   }
 
+  /// เปิดฟอร์มเพิ่ม (existing = null) หรือแก้ไข บันทึกแล้วโหลดรายการใหม่
+  Future<void> _openForm([PalmVariety? existing]) async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => AddPalmVarietyScreen(existing: existing)),
+    );
+    if (saved == true) _reload();
+  }
+
+  /// แตะการ์ด / ⋮ : เลือกแก้ไขหรือลบ
+  Future<void> _onVarietyActions(PalmVariety v) async {
+    final action = await showItemActionsSheet(context);
+    if (action == null || !mounted) return;
+    if (action == ItemAction.edit) {
+      _openForm(v);
+      return;
+    }
+    // ปลูกอยู่ = ลบไม่ได้ (เซิร์ฟเวอร์ก็กันไว้) บอกเลยไม่ต้องถามยืนยัน
+    if (v.gardenCount > 0) {
+      _toast('ลบไม่ได้ เพราะมี ${v.gardenCount} แปลงที่ปลูกพันธุ์นี้อยู่');
+      return;
+    }
+    if (!await confirmDelete(context, v.varietyName)) return;
+    try {
+      await PalmVarietyService.deleteVariety(v.varietyId);
+      _toast('ลบพันธุ์ปาล์มแล้ว');
+      _reload();
+    } catch (e) {
+      _toast(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  void _toast(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openForm(),
+        backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('เพิ่มพันธุ์', style: TextStyle(fontWeight: FontWeight.w600)),
+      ),
       body: Column(
         children: [
           // ====== Header สีเขียว ======
@@ -124,7 +171,8 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
               color: primaryGreen,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
+                // เว้นล่างให้พ้นปุ่ม + การ์ดสุดท้ายจะได้ไม่ถูกบัง
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                 child: Column(
                   children: [
                     // ช่องค้นหา
@@ -222,6 +270,8 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
                         }).toList();
 
                         if (items.isEmpty) {
+                          // ยังไม่มีพันธุ์เลย (บัญชีใหม่) กับ ค้นหาไม่เจอ บอกคนละแบบ
+                          final noData = (snap.data ?? []).isEmpty;
                           return Center(
                             child: Padding(
                               padding: const EdgeInsets.all(40),
@@ -231,8 +281,11 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
                                       size: 48, color: Colors.grey[400]),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'ไม่พบข้อมูลพันธุ์ปาล์ม',
-                                    style: TextStyle(color: Colors.grey[600]),
+                                    noData
+                                        ? 'ยังไม่มีพันธุ์ปาล์มของคุณ\nกด "เพิ่มพันธุ์" เพื่อเริ่มบันทึก'
+                                        : 'ไม่พบพันธุ์ปาล์มที่ค้นหา',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Colors.grey[600], height: 1.5),
                                   ),
                                 ],
                               ),
@@ -247,14 +300,22 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
                           separatorBuilder: (context, index) =>
                               const SizedBox(height: 12),
                           itemBuilder: (context, i) {
-                            return _buildVarietyCard(
-                              topColor: _palette[i % _palette.length][0],
-                              iconBgColor: _palette[i % _palette.length][1],
-                              name: items[i].varietyName,
-                              scientificName: items[i].scientificName ?? '-',
-                              description: '',
-                              usageText: '',
-                              usageColor: _palette[i % _palette.length][0],
+                            final v = items[i];
+                            return GestureDetector(
+                              onTap: () => _onVarietyActions(v),
+                              child: _buildVarietyCard(
+                                topColor: _palette[i % _palette.length][0],
+                                iconBgColor: _palette[i % _palette.length][1],
+                                name: v.varietyName,
+                                scientificName: (v.scientificName ?? '').isEmpty ? '-' : v.scientificName!,
+                                description: '',
+                                // บอกว่าปลูกอยู่กี่ต้น กี่แปลง (ยังไม่ได้ปลูก = ไม่แสดง)
+                                usageText: v.gardenCount > 0
+                                    ? 'ปลูก ${v.plantCount} ต้น ใน ${v.gardenCount} แปลง'
+                                    : '',
+                                usageColor: _palette[i % _palette.length][0],
+                                onMore: () => _onVarietyActions(v),
+                              ),
                             );
                           },
                         );
@@ -280,6 +341,7 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
     required String usageText,
     required Color usageColor,
     String? badge,
+    VoidCallback? onMore,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -371,6 +433,12 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
                         ],
                       ),
                     ),
+                    if (onMore != null)
+                      IconButton(
+                        icon: Icon(Icons.more_vert, color: Colors.grey[400], size: 20),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: onMore,
+                      ),
                   ],
                 ),
                 if (description.isNotEmpty) ...[
@@ -389,12 +457,15 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
                   Row(
                     children: [
                       const Text('🌴 ', style: TextStyle(fontSize: 14)),
-                      Text(
-                        usageText,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: usageColor,
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Text(
+                          usageText,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: usageColor,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],

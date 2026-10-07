@@ -991,7 +991,7 @@ class _EditGardenDialogState extends State<_EditGardenDialog> {
           if (_varieties.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6, left: 4),
-              child: Text('ยังไม่มีพันธุ์ปาล์มในรายการของคุณ',
+              child: Text('ยังไม่มีพันธุ์ปาล์มของคุณ เพิ่มได้ที่เมนู "พันธุ์ปาล์ม"',
                   style: TextStyle(fontSize: 12, color: Colors.grey[600])),
             ),
         ],

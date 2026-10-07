@@ -208,7 +208,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 6, left: 4),
                     child: Text(
-                      'ยังไม่มีพันธุ์ปาล์มในรายการของคุณ (ไม่เลือกก็บันทึกแปลงได้)',
+                      'ยังไม่มีพันธุ์ปาล์มของคุณ เพิ่มได้ที่เมนู "พันธุ์ปาล์ม" (ไม่เลือกก็บันทึกแปลงได้)',
                       style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                   ),
