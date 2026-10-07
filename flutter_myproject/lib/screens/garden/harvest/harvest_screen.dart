@@ -35,6 +35,9 @@ class HarvestData {
 
   /// true = ร้านในแอปบันทึกรับซื้อแล้ว แก้/ลบเองไม่ได้
   final bool purchasedByShop;
+
+  /// หมายเหตุที่เกษตรกรพิมพ์เอง ('' = ไม่มี)
+  final String note;
   final String code;
   final String plotName;
   final String buyer;
@@ -51,6 +54,7 @@ class HarvestData {
     this.buyerName = '',
     this.soldDate = '',
     this.purchasedByShop = false,
+    this.note = '',
     required this.code,
     required this.plotName,
     required this.buyer,
@@ -71,6 +75,7 @@ class HarvestData {
       soldDate: json['soldDate']?.toString() ?? '',
       // MariaDB ส่งค่า boolean มาเป็น 0/1
       purchasedByShop: json['purchasedByShop'] == true || json['purchasedByShop'] == 1,
+      note: json['note']?.toString() ?? '',
       code: json['code'] ?? '',
       plotName: json['plotName'] ?? json['plot_name'] ?? '',
       buyer: json['buyer'] ?? '',
@@ -695,6 +700,16 @@ class _HarvestScreenState extends State<HarvestScreen> {
                               : '${item.quantityKg.toStringAsFixed(0)} กก. · ยังไม่ได้ขาย',
                           style: const TextStyle(color: Colors.black87, fontSize: 13),
                         ),
+                        // หมายเหตุ (ถ้ามี) บรรทัดเดียว ยาวเกินตัดเป็น ...
+                        if (item.note.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '📝 ${item.note}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          ),
+                        ],
                       ],
                     ),
                   ),

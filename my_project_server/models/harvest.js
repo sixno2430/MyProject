@@ -19,6 +19,9 @@ const db = require('../libs/db_pool');
 /** วันนี้ตามเวลาเครื่อง (yyyy-mm-dd) */
 const today = () => new Date().toLocaleDateString('sv-SE');
 
+/** หมายเหตุจากฟอร์ม: ตัดช่องว่าง จำกัด 500 ตัวอักษร (ตามขนาดคอลัมน์) ว่าง = NULL */
+const cleanNote = (v) => String(v || '').trim().slice(0, 500) || null;
+
 const PURCHASED_MSG = 'ร้านรับซื้อบันทึกการรับซื้อรายการนี้แล้ว แก้ไขหรือลบไม่ได้ หากผิดพลาดให้ร้านยกเลิกการรับซื้อ';
 
 /**
@@ -74,6 +77,7 @@ const harvest = {
             ELSE 'ยังไม่เลือกร้าน'
           END AS buyer,
           h.buyer_name AS buyerName,
+          h.note,
           (p.purchase_id IS NOT NULL) AS purchasedByShop, -- 1 = ร้านในแอปรับซื้อแล้ว (ล็อกการแก้ไข)
           CAST(h.total_quantity AS DOUBLE) AS quantityKg,
           CAST(h.price_per_kg AS DOUBLE) AS pricePerKg,
@@ -224,11 +228,11 @@ const harvest = {
 
       await db.query(`
         INSERT INTO harvest
-        (harvest_id, garden_id, shop_id, buyer_name, harvest_date, total_quantity, price_per_kg, total_price, status, sold_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (harvest_id, garden_id, shop_id, buyer_name, harvest_date, total_quantity, price_per_kg, total_price, status, sold_date, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         newHarvestId, garden_id || null, f.shop_id, f.buyer_name, harvest_date,
-        total_quantity || 0, price_per_kg || 0, total_price || 0, f.status, f.sold_date,
+        total_quantity || 0, price_per_kg || 0, total_price || 0, f.status, f.sold_date, cleanNote(data.note),
       ]);
 
       return { isError: false, data: { harvest_id: newHarvestId }, errorMessage: "" };
@@ -254,14 +258,14 @@ const harvest = {
       const result = await db.query(`
         UPDATE harvest
         SET garden_id = ?, shop_id = ?, buyer_name = ?, harvest_date = ?, total_quantity = ?,
-            price_per_kg = ?, total_price = ?, status = ?, sold_date = ?
+            price_per_kg = ?, total_price = ?, status = ?, sold_date = ?, note = ?
         WHERE harvest_id = ?
           AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?)
           AND ? IN (SELECT garden_id FROM garden WHERE user_id = ?)
           AND harvest_id NOT IN (SELECT harvest_id FROM purchase)
       `, [
         garden_id, f.shop_id, f.buyer_name, harvest_date, total_quantity || 0,
-        price_per_kg || 0, total_price || 0, f.status, f.sold_date,
+        price_per_kg || 0, total_price || 0, f.status, f.sold_date, cleanNote(data.note),
         harvestId, userId, garden_id, userId,
       ]);
       if (!result.affectedRows) {

@@ -31,6 +31,10 @@ class ActivityDetailScreen extends StatelessWidget {
   /// แปลงค่าจาก JSON เป็นตัวเลข (ถ้าแปลงไม่ได้ให้เป็น 0)
   double _num(dynamic v) => double.tryParse(v?.toString() ?? '') ?? 0;
 
+  /// ผลผลิตที่ร้านในแอปรับซื้อแล้ว แก้/ลบเองไม่ได้ (เซิร์ฟเวอร์ส่ง purchased มาเป็น 0/1)
+  bool get _isPurchased =>
+      activity.type == 'harvest' && (activity.raw['purchased'] == 1 || activity.raw['purchased'] == true);
+
   // เปิดฟอร์มแก้ไขให้ตรงประเภท โดยแปลงข้อมูลกิจกรรมเป็นรูปแบบที่ฟอร์มนั้นรับ
   /// สร้างฟอร์มแก้ไขให้ตรงประเภท โดยแปลงข้อมูลกิจกรรมเป็นรูปแบบที่ฟอร์มนั้นรับ
   Widget _buildEditForm() {
@@ -43,6 +47,11 @@ class ActivityDetailScreen extends StatelessWidget {
             id: activity.id,
             gardenId: activity.gardenId,
             shopId: raw['shop_id']?.toString() ?? '', // คงร้านเดิมไว้ตอนแก้ไข
+            // ขายนอกระบบ: ส่งชื่อร้าน + วันที่ขายเดิมเข้าฟอร์ม ไม่งั้นบันทึกแล้วหาย/วันที่เปลี่ยน
+            buyerName: raw['buyer_name']?.toString() ?? '',
+            soldDate: raw['sold_date']?.toString() ?? '',
+            purchasedByShop: _isPurchased,
+            note: raw['note']?.toString() ?? '',
             code: raw['code']?.toString() ?? activity.id,
             plotName: activity.gardenName,
             buyer: '',
@@ -135,16 +144,19 @@ class ActivityDetailScreen extends StatelessWidget {
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: () => Navigator.pop(context),
             ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.edit, color: Colors.white),
-                onPressed: () => _edit(context),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.white),
-                onPressed: () => _delete(context),
-              ),
-            ],
+            // ร้านรับซื้อแล้ว = ไม่มีปุ่มแก้/ลบ
+            actions: _isPurchased
+                ? null
+                : [
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.white),
+                      onPressed: () => _edit(context),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.white),
+                      onPressed: () => _delete(context),
+                    ),
+                  ],
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: BoxDecoration(
@@ -156,14 +168,19 @@ class ActivityDetailScreen extends StatelessWidget {
                 ),
                 child: SafeArea(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    // จัดชิดล่างแทนการเว้นบนคงที่ 60 จอเล็ก/ตัวอักษรใหญ่จะได้ไม่ล้น
                     child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         ActivityTypeBadge(type: activity.type),
                         const SizedBox(height: 12),
                         Text(
                           activity.gardenName,
+                          // ส่วนหัวสูงคงที่ ชื่อยาวขึ้นบรรทัดสองจะล้น -> ตัดเป็น ... บรรทัดเดียว
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 24,
@@ -173,6 +190,8 @@ class ActivityDetailScreen extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           formatThaiDate(activity.recordDate),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.85),
                             fontSize: 14,
@@ -265,7 +284,30 @@ class ActivityDetailScreen extends StatelessWidget {
 
                   const SizedBox(height: 32),
 
-                  // ปุ่มแก้ไข / ลบ
+                  // ปุ่มแก้ไข / ลบ (ร้านรับซื้อแล้วแสดงข้อความแทน)
+                  if (_isPurchased)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.lock_outline, size: 18, color: Colors.grey),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'ร้านรับซื้อบันทึกรายการนี้แล้ว แก้ไขหรือลบไม่ได้ หากผิดพลาดให้ติดต่อร้านเพื่อยกเลิกการรับซื้อ',
+                              style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
                   Row(
                     children: [
                       Expanded(

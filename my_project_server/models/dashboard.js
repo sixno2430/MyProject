@@ -10,19 +10,22 @@ const pool = require('../libs/db_pool');
 // กิจกรรมทั้งหมดของ user รวม 4 แหล่ง เรียงวันที่ล่าสุดก่อน
 // คอลัมน์ต้องเหมือนกันทุกส่วนของ UNION จึงเติม NULL ในช่องที่แหล่งนั้นไม่มี
 // ช่องเสริม (price_per_kg, action_type ฯลฯ) มีไว้ให้หน้ารายละเอียดเปิดฟอร์มแก้ไขได้
+// buyer_name / sold_date / purchased: ให้ฟอร์มแก้ไขเก็บเกี่ยวคงชื่อร้านนอกระบบ + วันที่ขายไว้
+//   และซ่อนปุ่มแก้/ลบ เมื่อร้านในแอปรับซื้อแล้ว (purchased = 1)
 const ACTIVITY_SQL =
     "(SELECT 'harvest' AS type, h.harvest_id AS id, h.garden_id, g.garden_name, " +
-    "   NULL AS description, h.total_quantity AS quantity, h.total_price AS amount, " +
+    "   NULLIF(h.note, '') AS description, h.total_quantity AS quantity, h.total_price AS amount, " +
     "   h.harvest_date AS record_date, h.price_per_kg, h.status, h.code, " +
-    "   NULL AS fertilizer_id, NULL AS action_type, NULL AS quantity_type, NULL AS note, NULL AS category, " +
-    "   h.shop_id " +
+    "   NULL AS fertilizer_id, NULL AS action_type, NULL AS quantity_type, h.note, NULL AS category, " +
+    "   h.shop_id, h.buyer_name, DATE_FORMAT(h.sold_date, '%Y-%m-%d') AS sold_date, " +
+    "   EXISTS(SELECT 1 FROM purchase p WHERE p.harvest_id = h.harvest_id) AS purchased " +
     " FROM harvest h JOIN garden g ON h.garden_id = g.garden_id " +
     " WHERE g.user_id = ?) " +
     "UNION ALL " +
     "(SELECT 'care', c.care_id, c.garden_id, g.garden_name, " +
     "   COALESCE(f.fertilizer_name, NULLIF(c.note, '')), c.quantity, c.cost, " +
     "   c.record_date, NULL, NULL, NULL, " +
-    "   c.fertilizer_id, c.action_type, c.quantity_type, c.note, NULL, NULL " +
+    "   c.fertilizer_id, c.action_type, c.quantity_type, c.note, NULL, NULL, NULL, NULL, 0 " +
     " FROM palm_care c JOIN garden g ON c.garden_id = g.garden_id " +
     " LEFT JOIN fertilizer f ON c.fertilizer_id = f.fertilizer_id " +
     " WHERE g.user_id = ?) " +
@@ -30,17 +33,20 @@ const ACTIVITY_SQL =
     "(SELECT LOWER(fn.record_type), fn.finance_id, fn.garden_id, COALESCE(g.garden_name, 'ไม่ระบุแปลง'), " +
     "   fn.description, NULL, fn.amount, " +
     "   fn.record_date, NULL, NULL, NULL, " +
-    "   NULL, NULL, NULL, NULL, fn.expense_category, NULL " +
+    "   NULL, NULL, NULL, NULL, fn.expense_category, NULL, NULL, NULL, 0 " +
     " FROM finance fn LEFT JOIN garden g ON fn.garden_id = g.garden_id " +
     " WHERE fn.user_id = ? AND fn.ref_care_id IS NULL AND fn.ref_purchase_id IS NULL) " +
     "ORDER BY record_date DESC, id DESC";
+
+// purchased ได้มาเป็น BigInt (0n/1n) ซึ่ง res.json แปลงเป็น JSON ไม่ได้ -> แปลงเป็น number ก่อนส่ง
+const fixActivityRows = (rows) => rows.map((r) => ({ ...r, purchased: Number(r.purchased || 0) }));
 
 module.exports = {
   // กิจกรรมทั้งหมด (หน้า "ประวัติกิจกรรม") — limit = null คือเอาทั้งหมด
   getActivities: async (userId, limit = null) => {
     try {
       var sql = ACTIVITY_SQL + (limit ? " LIMIT " + Number(limit) : "");
-      var rows = await pool.query(sql, [userId, userId, userId]);
+      var rows = fixActivityRows(await pool.query(sql, [userId, userId, userId]));
       return { isError: false, data: rows, errorMessage: "" };
     } catch (error) {
       console.error('Error getActivities:', error.message);
@@ -104,7 +110,7 @@ module.exports = {
       var pendingRows = await conn.query(pendingSql, [userId]);
 
       // 4) กิจกรรมล่าสุด 5 รายการ (ใช้ query เดียวกับหน้าประวัติกิจกรรม)
-      var activityRows = await conn.query(ACTIVITY_SQL + " LIMIT 5", [userId, userId, userId]);
+      var activityRows = fixActivityRows(await conn.query(ACTIVITY_SQL + " LIMIT 5", [userId, userId, userId]));
 
       result = {
         isError: false,

@@ -67,6 +67,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       _status = e.status == 'pending' ? 'pending' : 'sold';
       _selectedShopId = e.status == 'pending' && e.shopId.isNotEmpty ? e.shopId : null;
       _buyerNameController.text = e.buyerName;
+      _noteController.text = e.note;
       _soldDate = DateTime.tryParse(e.soldDate) ?? _selectedDate;
     }
     _updateDateDisplay();
@@ -467,6 +468,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
               TextFormField(
                 controller: _noteController,
                 maxLines: 3,
+                maxLength: 500, // ตามขนาดคอลัมน์ note ในฐานข้อมูล
                 decoration: _buildInputDecoration(hintText: 'เพิ่มเติม...'),
               ),
               const SizedBox(height: 24),
