@@ -101,6 +101,7 @@ class ShopPurchase {
   final String farmerName;
   final String farmerPhone;
   final String gardenName;
+  final String grade; // เกรดที่ร้านเลือกตอนรับซื้อ ('' = ไม่ระบุ/กรอกราคาเอง)
   final double quantity;
   final double pricePerKg;
   final double totalPrice;
@@ -111,6 +112,7 @@ class ShopPurchase {
     required this.farmerName,
     this.farmerPhone = '',
     this.gardenName = '',
+    this.grade = '',
     required this.quantity,
     required this.pricePerKg,
     required this.totalPrice,
@@ -122,6 +124,7 @@ class ShopPurchase {
         farmerName: j['farmer_name']?.toString() ?? 'ไม่ระบุชื่อ',
         farmerPhone: j['farmer_phone']?.toString() ?? '',
         gardenName: j['garden_name']?.toString() ?? '',
+        grade: j['quality_grade']?.toString() ?? '',
         quantity: double.tryParse(j['quantity']?.toString() ?? '') ?? 0,
         pricePerKg: double.tryParse(j['price_per_kg']?.toString() ?? '') ?? 0,
         totalPrice: double.tryParse(j['total_price']?.toString() ?? '') ?? 0,
@@ -414,6 +417,7 @@ class ShopService {
     required double quantity,
     required double pricePerKg,
     required String purchaseDate,
+    String? grade, // เกรดที่เลือก (null = กรอกราคาเอง ไม่ระบุเกรด)
   }) async {
     final res = await http.post(
       Uri.parse('$_base/shop/purchases'),
@@ -425,6 +429,7 @@ class ShopService {
         'quantity': quantity,
         'price_per_kg': pricePerKg,
         'purchase_date': purchaseDate,
+        'quality_grade': grade,
       }),
     );
     _decode(res);

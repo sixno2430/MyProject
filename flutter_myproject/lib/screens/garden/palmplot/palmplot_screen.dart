@@ -524,15 +524,17 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
       child: Row(
         children: [
-          const Text(
-            'รายการแปลงสวน',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: _textDark,
+          const Expanded(
+            child: Text(
+              'รายการแปลงสวน',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: _textDark,
+              ),
             ),
           ),
-          const Spacer(),
           if (!isLoading && errorMessage.isEmpty)
             Text(
               '${filteredGardens.length} แปลง',
@@ -832,6 +834,11 @@ class _EditGardenDialogState extends State<_EditGardenDialog> {
   /// เก็บเป็น ค.ศ. (ตามฐานข้อมูล) แต่แสดงผลเป็น พ.ศ.
   int? _plantYear;
 
+  /// พันธุ์ปาล์มของผู้ใช้ [{variety_id, variety_name}] และพันธุ์ที่เลือก (null = ไม่ระบุพันธุ์)
+  List<Map<String, String>> _varieties = [];
+  bool _loadingVarieties = true;
+  String? _varietyId;
+
   Color get _green => widget.primaryGreen;
 
   @override
@@ -843,6 +850,27 @@ class _EditGardenDialogState extends State<_EditGardenDialog> {
     _areaCtrl = TextEditingController(text: g.areaSize > 0 ? _trimZero(g.areaSize) : '');
     _countCtrl = TextEditingController(text: g.plantCount > 0 ? '${g.plantCount}' : '');
     _plantYear = g.plantYear;
+    // แปลงหนึ่งปลูกพันธุ์เดียว (ตามหน้าเพิ่มแปลง) -> เอาพันธุ์แรกเป็นค่าตั้งต้น
+    final current = g.varieties ?? [];
+    _varietyId = current.isNotEmpty && current.first.varietyId.isNotEmpty ? current.first.varietyId : null;
+    _loadVarieties();
+  }
+
+  /// โหลดพันธุ์ปาล์มของผู้ใช้ (พันธุ์แยกตามผู้ใช้ เห็นเฉพาะของตัวเอง)
+  Future<void> _loadVarieties() async {
+    try {
+      final res = await http.get(Uri.parse('${AppConfig.apiBaseUri}/varieties'));
+      final body = jsonDecode(res.body);
+      if (body is Map && body['isError'] == false && body['data'] is List) {
+        _varieties = (body['data'] as List)
+            .map((v) => {'id': v['variety_id'].toString(), 'name': v['variety_name'].toString()})
+            .toList();
+      }
+    } catch (_) {
+      // โหลดไม่ได้: ยังแก้ข้อมูลอื่นได้ และจะไม่ส่งพันธุ์ไป (คงพันธุ์เดิม)
+    } finally {
+      if (mounted) setState(() => _loadingVarieties = false);
+    }
   }
 
   @override
@@ -926,7 +954,48 @@ class _EditGardenDialogState extends State<_EditGardenDialog> {
       'area_size': double.tryParse(_areaCtrl.text.trim()) ?? 0,
       'plant_year': _plantYear,
       'plant_count': int.tryParse(_countCtrl.text.trim()) ?? 0,
+      // ส่งพันธุ์เฉพาะเมื่อโหลดรายการพันธุ์ได้ (โหลดไม่ได้ = ไม่ส่ง เซิร์ฟเวอร์คงพันธุ์เดิมไว้)
+      if (_varieties.isNotEmpty || _varietyId == null) 'variety_id': _varietyId,
     });
+  }
+
+  /// ช่องเลือกพันธุ์ปาล์ม (มีตัวเลือก "ไม่ระบุพันธุ์")
+  Widget _varietySelector() {
+    if (_loadingVarieties) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+      );
+    }
+    // ค่าที่เลือกต้องอยู่ในรายการ ไม่งั้น Dropdown error
+    final safeValue = _varieties.any((v) => v['id'] == _varietyId) ? _varietyId : null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownButtonFormField<String?>(
+            initialValue: safeValue,
+            isExpanded: true,
+            decoration: _decoration(label: 'พันธุ์ปาล์ม', icon: Icons.eco_outlined),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('ไม่ระบุพันธุ์')),
+              ..._varieties.map((v) => DropdownMenuItem<String?>(
+                    value: v['id'],
+                    child: Text(v['name']!, overflow: TextOverflow.ellipsis),
+                  )),
+            ],
+            onChanged: (v) => setState(() => _varietyId = v),
+          ),
+          if (_varieties.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, left: 4),
+              child: Text('ยังไม่มีพันธุ์ปาล์มของคุณ เพิ่มได้ที่เมนู "พันธุ์ปาล์ม"',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1025,6 +1094,7 @@ class _EditGardenDialogState extends State<_EditGardenDialog> {
                         ),
                         const SizedBox(height: 8),
                         _sectionTitle('ข้อมูลการปลูก'),
+                        _varietySelector(),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -1133,14 +1203,17 @@ class _EditGardenDialogState extends State<_EditGardenDialog> {
         decoration: _decoration(label: 'ปีที่ปลูก', icon: Icons.calendar_month_outlined),
         child: Row(
           children: [
-            Text(
-              _plantYear == null ? 'เลือกปี' : 'พ.ศ. ${_plantYear! + 543}',
-              style: TextStyle(
-                fontSize: 15,
-                color: _plantYear == null ? Colors.grey[400] : const Color(0xFF1F2937),
+            // ปีขยายเต็มที่ว่าง (จอแคบตัดเป็น ...) ป้ายอายุกับลูกศรจะได้ไม่ล้น
+            Expanded(
+              child: Text(
+                _plantYear == null ? 'เลือกปี' : 'พ.ศ. ${_plantYear! + 543}',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: _plantYear == null ? Colors.grey[400] : const Color(0xFF1F2937),
+                ),
               ),
             ),
-            const Spacer(),
             if (age != null)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),

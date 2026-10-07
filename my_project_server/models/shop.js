@@ -324,7 +324,7 @@ const shop = {
    * ส่วนกลางของ "การรับซื้อ 1 ครั้ง": บันทึก purchase + เปลี่ยน harvest เป็น sold (ร้าน/ราคา/น้ำหนัก/วันที่ขาย)
    * ต้องเรียกภายใน transaction ที่เปิดไว้แล้ว (conn) และตรวจสิทธิ์/สถานะรอขายมาก่อน
    */
-  recordSaleTx: async (conn, { harvest_id, shop_id, farmer_id, purchase_date, quantity, price_per_kg }) => {
+  recordSaleTx: async (conn, { harvest_id, shop_id, farmer_id, purchase_date, quantity, price_per_kg, quality_grade }) => {
     const maxRows = await conn.query(
       `SELECT MAX(CAST(SUBSTRING(purchase_id, 2) AS UNSIGNED)) AS max_num FROM purchase WHERE purchase_id REGEXP '^P[0-9]+$'`
     );
@@ -332,9 +332,10 @@ const shop = {
     const total = Math.round(quantity * price_per_kg * 100) / 100;
 
     await conn.query(`
-      INSERT INTO purchase (purchase_id, harvest_id, shop_id, user_id, purchase_date, quantity, price_per_kg, total_price)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [purchaseId, harvest_id, shop_id, farmer_id, purchase_date, quantity, price_per_kg, total]);
+      INSERT INTO purchase (purchase_id, harvest_id, quality_grade, shop_id, user_id, purchase_date, quantity, price_per_kg, total_price)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [purchaseId, harvest_id, String(quality_grade || '').trim().slice(0, 100) || null,
+        shop_id, farmer_id, purchase_date, quantity, price_per_kg, total]);
 
     // ฝั่งเกษตรกร: ขายแล้ว + ร้าน + ราคา + น้ำหนัก -> รายรับขึ้นในหน้าการเงินทันที
     await conn.query(`
@@ -354,7 +355,8 @@ const shop = {
    *   quantity   = น้ำหนักที่ร้านชั่งจริง (ใช้แทนน้ำหนักที่เกษตรกรประมาณไว้)
    * ทำใน transaction เดียว: บันทึก purchase + อัปเดต harvest ถ้าพังกลางทางจะย้อนกลับทั้งหมด
    */
-  createPurchase: async ({ user_id, shop_id, harvest_id, purchase_date, quantity, price_per_kg }) => {
+  //   quality_grade = เกรดที่ร้านเลือก (ข้อความ เช่น "เกรด A") ไม่บังคับ: กรอกราคาเอง = ไม่มีเกรด
+  createPurchase: async ({ user_id, shop_id, harvest_id, purchase_date, quantity, price_per_kg, quality_grade }) => {
     const qty = parseFloat(quantity);
     const price = parseFloat(price_per_kg);
     if (!harvest_id) return { isError: true, data: null, errorMessage: 'กรุณาเลือกผลผลิตที่รับซื้อ' };
@@ -401,7 +403,7 @@ const shop = {
       }
 
       const sale = await shop.recordSaleTx(conn, {
-        harvest_id, shop_id, farmer_id: found[0].farmer_id, purchase_date, quantity: qty, price_per_kg: price,
+        harvest_id, shop_id, farmer_id: found[0].farmer_id, purchase_date, quantity: qty, price_per_kg: price, quality_grade,
       });
 
       await conn.commit();
@@ -454,7 +456,7 @@ const shop = {
   getPurchasesByShop: async (shopId) => {
     try {
       const rows = await db.query(`
-        SELECT p.purchase_id, p.shop_id, p.user_id, p.harvest_id, p.purchase_date,
+        SELECT p.purchase_id, p.shop_id, p.user_id, p.harvest_id, p.purchase_date, p.quality_grade,
                p.quantity, p.price_per_kg, p.total_price,
                u.full_name AS farmer_name, u.phone AS farmer_phone,
                COALESCE(g.garden_name, '') AS garden_name
@@ -531,7 +533,7 @@ const shop = {
 
       // 3. รายการรับซื้อล่าสุด 5 แถว
       const recentPurchases = await db.query(`
-        SELECT p.purchase_id, p.purchase_date, p.quantity, p.price_per_kg, p.total_price,
+        SELECT p.purchase_id, p.purchase_date, p.quantity, p.price_per_kg, p.total_price, p.quality_grade,
                u.full_name AS farmer_name
         FROM purchase p
         JOIN user u ON p.user_id = u.user_id

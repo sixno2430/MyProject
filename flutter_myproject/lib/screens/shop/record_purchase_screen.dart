@@ -187,6 +187,7 @@ class _RecordPurchaseScreenState extends State<RecordPurchaseScreen> {
         quantity: _qty,
         pricePerKg: _price,
         purchaseDate: DateFormat('yyyy-MM-dd').format(_date),
+        grade: _grade, // null = กำหนดราคาเอง
       );
       if (!mounted) return;
       _toast('บันทึกการรับซื้อแล้ว ผลผลิตของ ${_farmer!.name} เปลี่ยนเป็น "ขายแล้ว"');

@@ -121,25 +121,66 @@ const garden = {
    * แก้ไขข้อมูลแปลง
    */
   updateGarden: async (gardenId, gardenData) => {
+    let conn;
     try {
       const { user_id, garden_name, address, area_size, plant_year, plant_count } = gardenData;
+      // ส่ง variety_id มา = เปลี่ยนพันธุ์ด้วย (null = ไม่ระบุพันธุ์), ไม่ส่งมาเลย = คงพันธุ์เดิม
+      const changeVariety = Object.prototype.hasOwnProperty.call(gardenData, 'variety_id');
+      const newVariety = gardenData.variety_id || null;
+
+      if (changeVariety && newVariety) {
+        const mine = await db.query(
+          `SELECT variety_id FROM palm_variety WHERE variety_id = ? AND user_id = ?`, [newVariety, user_id]
+        );
+        if (mine.length === 0) {
+          return { isError: true, data: null, errorMessage: 'ไม่พบพันธุ์ปาล์มนี้ในรายการของคุณ' };
+        }
+      }
+
+      conn = await db.getConnection();
+      await conn.beginTransaction();
 
       // แก้ได้เฉพาะแปลงของตัวเอง (user_id ต้องตรงกับเจ้าของแปลง)
-      const query = `
+      const result = await conn.query(`
         UPDATE garden 
         SET garden_name = ?, address = ?, area_size = ?, 
             plant_year = ?, plant_count = ?
         WHERE garden_id = ? AND user_id = ?
-      `;
-      const result = await db.query(query, [garden_name, address, area_size, plant_year, plant_count, gardenId, user_id]);
+      `, [garden_name, address, area_size, plant_year, plant_count, gardenId, user_id]);
       if (!result.affectedRows) {
+        await conn.rollback();
         return { isError: true, data: null, errorMessage: 'ไม่พบแปลงสวน หรือไม่มีสิทธิ์แก้ไข' };
       }
 
+      if (changeVariety) {
+        const current = await conn.query(`SELECT variety_id FROM garden_variety WHERE garden_id = ?`, [gardenId]);
+        if (newVariety && current.some((r) => r.variety_id === newVariety)) {
+          // พันธุ์เดิม: อัปเดตจำนวนต้นอย่างเดียว หมายเหตุของพันธุ์ในแปลงยังอยู่
+          await conn.query(
+            `UPDATE garden_variety SET plant_count = ? WHERE garden_id = ? AND variety_id = ?`,
+            [plant_count || 0, gardenId, newVariety]
+          );
+          await conn.query(`DELETE FROM garden_variety WHERE garden_id = ? AND variety_id <> ?`, [gardenId, newVariety]);
+        } else {
+          // เปลี่ยนพันธุ์ / เอาพันธุ์ออก
+          await conn.query(`DELETE FROM garden_variety WHERE garden_id = ?`, [gardenId]);
+          if (newVariety) {
+            await conn.query(
+              `INSERT INTO garden_variety (variety_id, garden_id, plant_count, note) VALUES (?, ?, ?, '')`,
+              [newVariety, gardenId, plant_count || 0]
+            );
+          }
+        }
+      }
+
+      await conn.commit();
       return { isError: false, data: { garden_id: gardenId }, errorMessage: "" };
     } catch (error) {
+      if (conn) await conn.rollback().catch(() => {});
       console.error("❌ Error in garden.js (updateGarden):", error.message);
-      return { isError: true, data: null, errorMessage: error.message };
+      return { isError: true, data: null, errorMessage: 'แก้ไขแปลงสวนไม่สำเร็จ' };
+    } finally {
+      if (conn) conn.release();
     }
   },
 

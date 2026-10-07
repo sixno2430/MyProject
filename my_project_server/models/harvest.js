@@ -93,6 +93,7 @@ const harvest = {
           END AS buyer,
           h.buyer_name AS buyerName,
           h.note,
+          p.quality_grade AS grade, -- เกรดที่ร้านในแอปให้ตอนรับซื้อ
           (p.purchase_id IS NOT NULL) AS purchasedByShop, -- 1 = ร้านในแอปรับซื้อแล้ว (ล็อกการแก้ไข)
           CAST(h.total_quantity AS DOUBLE) AS quantityKg,
           CAST(h.price_per_kg AS DOUBLE) AS pricePerKg,

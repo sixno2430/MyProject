@@ -38,6 +38,9 @@ class HarvestData {
 
   /// หมายเหตุที่เกษตรกรพิมพ์เอง ('' = ไม่มี)
   final String note;
+
+  /// เกรดที่ร้านในแอปให้ตอนรับซื้อ ('' = ไม่มี)
+  final String grade;
   final String code;
   final String plotName;
   final String buyer;
@@ -55,6 +58,7 @@ class HarvestData {
     this.soldDate = '',
     this.purchasedByShop = false,
     this.note = '',
+    this.grade = '',
     required this.code,
     required this.plotName,
     required this.buyer,
@@ -76,6 +80,7 @@ class HarvestData {
       // MariaDB ส่งค่า boolean มาเป็น 0/1
       purchasedByShop: json['purchasedByShop'] == true || json['purchasedByShop'] == 1,
       note: json['note']?.toString() ?? '',
+      grade: json['grade']?.toString() ?? '',
       code: json['code'] ?? '',
       plotName: json['plotName'] ?? json['plot_name'] ?? '',
       buyer: json['buyer'] ?? '',
@@ -696,7 +701,8 @@ class _HarvestScreenState extends State<HarvestScreen> {
                         const SizedBox(height: 4),
                         Text(
                           isSold || item.pricePerKg > 0
-                              ? '${item.quantityKg.toStringAsFixed(0)} กก. × ${item.pricePerKg.toStringAsFixed(2)} บาท'
+                              ? '${item.grade.isEmpty ? '' : '${item.grade} · '}'
+                                  '${item.quantityKg.toStringAsFixed(0)} กก. × ${item.pricePerKg.toStringAsFixed(2)} บาท'
                               : '${item.quantityKg.toStringAsFixed(0)} กก. · ยังไม่ได้ขาย',
                           style: const TextStyle(color: Colors.black87, fontSize: 13),
                         ),

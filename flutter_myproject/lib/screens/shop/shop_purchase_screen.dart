@@ -465,6 +465,7 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
+                  '${p.grade.isEmpty ? '' : '${p.grade} · '}'
                   '${_kg.format(p.quantity)} กก. × ${p.pricePerKg.toStringAsFixed(2)} ฿'
                   '${p.gardenName.isEmpty ? '' : ' · ${p.gardenName}'}',
                   maxLines: 1,
