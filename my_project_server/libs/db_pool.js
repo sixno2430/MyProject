@@ -7,12 +7,11 @@
 // ============================================================
 
 const mariadb = require('mariadb');
+const config = require('./config');
+
+// ค่าการเชื่อมต่ออ่านจาก .env (ผ่าน config.js) ไม่เขียนรหัสผ่านไว้ในโค้ด
 const pool = mariadb.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: '',
-  port: 3306,
-  database: 'palm_oil_db',
+  ...config.db,
   connectionLimit: 5
 });
 

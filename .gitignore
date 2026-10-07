@@ -3,3 +3,6 @@ node_modules/
 
 # ไฟล์ระบบของ macOS
 .DS_Store
+
+# ค่าลับของเซิร์ฟเวอร์ (รหัสผ่าน DB, JWT secret) ใช้ .env.example เป็นแม่แบบ
+.env

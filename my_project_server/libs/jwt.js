@@ -3,7 +3,8 @@
 // ============================================================
 
 var jwt = require('jsonwebtoken');
-var secretKey = "MySecretKey";
+// secret อ่านจาก .env (เดิมเขียนไว้ในโค้ด ใครเห็นโค้ดก็ปลอม token ได้)
+var secretKey = require('./config').jwtSecret;
 
 module.exports = {
   // payload = ข้อมูลที่จะฝังใน token เช่น { user_id, username }

@@ -39,7 +39,7 @@ BigInt.prototype.toJSON = function() {
 };
 
 const hostname = '0.0.0.0'; 
-const port = 3000;
+const port = require('./libs/config').port; // ตั้งใน .env (PORT) ไม่ตั้ง = 3000
 
 // ==========================================
 // USER & AUTHENTICATION API
