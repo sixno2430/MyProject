@@ -375,7 +375,8 @@ const shop = {
 
       // FOR UPDATE: ล็อกแถวไว้ กันสองร้านกดรับซื้อล็อตเดียวกันพร้อมกัน
       const found = await conn.query(`
-        SELECT h.harvest_id, h.status, h.shop_id, g.user_id AS farmer_id
+        SELECT h.harvest_id, h.status, h.shop_id, g.user_id AS farmer_id,
+               DATE_FORMAT(h.harvest_date, '%Y-%m-%d') AS harvest_date
         FROM harvest h JOIN garden g ON h.garden_id = g.garden_id
         WHERE h.harvest_id = ? FOR UPDATE
       `, [harvest_id]);
@@ -386,6 +387,12 @@ const shop = {
       if (found[0].status !== 'pending') {
         await conn.rollback();
         return { isError: true, data: null, errorMessage: 'ผลผลิตนี้ขายไปแล้ว' };
+      }
+      // วันที่รับซื้อต้องไม่ก่อนวันเก็บเกี่ยว และไม่เกินวันนี้
+      const pd = String(purchase_date).slice(0, 10);
+      if (pd < found[0].harvest_date || pd > new Date().toLocaleDateString('sv-SE')) {
+        await conn.rollback();
+        return { isError: true, data: null, errorMessage: 'วันที่รับซื้อต้องอยู่ระหว่างวันเก็บเกี่ยวถึงวันนี้' };
       }
       // เกษตรกรเลือกขายให้ร้านอื่นไว้ -> ร้านนี้รับซื้อแทนไม่ได้ (กันร้านแย่งล็อตกัน)
       if (found[0].shop_id && found[0].shop_id !== shop_id) {

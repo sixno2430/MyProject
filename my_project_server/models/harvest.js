@@ -19,6 +19,19 @@ const db = require('../libs/db_pool');
 /** วันนี้ตามเวลาเครื่อง (yyyy-mm-dd) */
 const today = () => new Date().toLocaleDateString('sv-SE');
 
+/**
+ * ตรวจวันที่ขาย: ต้องไม่ก่อนวันเก็บเกี่ยว และไม่เกินวันนี้ (รูปแบบ yyyy-mm-dd เทียบเป็นข้อความได้เลย)
+ * คืนข้อความ error หรือ null
+ */
+function soldDateError(soldDate, harvestDate) {
+  const sold = String(soldDate || '').slice(0, 10);
+  const harvested = String(harvestDate || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(sold)) return 'วันที่ขายไม่ถูกต้อง';
+  if (harvested && sold < harvested) return 'วันที่ขายต้องไม่ก่อนวันเก็บเกี่ยว';
+  if (sold > today()) return 'วันที่ขายต้องไม่เกินวันนี้';
+  return null;
+}
+
 /** หมายเหตุจากฟอร์ม: ตัดช่องว่าง จำกัด 500 ตัวอักษร (ตามขนาดคอลัมน์) ว่าง = NULL */
 const cleanNote = (v) => String(v || '').trim().slice(0, 500) || null;
 
@@ -40,6 +53,8 @@ async function saleFields(data) {
     return { fields: { status: 'pending', shop_id: shopId, buyer_name: null, sold_date: null } };
   }
   if (!(parseFloat(data.price_per_kg) > 0)) return { error: 'กรุณาใส่ราคาขายต่อกิโลกรัม' };
+  const dateError = soldDateError(data.sold_date || today(), data.harvest_date);
+  if (dateError) return { error: dateError };
   return {
     fields: {
       status: 'sold',
@@ -287,13 +302,22 @@ const harvest = {
       if (!(price > 0)) {
         return { isError: true, data: null, errorMessage: 'กรุณาใส่ราคาขายต่อกิโลกรัม' };
       }
+      const date = soldDate || today();
+      const found = await db.query(`
+        SELECT DATE_FORMAT(h.harvest_date, '%Y-%m-%d') AS d FROM harvest h
+        JOIN garden g ON h.garden_id = g.garden_id
+        WHERE h.harvest_id = ? AND g.user_id = ?
+      `, [harvestId, userId]);
+      const dateError = found.length ? soldDateError(date, found[0].d) : null;
+      if (dateError) return { isError: true, data: null, errorMessage: dateError };
+
       const result = await db.query(`
         UPDATE harvest
         SET status = 'sold', price_per_kg = ?, total_price = total_quantity * ?,
             buyer_name = ?, sold_date = ?
         WHERE harvest_id = ? AND status = 'pending' AND shop_id IS NULL
           AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?)
-      `, [price, price, String(buyerName || '').trim().slice(0, 100) || null, soldDate || today(), harvestId, userId]);
+      `, [price, price, String(buyerName || '').trim().slice(0, 100) || null, date, harvestId, userId]);
       if (!result.affectedRows) {
         // บอกเหตุผลให้ชัด: รอร้านในแอปอยู่ / ขายไปแล้ว / ไม่ใช่ของเรา
         const rows = await db.query(`

@@ -994,10 +994,14 @@ class _SellSheetState extends State<_SellSheet> {
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   Future<void> _pickDate() async {
+    // ขายได้ตั้งแต่วันเก็บเกี่ยวถึงวันนี้ (วันเก็บเกี่ยวอยู่ในอนาคต = เริ่มที่วันนี้ กัน firstDate > lastDate)
+    final today = DateUtils.dateOnly(DateTime.now());
+    final harvested = DateTime.tryParse(widget.item.date);
+    final first = harvested == null || harvested.isAfter(today) ? today : harvested;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _soldDate,
-      firstDate: DateTime(2020),
+      initialDate: _soldDate.isBefore(first) ? first : _soldDate,
+      firstDate: first,
       lastDate: DateTime.now(),
     );
     if (picked != null) setState(() => _soldDate = picked);

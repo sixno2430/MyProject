@@ -49,18 +49,19 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
   /// โหลดรายชื่อพันธุ์ปาล์มมาใส่ dropdown
   Future<void> _fetchVarieties() async {
     try {
+      // พันธุ์แยกตามผู้ใช้: ได้เฉพาะพันธุ์ของตัวเอง (บัญชีใหม่จะว่าง)
       final response = await http.get(Uri.parse('$apiUrl/varieties'));
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         if (body['isError'] == false && body['data'] != null) {
-          setState(() {
-            _varieties = body['data'];
-            _loadingVarieties = false;
-          });
+          _varieties = body['data'];
         }
       }
-    } catch (e) {
-      setState(() => _loadingVarieties = false);
+    } catch (_) {
+      // โหลดไม่ได้ก็ยังเพิ่มแปลงได้ (พันธุ์ไม่บังคับ)
+    } finally {
+      // เดิมโหลดไม่สำเร็จแล้ววงกลมหมุนค้างตลอด -> ปิดตัวโหลดเสมอ
+      if (mounted) setState(() => _loadingVarieties = false);
     }
   }
 
@@ -201,6 +202,15 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
                           ),
                         ),
                 ),
+                // บัญชีที่ยังไม่มีพันธุ์ของตัวเอง: บอกว่าเพิ่มได้ที่ไหน (พันธุ์ไม่บังคับ บันทึกแปลงได้เลย)
+                if (!_loadingVarieties && _varieties.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, left: 4),
+                    child: Text(
+                      'ยังไม่มีพันธุ์ปาล์มของคุณ เพิ่มได้ที่เมนู "พันธุ์ปาล์ม" (ไม่เลือกก็บันทึกแปลงได้)',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 6),

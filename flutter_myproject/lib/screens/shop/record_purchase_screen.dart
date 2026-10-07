@@ -160,10 +160,14 @@ class _RecordPurchaseScreenState extends State<RecordPurchaseScreen> {
   bool get _canSave => _harvest != null && _qty > 0 && _price > 0 && !_saving;
 
   Future<void> _pickDate() async {
+    // รับซื้อได้ตั้งแต่วันเก็บเกี่ยวถึงวันนี้ (เซิร์ฟเวอร์ตรวจซ้ำอีกชั้น)
+    final today = DateUtils.dateOnly(DateTime.now());
+    final harvested = _harvest?.date;
+    final first = harvested == null || harvested.isAfter(today) ? today : DateUtils.dateOnly(harvested);
     final picked = await showDatePicker(
       context: context,
-      initialDate: _date,
-      firstDate: DateTime(2020),
+      initialDate: _date.isBefore(first) ? first : _date,
+      firstDate: first,
       lastDate: DateTime.now(),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(colorScheme: ColorScheme.light(primary: theme.primary)),

@@ -375,7 +375,7 @@ app.put('/api/varieties/:variety_id', async (req, res) => {
 /** ลบพันธุ์ปาล์ม */
 app.delete('/api/varieties/:variety_id', async (req, res) => {
   try {
-    const result = await palmVariety.remove(req.params.variety_id);
+    const result = await palmVariety.remove(req.params.variety_id, req.user.user_id);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });

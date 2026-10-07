@@ -1,14 +1,15 @@
 // ============================================================
 // palm_variety.js — model พันธุ์ปาล์ม (ตาราง palm_variety)
 //
-// พันธุ์ปาล์มเป็นข้อมูลกลางที่ทุก user ใช้ร่วมกัน
+// พันธุ์ปาล์มแยกเป็นของแต่ละ user (คอลัมน์ user_id) ไม่ใช้ร่วมกัน
+// แต่ละคนเห็น/เพิ่ม/แก้/ลบได้เฉพาะพันธุ์ของตัวเอง (userId มาจาก token ผ่าน libs/auth.js)
 // ============================================================
 
 const db = require('../libs/db_pool');
 
 const palmVariety = {
-  // ดึงพันธุ์ทั้งหมด ถ้าส่ง userId มาด้วยจะแนบจำนวนต้น/จำนวนแปลงที่ user คนนั้นปลูก
-  getAll: async (userId = null) => {
+  // ดึงพันธุ์ของ user คนนี้ พร้อมจำนวนต้น/จำนวนแปลงที่ปลูก
+  getAll: async (userId) => {
     try {
       const query = `
         SELECT v.variety_id, v.variety_name, v.scientific_name,
@@ -24,9 +25,10 @@ const palmVariety = {
           WHERE g.user_id = ?
           GROUP BY gv.variety_id
         ) u ON u.variety_id = v.variety_id
+        WHERE v.user_id = ?
         ORDER BY v.variety_id
       `;
-      const rows = await db.query(query, [userId]);
+      const rows = await db.query(query, [userId, userId]);
       return { isError: false, data: rows, errorMessage: "" };
     } catch (error) {
       console.error('Error palmVariety.getAll:', error.message);
@@ -34,15 +36,16 @@ const palmVariety = {
     }
   },
 
-  // เพิ่มพันธุ์ใหม่ รหัสต่อจากตัวล่าสุด เช่น V002 -> V003
-  create: async ({ variety_name, scientific_name }) => {
+  // เพิ่มพันธุ์ใหม่ของ user รหัสต่อจากตัวล่าสุดของทั้งตาราง เช่น V002 -> V003
+  create: async ({ user_id, variety_name, scientific_name }) => {
     try {
       if (!variety_name || !variety_name.trim()) {
         return { isError: true, data: null, errorMessage: 'กรุณากรอกชื่อพันธุ์' };
       }
+      // ชื่อซ้ำเช็กเฉพาะในรายการของตัวเอง (คนอื่นมีชื่อเดียวกันได้)
       const dup = await db.query(
-        `SELECT variety_id FROM palm_variety WHERE variety_name = ?`,
-        [variety_name.trim()]
+        `SELECT variety_id FROM palm_variety WHERE variety_name = ? AND user_id = ?`,
+        [variety_name.trim(), user_id]
       );
       if (dup.length > 0) {
         return { isError: true, data: null, errorMessage: 'มีพันธุ์ชื่อนี้อยู่แล้ว' };
@@ -56,8 +59,8 @@ const palmVariety = {
       const newId = 'V' + String(maxNum + 1).padStart(3, '0');
 
       await db.query(
-        `INSERT INTO palm_variety (variety_id, variety_name, scientific_name) VALUES (?, ?, ?)`,
-        [newId, variety_name.trim(), (scientific_name || '').trim() || null]
+        `INSERT INTO palm_variety (variety_id, user_id, variety_name, scientific_name) VALUES (?, ?, ?, ?)`,
+        [newId, user_id, variety_name.trim(), (scientific_name || '').trim() || null]
       );
       return { isError: false, data: { variety_id: newId }, errorMessage: "" };
     } catch (error) {
@@ -69,14 +72,21 @@ const palmVariety = {
   /**
    * แก้ไขชื่อพันธุ์ / ชื่อวิทยาศาสตร์
    */
-  update: async (varietyId, { variety_name, scientific_name }) => {
+  update: async (varietyId, { user_id, variety_name, scientific_name }) => {
     try {
       if (!variety_name || !variety_name.trim()) {
         return { isError: true, data: null, errorMessage: 'กรุณากรอกชื่อพันธุ์' };
       }
+      const dup = await db.query(
+        `SELECT variety_id FROM palm_variety WHERE variety_name = ? AND user_id = ? AND variety_id <> ?`,
+        [variety_name.trim(), user_id, varietyId]
+      );
+      if (dup.length > 0) {
+        return { isError: true, data: null, errorMessage: 'มีพันธุ์ชื่อนี้อยู่แล้ว' };
+      }
       const result = await db.query(
-        `UPDATE palm_variety SET variety_name = ?, scientific_name = ? WHERE variety_id = ?`,
-        [variety_name.trim(), (scientific_name || '').trim() || null, varietyId]
+        `UPDATE palm_variety SET variety_name = ?, scientific_name = ? WHERE variety_id = ? AND user_id = ?`,
+        [variety_name.trim(), (scientific_name || '').trim() || null, varietyId, user_id]
       );
       if (!result.affectedRows) {
         return { isError: true, data: null, errorMessage: 'ไม่พบพันธุ์ปาล์มนี้' };
@@ -88,8 +98,8 @@ const palmVariety = {
     }
   },
 
-  // ลบได้เฉพาะพันธุ์ที่ยังไม่มีสวนไหนใช้ (กันข้อมูลสวนของคนอื่นเสีย)
-  remove: async (varietyId) => {
+  // ลบได้เฉพาะพันธุ์ของตัวเองที่ยังไม่มีแปลงไหนใช้ (กันข้อมูลแปลงหาย เพราะ garden_variety ลบตาม CASCADE)
+  remove: async (varietyId, userId) => {
     try {
       const used = await db.query(
         `SELECT COUNT(*) AS n FROM garden_variety WHERE variety_id = ?`,
@@ -98,7 +108,7 @@ const palmVariety = {
       if (Number(used[0].n) > 0) {
         return { isError: true, data: null, errorMessage: 'ลบไม่ได้ เพราะมีแปลงสวนที่ปลูกพันธุ์นี้อยู่' };
       }
-      const result = await db.query(`DELETE FROM palm_variety WHERE variety_id = ?`, [varietyId]);
+      const result = await db.query(`DELETE FROM palm_variety WHERE variety_id = ? AND user_id = ?`, [varietyId, userId]);
       if (!result.affectedRows) {
         return { isError: true, data: null, errorMessage: 'ไม่พบพันธุ์ปาล์มนี้' };
       }

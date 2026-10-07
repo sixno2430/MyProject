@@ -219,6 +219,8 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
+        // วันที่ขายต้องไม่ก่อนวันเก็บเกี่ยว: เลื่อนวันเก็บเกี่ยวไปหลังวันขาย -> เลื่อนวันขายตาม
+        if (_soldDate.isBefore(picked)) _soldDate = picked;
         _updateDateDisplay();
       });
     }
@@ -451,10 +453,13 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
                   readOnly: true,
                   decoration: _buildInputDecoration(suffixIcon: Icons.calendar_today),
                   onTap: () async {
+                    // ขายได้ตั้งแต่วันเก็บเกี่ยวถึงวันนี้ (เก็บเกี่ยวในอนาคต = เริ่มที่วันนี้)
+                    final today = DateUtils.dateOnly(DateTime.now());
+                    final first = _selectedDate.isAfter(today) ? today : DateUtils.dateOnly(_selectedDate);
                     final picked = await showDatePicker(
                       context: context,
-                      initialDate: _soldDate,
-                      firstDate: DateTime(2020),
+                      initialDate: _soldDate.isBefore(first) ? first : _soldDate,
+                      firstDate: first,
                       lastDate: DateTime.now(),
                     );
                     if (picked != null) setState(() => _soldDate = picked);

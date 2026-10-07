@@ -69,6 +69,16 @@ const garden = {
     try {
       const { user_id, garden_name, area_size, plant_count, plant_year, address, variety_id } = gardenData;
 
+      // พันธุ์ที่เลือกต้องเป็นของ user คนนี้ (พันธุ์แยกตามผู้ใช้แล้ว)
+      if (variety_id) {
+        const mine = await db.query(
+          `SELECT variety_id FROM palm_variety WHERE variety_id = ? AND user_id = ?`, [variety_id, user_id]
+        );
+        if (mine.length === 0) {
+          return { isError: true, data: null, errorMessage: 'ไม่พบพันธุ์ปาล์มนี้ในรายการของคุณ' };
+        }
+      }
+
       // 1. Gen garden_id
       const selectQuery = `SELECT garden_id FROM garden ORDER BY garden_id DESC LIMIT 1`;
       const selectResult = await db.query(selectQuery);
@@ -139,6 +149,8 @@ const garden = {
   //    - ลบได้เฉพาะแปลงของตัวเอง
   //    - ทำในธุรกรรมเดียว: ถ้าขั้นไหนพัง จะย้อนกลับทั้งหมด (เดิมอาจลบไปครึ่งเดียว)
   //    - ลบรายการเงินที่ผูกกับการขาย/การดูแลของแปลงนี้ด้วย กันรายการเงินผีโผล่
+  //    - แปลงที่มีผลผลิตซึ่งร้านในแอปรับซื้อไปแล้ว ลบไม่ได้
+  //      (ลบแล้ว purchase จะหายตาม CASCADE ประวัติรับซื้อ/รายงานของร้านจะผิด)
   deleteGarden: async (gardenId, userId) => {
     let conn;
     try {
@@ -152,6 +164,20 @@ const garden = {
       if (owned.length === 0) {
         await conn.rollback();
         return { isError: true, data: null, errorMessage: 'ไม่พบแปลงสวน หรือไม่มีสิทธิ์ลบ' };
+      }
+
+      const sold = await conn.query(`
+        SELECT COUNT(*) AS n FROM purchase p
+        JOIN harvest h ON p.harvest_id = h.harvest_id
+        WHERE h.garden_id = ?
+      `, [gardenId]);
+      if (Number(sold[0].n) > 0) {
+        await conn.rollback();
+        return {
+          isError: true,
+          data: null,
+          errorMessage: `ลบแปลงนี้ไม่ได้ เพราะมีผลผลิต ${Number(sold[0].n)} รายการที่ร้านรับซื้อไปแล้ว (ข้อมูลของร้านจะหายตาม)`,
+        };
       }
 
       await conn.query(`
