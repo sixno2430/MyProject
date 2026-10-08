@@ -52,6 +52,9 @@ class MenuGrid extends StatelessWidget {
               ],
             ),
             child: GridView.count(
+              // ไม่ใส่ padding เอง GridView จะเติมช่องว่างเท่า safe area (แถบสถานะ/Dynamic Island) ให้เอง
+              // ทำให้มีที่ว่างเกินด้านบนการ์ด ทั้งที่การ์ดอยู่กลางจอ
+              padding: EdgeInsets.zero,
               crossAxisCount: 4,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),

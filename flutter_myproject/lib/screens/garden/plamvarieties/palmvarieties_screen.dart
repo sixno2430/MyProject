@@ -294,6 +294,8 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
                         }
 
                         return ListView.separated(
+                          // ไม่ใส่ padding เอง ListView จะเติมช่องว่างเท่า safe area ด้านบนให้ (ช่องว่างเกินใต้ช่องค้นหา)
+                          padding: EdgeInsets.zero,
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: items.length,
