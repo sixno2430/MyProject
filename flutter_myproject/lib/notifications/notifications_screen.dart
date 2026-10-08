@@ -120,6 +120,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ));
     }
 
+    // 0.1) ร้านที่เลือกไว้ไม่รับล็อต ภายใน 7 วัน (เกษตรกรต้องเลือกร้านใหม่)
+    for (final h in harvests) {
+      final by = h['rejectedBy']?.toString() ?? '';
+      final d = DateTime.tryParse(h['rejectedAt']?.toString() ?? '');
+      if (by.isEmpty || d == null || today.difference(d).inDays > soldNoticeDays) continue;
+      list.add(AppNotification(
+        icon: '🚫',
+        title: '$by ไม่รับ ${h['code'] ?? h['id']}',
+        desc: 'เหตุผล: ${h['rejectReason'] ?? '-'} · แตะเพื่อเลือกร้านใหม่',
+        color: const Color(0xFFDC2626),
+        destination: () => const HarvestScreen(),
+      ));
+    }
+
     // 1) ผลผลิตรอขาย
     for (final h in harvests.where((h) => h['status'] != 'sold')) {
       final kg = (h['quantityKg'] as num?)?.toDouble() ?? 0;

@@ -10,6 +10,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_myproject/screens/shop/reject_lot_sheet.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/services/shop_service.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
@@ -384,6 +385,19 @@ class _RecordPurchaseScreenState extends State<RecordPurchaseScreen> {
     );
   }
 
+  /// ไม่รับล็อตที่เกษตรกรเลือกขายให้ร้านนี้ สำเร็จแล้วกลับหน้ารับซื้อ (true = ให้โหลดรายการใหม่)
+  Future<void> _reject(PendingHarvest h) async {
+    final done = await showRejectLotSheet(
+      context,
+      shopId: widget.shop.shopId,
+      harvestId: h.harvestId,
+      lotLabel: '${_farmer?.name ?? ''} · ${h.gardenName} · ${h.code}',
+    );
+    if (!done || !mounted) return;
+    _toast('ไม่รับล็อตนี้แล้ว แจ้งเกษตรกรเรียบร้อย');
+    Navigator.pop(context, true);
+  }
+
   Widget _buildHarvestStep() {
     if (_loadingHarvests) {
       return Center(child: CircularProgressIndicator(color: theme.primary));
@@ -394,56 +408,74 @@ class _RecordPurchaseScreenState extends State<RecordPurchaseScreen> {
         style: TextStyle(color: Colors.grey[600], height: 1.5),
       );
     }
+    final picked = _harvest;
     return Column(
-      children: _harvests.map((h) {
-        final selected = _harvest?.harvestId == h.harvestId;
-        return GestureDetector(
-          onTap: () => setState(() => _selectHarvest(h)),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: selected ? theme.soft : Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: selected ? theme.primary : const Color(0xFFE5E5E5), width: selected ? 1.5 : 1),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  selected ? Icons.radio_button_checked : Icons.radio_button_off,
-                  color: selected ? theme.primary : Colors.grey,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        h.gardenName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      if (h.reserved)
-                        Text('เกษตรกรเลือกขายให้ร้านคุณ',
-                            style: TextStyle(fontSize: 11.5, color: theme.primary, fontWeight: FontWeight.w600)),
-                      Text(
-                        'เก็บเกี่ยว ${DateFormat('d MMM', 'th_TH').format(h.date)} ${h.date.year + 543} · ${h.code}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text('~${_kg.format(h.quantity)} กก.', style: const TextStyle(fontWeight: FontWeight.w600)),
-              ],
-            ),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ..._harvestTiles(),
+        // ล็อตที่เกษตรกรเลือกขายให้ร้านนี้ ปฏิเสธได้ (ล็อตที่หาเจอเองไม่ต้อง แค่ไม่รับซื้อก็พอ)
+        if (picked != null && picked.reserved)
+          TextButton.icon(
+            onPressed: () => _reject(picked),
+            icon: const Icon(Icons.block, size: 18),
+            label: const Text('ไม่รับล็อตนี้'),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
           ),
-        );
-      }).toList(),
+      ],
     );
+  }
+
+  List<Widget> _harvestTiles() {
+    return _harvests.map((h) {
+      final selected = _harvest?.harvestId == h.harvestId;
+      return GestureDetector(
+        onTap: () => setState(() => _selectHarvest(h)),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected ? theme.soft : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: selected ? theme.primary : const Color(0xFFE5E5E5), width: selected ? 1.5 : 1),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: selected ? theme.primary : Colors.grey,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      h.gardenName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    if (h.reserved)
+                      Text(
+                        'เกษตรกรเลือกขายให้ร้านคุณ',
+                        style: TextStyle(fontSize: 11.5, color: theme.primary, fontWeight: FontWeight.w600),
+                      ),
+                    Text(
+                      'เก็บเกี่ยว ${DateFormat('d MMM', 'th_TH').format(h.date)} ${h.date.year + 543} · ${h.code}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('~${_kg.format(h.quantity)} กก.', style: const TextStyle(fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      );
+    }).toList();
   }
 
   Widget _buildPriceStep() {

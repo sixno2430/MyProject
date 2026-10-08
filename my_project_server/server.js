@@ -638,6 +638,16 @@ app.delete('/api/shop/purchases/:purchase_id', async (req, res) => {
   }
 });
 
+/** ร้านไม่รับล็อตที่เกษตรกรส่งมา: body { user_id (เจ้าของร้าน), shop_id, reason } */
+app.post('/api/shop/harvests/:harvest_id/reject', async (req, res) => {
+  try {
+    const result = await shop.rejectHarvest({ ...req.body, harvest_id: req.params.harvest_id });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
 /** ล็อตที่เกษตรกรเลือกขายให้ร้านนี้ และยังรอร้านยืนยันรับซื้อ: ?user_id=เจ้าของร้าน */
 app.get('/api/shop/:shop_id/incoming', async (req, res) => {
   try {

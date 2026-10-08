@@ -418,6 +418,50 @@ const shop = {
   },
 
   /**
+   * ร้านไม่รับล็อตที่เกษตรกรเลือกขายให้ (พิมพ์เหตุผล บังคับ)
+   *   - ทำได้เฉพาะล็อตที่ยัง "รอขาย" และเลือกร้านนี้ไว้
+   *   - บันทึกเหตุผลใน harvest_rejection (เก็บทุกครั้ง ดูย้อนหลังได้)
+   *   - ล็อตกลับเป็น "รอขาย · ยังไม่เลือกร้าน" เกษตรกรเลือกร้านใหม่หรือขายนอกระบบได้
+   */
+  rejectHarvest: async ({ user_id, shop_id, harvest_id, reason }) => {
+    const text = String(reason || '').trim();
+    if (!text) return { isError: true, data: null, errorMessage: 'กรุณาเขียนเหตุผลที่ไม่รับ' };
+    if (text.length > 255) return { isError: true, data: null, errorMessage: 'เหตุผลยาวเกินไป (ไม่เกิน 255 ตัวอักษร)' };
+
+    let conn;
+    try {
+      conn = await db.getConnection();
+      await conn.beginTransaction();
+      const owned = await conn.query(`SELECT shop_id FROM shop WHERE shop_id = ? AND user_id = ?`, [shop_id, user_id]);
+      if (owned.length === 0) {
+        await conn.rollback();
+        return { isError: true, data: null, errorMessage: 'ไม่พบร้าน หรือไม่มีสิทธิ์' };
+      }
+      // ล็อกแถว: กันเกษตรกรเปลี่ยนร้าน/ร้านกดรับซื้อพร้อมกัน
+      const found = await conn.query(
+        `SELECT status, shop_id FROM harvest WHERE harvest_id = ? FOR UPDATE`, [harvest_id]
+      );
+      if (found.length === 0 || found[0].status !== 'pending' || found[0].shop_id !== shop_id) {
+        await conn.rollback();
+        return { isError: true, data: null, errorMessage: 'ล็อตนี้ไม่ได้รอร้านคุณรับซื้อแล้ว' };
+      }
+      await conn.query(
+        `INSERT INTO harvest_rejection (harvest_id, shop_id, reason) VALUES (?, ?, ?)`,
+        [harvest_id, shop_id, text]
+      );
+      await conn.query(`UPDATE harvest SET shop_id = NULL WHERE harvest_id = ?`, [harvest_id]);
+      await conn.commit();
+      return { isError: false, data: null, errorMessage: '' };
+    } catch (error) {
+      if (conn) await conn.rollback().catch(() => {});
+      console.error('Error rejectHarvest:', error.message);
+      return { isError: true, data: null, errorMessage: 'บันทึกการไม่รับล็อตไม่สำเร็จ' };
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+  /**
    * ยกเลิกการรับซื้อ (กรณีบันทึกผิด) -> ผลผลิตฝั่งเกษตรกรกลับเป็น "รอขาย" และยังรอร้านนี้อยู่
    * (ร้านบันทึกใหม่ให้ถูกได้ทันที หรือเกษตรกรเปลี่ยนร้านเอง)
    * ลบรายการเงินที่ผูกกับ purchase นี้ด้วย (ถ้ามี) ไม่งั้นจะค้างเป็นรายการลอยๆ

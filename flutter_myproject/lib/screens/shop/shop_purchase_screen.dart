@@ -10,6 +10,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_myproject/screens/shop/record_purchase_screen.dart';
+import 'package:flutter_myproject/screens/shop/reject_lot_sheet.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/services/shop_service.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
@@ -94,6 +95,20 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
       _load();
       widget.onChanged();
     }
+  }
+
+  /// ไม่รับล็อตที่ส่งมา (เขียนเหตุผล) สำเร็จแล้วโหลดรายการใหม่
+  Future<void> _reject(IncomingLot lot) async {
+    final done = await showRejectLotSheet(
+      context,
+      shopId: widget.shop!.shopId,
+      harvestId: lot.harvest.harvestId,
+      lotLabel: '${lot.farmer.name} · ${lot.harvest.gardenName} · ${lot.harvest.code}',
+    );
+    if (!done || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ไม่รับล็อตนี้แล้ว แจ้งเกษตรกรเรียบร้อย')));
+    _load();
+    widget.onChanged();
   }
 
   Future<void> _cancel(ShopPurchase p) async {
@@ -390,7 +405,15 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => _reject(lot),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFDC2626),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 36),
+                    ),
+                    child: const Text('ไม่รับ'),
+                  ),
                   ElevatedButton(
                     onPressed: () => _openRecord(lot: lot),
                     style: ElevatedButton.styleFrom(

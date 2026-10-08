@@ -98,6 +98,11 @@ const harvest = {
           END AS buyer,
           h.buyer_name AS buyerName,
           h.note,
+          -- ร้านล่าสุดที่ไม่รับล็อตนี้ (แสดงเฉพาะตอนยังรอขายและยังไม่ได้เลือกร้านใหม่)
+          IF(COALESCE(h.status, 'sold') = 'pending' AND h.shop_id IS NULL, rj.shop_name, NULL) AS rejectedBy,
+          IF(COALESCE(h.status, 'sold') = 'pending' AND h.shop_id IS NULL, rj.reason, NULL) AS rejectReason,
+          IF(COALESCE(h.status, 'sold') = 'pending' AND h.shop_id IS NULL,
+             DATE_FORMAT(rj.created_at, '%Y-%m-%d'), NULL) AS rejectedAt,
           -- เกรด: ขายผ่านร้านในแอป = เกรดที่ร้านเลือก, ขายนอกระบบ = เกรดที่เกษตรกรใส่เอง
           COALESCE(p.quality_grade, h.quality_grade) AS grade,
           (p.purchase_id IS NOT NULL) AS purchasedByShop, -- 1 = ร้านในแอปรับซื้อแล้ว (ล็อกการแก้ไข)
@@ -111,6 +116,12 @@ const harvest = {
         LEFT JOIN garden g ON h.garden_id = g.garden_id
         LEFT JOIN shop s ON h.shop_id = s.shop_id
         LEFT JOIN purchase p ON p.harvest_id = h.harvest_id
+        LEFT JOIN (
+          SELECT r.harvest_id, r.reason, r.created_at, rs.shop_name
+          FROM harvest_rejection r
+          JOIN shop rs ON rs.shop_id = r.shop_id
+          WHERE r.rejection_id = (SELECT MAX(r2.rejection_id) FROM harvest_rejection r2 WHERE r2.harvest_id = r.harvest_id)
+        ) rj ON rj.harvest_id = h.harvest_id
       `;
 
       // ปีที่ต้องการดู (ไม่ส่งมา = ปีปัจจุบัน) เดิมล็อกไว้แค่ปีนี้ ทำให้ข้อมูลปีก่อนหายจากหน้าจอ

@@ -436,6 +436,21 @@ class ShopService {
   }
 
   /// ยกเลิกการรับซื้อ (ผลผลิตของเกษตรกรกลับเป็น "รอขาย")
+  /// ร้านไม่รับล็อตที่เกษตรกรเลือกขายให้ (เหตุผลบังคับ) ล็อตกลับไปให้เกษตรกรเลือกร้านใหม่
+  static Future<void> rejectHarvest({
+    required String userId,
+    required String shopId,
+    required String harvestId,
+    required String reason,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$_base/shop/harvests/$harvestId/reject'),
+      headers: _json,
+      body: jsonEncode({'user_id': userId, 'shop_id': shopId, 'reason': reason}),
+    );
+    _decode(res);
+  }
+
   static Future<void> cancelPurchase(String userId, String purchaseId) async {
     final res = await http.delete(Uri.parse('$_base/shop/purchases/$purchaseId?user_id=$userId'));
     _decode(res);

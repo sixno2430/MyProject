@@ -41,6 +41,10 @@ class HarvestData {
 
   /// เกรดที่ร้านในแอปให้ตอนรับซื้อ ('' = ไม่มี)
   final String grade;
+
+  /// ร้านล่าสุดที่ไม่รับล็อตนี้ + เหตุผล ('' = ไม่มี / เลือกร้านใหม่แล้ว)
+  final String rejectedBy;
+  final String rejectReason;
   final String code;
   final String plotName;
   final String buyer;
@@ -59,6 +63,8 @@ class HarvestData {
     this.purchasedByShop = false,
     this.note = '',
     this.grade = '',
+    this.rejectedBy = '',
+    this.rejectReason = '',
     required this.code,
     required this.plotName,
     required this.buyer,
@@ -81,6 +87,8 @@ class HarvestData {
       purchasedByShop: json['purchasedByShop'] == true || json['purchasedByShop'] == 1,
       note: json['note']?.toString() ?? '',
       grade: json['grade']?.toString() ?? '',
+      rejectedBy: json['rejectedBy']?.toString() ?? '',
+      rejectReason: json['rejectReason']?.toString() ?? '',
       code: json['code'] ?? '',
       plotName: json['plotName'] ?? json['plot_name'] ?? '',
       buyer: json['buyer'] ?? '',
@@ -765,7 +773,30 @@ class _HarvestScreenState extends State<HarvestScreen> {
                   ],
                 ),
               )
-            else if (!isSold)
+            else if (!isSold) ...[
+              // ร้านที่เลือกไว้ไม่รับ -> บอกเหตุผล (หายเองเมื่อเลือกร้านใหม่)
+              if (item.rejectedBy.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    border: Border(top: BorderSide(color: Colors.red.withValues(alpha: 0.15))),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.block, size: 16, color: Color(0xFFDC2626)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${item.rejectedBy} ไม่รับ: ${item.rejectReason}\nกดค้างที่รายการเพื่อเลือกร้านใหม่',
+                          style: const TextStyle(color: Color(0xFFB91C1C), fontSize: 12.5, height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               InkWell(
                 onTap: () => _markAsSold(item),
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
@@ -790,6 +821,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
                   ),
                 ),
               ),
+            ],
           ],
         ),
       ),
