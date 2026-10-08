@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
-import 'harvest_screen.dart' show HarvestData, HarvestService, ShopDropdown, ShopSaleHint;
+import 'harvest_screen.dart' show HarvestData, HarvestService, ShopDropdown, ShopSaleHint, GradePicker;
 import 'package:flutter_myproject/services/auth_server.dart';
 
 /// ฟอร์มบันทึกการเก็บเกี่ยว
@@ -46,6 +46,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
   String? _selectedShopId;
   // ขายนอกระบบ: ชื่อร้านที่พิมพ์เอง + วันที่ขาย
   final TextEditingController _buyerNameController = TextEditingController();
+  final TextEditingController _gradeController = TextEditingController(); // เกรดที่ขาย (ขายนอกระบบ)
   DateTime _soldDate = DateTime.now();
   final TextEditingController _noteController = TextEditingController();
 
@@ -67,6 +68,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       _status = e.status == 'pending' ? 'pending' : 'sold';
       _selectedShopId = e.status == 'pending' && e.shopId.isNotEmpty ? e.shopId : null;
       _buyerNameController.text = e.buyerName;
+      if (e.status == 'sold') _gradeController.text = e.grade;
       _noteController.text = e.note;
       _soldDate = DateTime.tryParse(e.soldDate) ?? _selectedDate;
     }
@@ -89,6 +91,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     _totalPriceController.dispose();
     _noteController.dispose();
     _buyerNameController.dispose();
+    _gradeController.dispose();
     super.dispose();
   }
 
@@ -263,6 +266,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       'shop_id': _status == 'pending' ? _selectedShopId : null,
       'buyer_name': _status == 'sold' ? _buyerNameController.text.trim() : null,
       'sold_date': _status == 'sold' ? DateFormat('yyyy-MM-dd').format(_soldDate) : null,
+      'quality_grade': _status == 'sold' ? _gradeController.text.trim() : null,
       'note': _noteController.text.trim(),
       'status': _status, // ส่งค่า 'sold' หรือ 'pending'
       'user_id': userId,
@@ -445,6 +449,9 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
                   maxLength: 100,
                   decoration: _buildInputDecoration(hintText: 'เช่น ลานเทสมชาย').copyWith(counterText: ''),
                 ),
+                const SizedBox(height: 16),
+                _buildLabel('เกรดที่ขาย'),
+                GradePicker(controller: _gradeController),
                 const SizedBox(height: 16),
                 _buildLabel('วันที่ขาย *'),
                 TextFormField(

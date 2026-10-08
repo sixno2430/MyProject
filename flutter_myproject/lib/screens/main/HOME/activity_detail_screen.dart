@@ -52,6 +52,7 @@ class ActivityDetailScreen extends StatelessWidget {
             soldDate: raw['sold_date']?.toString() ?? '',
             purchasedByShop: _isPurchased,
             note: raw['note']?.toString() ?? '',
+            grade: raw['quality_grade']?.toString() ?? '', // เกรดที่เกษตรกรใส่เอง (ขายนอกระบบ)
             code: raw['code']?.toString() ?? activity.id,
             plotName: activity.gardenName,
             buyer: '',

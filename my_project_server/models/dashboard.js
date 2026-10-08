@@ -17,7 +17,7 @@ const ACTIVITY_SQL =
     "   NULLIF(h.note, '') AS description, h.total_quantity AS quantity, h.total_price AS amount, " +
     "   h.harvest_date AS record_date, h.price_per_kg, h.status, h.code, " +
     "   NULL AS fertilizer_id, NULL AS action_type, NULL AS quantity_type, h.note, NULL AS category, " +
-    "   h.shop_id, h.buyer_name, DATE_FORMAT(h.sold_date, '%Y-%m-%d') AS sold_date, " +
+    "   h.shop_id, h.buyer_name, DATE_FORMAT(h.sold_date, '%Y-%m-%d') AS sold_date, h.quality_grade, " +
     "   EXISTS(SELECT 1 FROM purchase p WHERE p.harvest_id = h.harvest_id) AS purchased " +
     " FROM harvest h JOIN garden g ON h.garden_id = g.garden_id " +
     " WHERE g.user_id = ?) " +
@@ -25,7 +25,7 @@ const ACTIVITY_SQL =
     "(SELECT 'care', c.care_id, c.garden_id, g.garden_name, " +
     "   COALESCE(f.fertilizer_name, NULLIF(c.note, '')), c.quantity, c.cost, " +
     "   c.record_date, NULL, NULL, NULL, " +
-    "   c.fertilizer_id, c.action_type, c.quantity_type, c.note, NULL, NULL, NULL, NULL, 0 " +
+    "   c.fertilizer_id, c.action_type, c.quantity_type, c.note, NULL, NULL, NULL, NULL, NULL, 0 " +
     " FROM palm_care c JOIN garden g ON c.garden_id = g.garden_id " +
     " LEFT JOIN fertilizer f ON c.fertilizer_id = f.fertilizer_id " +
     " WHERE g.user_id = ?) " +
@@ -33,7 +33,7 @@ const ACTIVITY_SQL =
     "(SELECT LOWER(fn.record_type), fn.finance_id, fn.garden_id, COALESCE(g.garden_name, 'ไม่ระบุแปลง'), " +
     "   fn.description, NULL, fn.amount, " +
     "   fn.record_date, NULL, NULL, NULL, " +
-    "   NULL, NULL, NULL, NULL, fn.expense_category, NULL, NULL, NULL, 0 " +
+    "   NULL, NULL, NULL, NULL, fn.expense_category, NULL, NULL, NULL, NULL, 0 " +
     " FROM finance fn LEFT JOIN garden g ON fn.garden_id = g.garden_id " +
     " WHERE fn.user_id = ? AND fn.ref_care_id IS NULL AND fn.ref_purchase_id IS NULL) " +
     "ORDER BY record_date DESC, id DESC";

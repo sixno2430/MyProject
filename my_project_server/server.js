@@ -419,7 +419,7 @@ app.post('/api/harvests', async (req, res) => {
 // เปลี่ยนสถานะ "รอขาย" -> "ขายแล้ว" body: { user_id, price_per_kg, shop_id? }
 app.put('/api/harvests/:harvest_id/sell', async (req, res) => {
   try {
-    const result = await harvest.sellHarvest(req.params.harvest_id, req.body.user_id, req.body.price_per_kg, req.body.buyer_name, req.body.sold_date);
+    const result = await harvest.sellHarvest(req.params.harvest_id, req.body.user_id, req.body.price_per_kg, req.body.buyer_name, req.body.sold_date, req.body.quality_grade);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });

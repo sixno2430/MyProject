@@ -555,7 +555,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
   // ── บันทึก "ขายนอกระบบ" ให้รายการรอขายที่ไม่ได้เลือกร้านในแอป: ถามราคา ชื่อร้าน วันที่ขาย ──
   //    ขายให้ร้านในแอป ร้านเป็นคนยืนยันรับซื้อ (เกษตรกรเลือกร้านไว้ในฟอร์มแก้ไข)
   Future<void> _markAsSold(HarvestData item) async {
-    final sale = await showModalBottomSheet<({double price, String buyerName, String soldDate})>(
+    final sale = await showModalBottomSheet<({double price, String buyerName, String soldDate, String grade})>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -573,6 +573,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
           'price_per_kg': sale.price,
           'buyer_name': sale.buyerName,
           'sold_date': sale.soldDate,
+          'quality_grade': sale.grade,
         }),
       );
       final body = jsonDecode(response.body);
@@ -685,7 +686,15 @@ class _HarvestScreenState extends State<HarvestScreen> {
                           children: [
                             const Icon(Icons.calendar_today_outlined, size: 13, color: Colors.grey),
                             const SizedBox(width: 4),
-                            Text(item.date, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                            // จอแคบ: วันที่กับชื่อร้านหดตัดเป็น ... ได้ทั้งคู่ ไม่ล้นขวา
+                            Flexible(
+                              child: Text(
+                                item.date,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                              ),
+                            ),
                             const SizedBox(width: 12),
                             const Icon(Icons.storefront_outlined, size: 14, color: Colors.grey),
                             const SizedBox(width: 4),
@@ -973,6 +982,7 @@ class _SellSheetState extends State<_SellSheet> {
   static const green = Color(0xFF1E5631);
   late final TextEditingController _priceCtrl;
   final _buyerCtrl = TextEditingController();
+  final _gradeCtrl = TextEditingController();
   DateTime _soldDate = DateTime.now();
   String? _error;
 
@@ -990,6 +1000,7 @@ class _SellSheetState extends State<_SellSheet> {
   void dispose() {
     _priceCtrl.dispose();
     _buyerCtrl.dispose();
+    _gradeCtrl.dispose();
     super.dispose();
   }
 
@@ -1020,7 +1031,12 @@ class _SellSheetState extends State<_SellSheet> {
       setState(() => _error = 'กรุณาใส่ราคาที่มากกว่า 0');
       return;
     }
-    Navigator.pop(context, (price: price, buyerName: _buyerCtrl.text.trim(), soldDate: _ymd(_soldDate)));
+    Navigator.pop(context, (
+      price: price,
+      buyerName: _buyerCtrl.text.trim(),
+      soldDate: _ymd(_soldDate),
+      grade: _gradeCtrl.text.trim(),
+    ));
   }
 
   InputDecoration _decoration(String label, IconData icon, {String? suffix, String? hint, String? error}) {
@@ -1121,6 +1137,8 @@ class _SellSheetState extends State<_SellSheet> {
                           hint: 'เช่น ลานเทสมชาย')
                       .copyWith(counterText: ''),
                 ),
+                const SizedBox(height: 12),
+                GradePicker(controller: _gradeCtrl),
                 const SizedBox(height: 12),
                 InkWell(
                   onTap: _pickDate,
@@ -1253,6 +1271,74 @@ class ShopSaleHint extends StatelessWidget {
                 ? '$shopName จะเห็นล็อตนี้ และเป็นคนกดยืนยันรับซื้อ รายการจะเปลี่ยนเป็น "ขายแล้ว" เอง'
                 : 'ร้านในแอปค้นหาแล้วรับซื้อได้ หรือคุณบันทึก "ขายนอกระบบ" เองภายหลัง',
             style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ==========================================
+// 6. เลือกเกรดที่ขาย (ใช้ในหน้าต่างขายนอกระบบ และฟอร์มเก็บเกี่ยว)
+// ==========================================
+
+/// ปุ่มลัดเกรดที่ใช้บ่อย + ช่องพิมพ์เอง (ไม่บังคับ) ค่าอยู่ใน controller
+class GradePicker extends StatefulWidget {
+  final TextEditingController controller;
+  const GradePicker({super.key, required this.controller});
+
+  static const quickGrades = ['เกรด A', 'เกรด B', 'เกรด C', 'ลูกร่วง', 'ทะลายสด'];
+
+  @override
+  State<GradePicker> createState() => _GradePickerState();
+}
+
+class _GradePickerState extends State<GradePicker> {
+  static const green = Color(0xFF1E5631);
+
+  @override
+  Widget build(BuildContext context) {
+    final current = widget.controller.text.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: GradePicker.quickGrades.map((g) {
+            final selected = current == g;
+            return ChoiceChip(
+              label: Text(g),
+              selected: selected,
+              showCheckmark: false,
+              selectedColor: green,
+              backgroundColor: const Color(0xFFF1F8F3),
+              side: BorderSide(color: selected ? green : const Color(0xFFD5E8DB)),
+              labelStyle: TextStyle(color: selected ? Colors.white : Colors.grey[800], fontSize: 13),
+              // แตะซ้ำที่เกรดที่เลือกอยู่ = ยกเลิก (ไม่ระบุเกรด)
+              onSelected: (_) => setState(() => widget.controller.text = selected ? '' : g),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: widget.controller,
+          maxLength: 100,
+          cursorColor: green,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            labelText: 'เกรดที่ขาย (ไม่บังคับ)',
+            hintText: 'เลือกด้านบน หรือพิมพ์เอง',
+            counterText: '',
+            prefixIcon: const Icon(Icons.grade_outlined, color: green),
+            floatingLabelStyle: const TextStyle(color: green),
+            filled: true,
+            fillColor: const Color(0xFFF9FAFB),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: green, width: 1.5),
+            ),
           ),
         ),
       ],

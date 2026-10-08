@@ -9,7 +9,8 @@
 //       ยังไม่เลือก   -> ร้านไหนก็ค้นหาแล้วรับซื้อได้
 //   - ขายแล้ว ผ่านร้านในแอป: มีแถวใน purchase คู่กันเสมอ เกษตรกรแก้/ลบเองไม่ได้
 //   - ขายนอกระบบ: เกษตรกรบันทึกเอง (เฉพาะล็อตที่ไม่ได้เลือกร้านในแอป)
-//       shop_id = NULL, buyer_name = ชื่อร้านที่พิมพ์เอง (ไม่บังคับ), sold_date = วันที่ขาย
+//       shop_id = NULL, buyer_name = ชื่อร้านที่พิมพ์เอง (ไม่บังคับ), sold_date = วันที่ขาย,
+//       quality_grade = เกรดที่ขาย (ไม่บังคับ) — ขายผ่านร้านในแอปใช้เกรดที่ร้านเลือกใน purchase แทน
 //   เกษตรกรสร้างแถวใน purchase เองไม่ได้ ร้านเท่านั้นที่บันทึกการรับซื้อ
 // ทุกคำสั่งแก้ไข/ลบ เช็กว่าแปลงเป็นของ user นั้นจริง
 // ============================================================
@@ -32,6 +33,9 @@ function soldDateError(soldDate, harvestDate) {
   return null;
 }
 
+/** เกรดจากฟอร์ม: ตัดช่องว่าง ไม่เกิน 100 ตัว (ตามคอลัมน์) ว่าง = NULL */
+const cleanGrade = (v) => String(v || '').trim().slice(0, 100) || null;
+
 /** หมายเหตุจากฟอร์ม: ตัดช่องว่าง จำกัด 500 ตัวอักษร (ตามขนาดคอลัมน์) ว่าง = NULL */
 const cleanNote = (v) => String(v || '').trim().slice(0, 500) || null;
 
@@ -50,7 +54,7 @@ async function saleFields(data) {
       const found = await db.query(`SELECT shop_id FROM shop WHERE shop_id = ?`, [shopId]);
       if (found.length === 0) return { error: 'ไม่พบร้านรับซื้อที่เลือก' };
     }
-    return { fields: { status: 'pending', shop_id: shopId, buyer_name: null, sold_date: null } };
+    return { fields: { status: 'pending', shop_id: shopId, buyer_name: null, sold_date: null, quality_grade: null } };
   }
   if (!(parseFloat(data.price_per_kg) > 0)) return { error: 'กรุณาใส่ราคาขายต่อกิโลกรัม' };
   const dateError = soldDateError(data.sold_date || today(), data.harvest_date);
@@ -60,6 +64,7 @@ async function saleFields(data) {
       status: 'sold',
       shop_id: null,
       buyer_name: String(data.buyer_name || '').trim().slice(0, 100) || null,
+      quality_grade: cleanGrade(data.quality_grade),
       sold_date: data.sold_date || today(),
     },
   };
@@ -93,7 +98,8 @@ const harvest = {
           END AS buyer,
           h.buyer_name AS buyerName,
           h.note,
-          p.quality_grade AS grade, -- เกรดที่ร้านในแอปให้ตอนรับซื้อ
+          -- เกรด: ขายผ่านร้านในแอป = เกรดที่ร้านเลือก, ขายนอกระบบ = เกรดที่เกษตรกรใส่เอง
+          COALESCE(p.quality_grade, h.quality_grade) AS grade,
           (p.purchase_id IS NOT NULL) AS purchasedByShop, -- 1 = ร้านในแอปรับซื้อแล้ว (ล็อกการแก้ไข)
           CAST(h.total_quantity AS DOUBLE) AS quantityKg,
           CAST(h.price_per_kg AS DOUBLE) AS pricePerKg,
@@ -244,10 +250,10 @@ const harvest = {
 
       await db.query(`
         INSERT INTO harvest
-        (harvest_id, garden_id, shop_id, buyer_name, harvest_date, total_quantity, price_per_kg, total_price, status, sold_date, note)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (harvest_id, garden_id, shop_id, buyer_name, quality_grade, harvest_date, total_quantity, price_per_kg, total_price, status, sold_date, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        newHarvestId, garden_id || null, f.shop_id, f.buyer_name, harvest_date,
+        newHarvestId, garden_id || null, f.shop_id, f.buyer_name, f.quality_grade, harvest_date,
         total_quantity || 0, price_per_kg || 0, total_price || 0, f.status, f.sold_date, cleanNote(data.note),
       ]);
 
@@ -273,14 +279,14 @@ const harvest = {
       // NOT IN purchase อยู่ใน WHERE ด้วย กันกรณีร้านกดรับซื้อพอดีระหว่างที่เกษตรกรกำลังแก้
       const result = await db.query(`
         UPDATE harvest
-        SET garden_id = ?, shop_id = ?, buyer_name = ?, harvest_date = ?, total_quantity = ?,
+        SET garden_id = ?, shop_id = ?, buyer_name = ?, quality_grade = ?, harvest_date = ?, total_quantity = ?,
             price_per_kg = ?, total_price = ?, status = ?, sold_date = ?, note = ?
         WHERE harvest_id = ?
           AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?)
           AND ? IN (SELECT garden_id FROM garden WHERE user_id = ?)
           AND harvest_id NOT IN (SELECT harvest_id FROM purchase)
       `, [
-        garden_id, f.shop_id, f.buyer_name, harvest_date, total_quantity || 0,
+        garden_id, f.shop_id, f.buyer_name, f.quality_grade, harvest_date, total_quantity || 0,
         price_per_kg || 0, total_price || 0, f.status, f.sold_date, cleanNote(data.note),
         harvestId, userId, garden_id, userId,
       ]);
@@ -297,7 +303,7 @@ const harvest = {
   // 4.1 เกษตรกรบันทึก "ขายนอกระบบ" จากรายการรอขาย
   //     ทำได้เฉพาะล็อตที่ไม่ได้เลือกร้านในแอปไว้ (เลือกไว้แล้ว = รอร้านนั้นยืนยันรับซื้อ)
   //     ราคารวมคำนวณจากน้ำหนักในฐานข้อมูล (total_quantity × ราคา) กันตัวเลขไม่ตรงกัน
-  sellHarvest: async (harvestId, userId, pricePerKg, buyerName = null, soldDate = null) => {
+  sellHarvest: async (harvestId, userId, pricePerKg, buyerName = null, soldDate = null, grade = null) => {
     try {
       const price = parseFloat(pricePerKg);
       if (!(price > 0)) {
@@ -315,10 +321,10 @@ const harvest = {
       const result = await db.query(`
         UPDATE harvest
         SET status = 'sold', price_per_kg = ?, total_price = total_quantity * ?,
-            buyer_name = ?, sold_date = ?
+            buyer_name = ?, sold_date = ?, quality_grade = ?
         WHERE harvest_id = ? AND status = 'pending' AND shop_id IS NULL
           AND garden_id IN (SELECT garden_id FROM garden WHERE user_id = ?)
-      `, [price, price, String(buyerName || '').trim().slice(0, 100) || null, date, harvestId, userId]);
+      `, [price, price, String(buyerName || '').trim().slice(0, 100) || null, date, cleanGrade(grade), harvestId, userId]);
       if (!result.affectedRows) {
         // บอกเหตุผลให้ชัด: รอร้านในแอปอยู่ / ขายไปแล้ว / ไม่ใช่ของเรา
         const rows = await db.query(`
