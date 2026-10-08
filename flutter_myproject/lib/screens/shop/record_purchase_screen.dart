@@ -14,6 +14,7 @@ import 'package:flutter_myproject/screens/shop/reject_lot_sheet.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/services/shop_service.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 class RecordPurchaseScreen extends StatefulWidget {
   final ShopInfo shop;
@@ -114,7 +115,7 @@ class _RecordPurchaseScreenState extends State<RecordPurchaseScreen> {
       if (!mounted || text != _searchCtrl.text) return; // ผลของคำค้นเก่า ทิ้งไป
       setState(() => _results = r);
     } catch (e) {
-      _toast(e.toString().replaceFirst('Exception: ', ''), error: true);
+      _toast(friendlyError(e), error: true);
     } finally {
       if (mounted) setState(() => _searching = false);
     }
@@ -136,7 +137,7 @@ class _RecordPurchaseScreenState extends State<RecordPurchaseScreen> {
         if (list.length == 1) _selectHarvest(list.first);
       });
     } catch (e) {
-      _toast(e.toString().replaceFirst('Exception: ', ''), error: true);
+      _toast(friendlyError(e), error: true);
     } finally {
       if (mounted) setState(() => _loadingHarvests = false);
     }
@@ -194,7 +195,7 @@ class _RecordPurchaseScreenState extends State<RecordPurchaseScreen> {
       _toast('บันทึกการรับซื้อแล้ว ผลผลิตของ ${_farmer!.name} เปลี่ยนเป็น "ขายแล้ว"');
       Navigator.pop(context, true);
     } catch (e) {
-      _toast(e.toString().replaceFirst('Exception: ', ''), error: true);
+      _toast(friendlyError(e), error: true);
       if (mounted) setState(() => _saving = false);
     }
   }

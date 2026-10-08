@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' show NumberFormat;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 // ==========================================
 // 1. MODEL
@@ -191,7 +192,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   );
                 }
                 if (snapshot.hasError) {
-                  return _buildError(snapshot.error.toString().replaceFirst('Exception: ', ''));
+                  return _buildError(friendlyError(snapshot.error));
                 }
                 return _buildReport(snapshot.data!);
               },

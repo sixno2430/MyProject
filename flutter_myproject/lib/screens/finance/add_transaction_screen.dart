@@ -12,6 +12,7 @@ import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
 import 'finance_screen.dart' show TransactionItem;
 import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// ฟอร์มบันทึกรายการเงิน
 class AddTransactionScreen extends StatefulWidget {
@@ -185,7 +186,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       throw Exception('ไม่สามารถบันทึกได้');
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

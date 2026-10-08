@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '../../../config/app_config.dart'; // ← ใช้ config ที่มีอยู่
 import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// หน้าเพิ่มแปลงสวน
 class AddPlotScreen extends StatefulWidget {
@@ -130,7 +131,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ผิดพลาด: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     } finally {

@@ -18,6 +18,9 @@ class ButtonNav extends StatelessWidget {
   /// สีของแท็บที่เลือกอยู่
   final Color color;
 
+  /// ตัวเลขแจ้งเตือนบนไอคอน {ลำดับแท็บ: จำนวน} เช่น {1: 3} = แท็บที่ 2 มี 3 รายการ (0 = ไม่แสดง)
+  final Map<int, int> badges;
+
   /// เมนูของฝั่งชาวสวน
   static const farmerItems = [
     ('🏠', 'หน้าหลัก'),
@@ -33,6 +36,7 @@ class ButtonNav extends StatelessWidget {
     required this.onTap,
     this.items = farmerItems,
     this.color = const Color(0xFF2D6A4F),
+    this.badges = const {},
   });
 
   @override
@@ -72,11 +76,17 @@ class ButtonNav extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            icon,
-            style: TextStyle(
-              fontSize: 22,
-              color: isSelected ? color : Colors.grey,
+          Badge(
+            isLabelVisible: (badges[index] ?? 0) > 0,
+            label: Text('${(badges[index] ?? 0) > 99 ? '99+' : badges[index]}'),
+            backgroundColor: const Color(0xFFDC2626),
+            offset: const Offset(8, -4),
+            child: Text(
+              icon,
+              style: TextStyle(
+                fontSize: 22,
+                color: isSelected ? color : Colors.grey,
+              ),
             ),
           ),
           const SizedBox(height: 4),

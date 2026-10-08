@@ -14,6 +14,7 @@ import 'package:flutter_myproject/config/app_config.dart';
 import 'add_harvest_screen.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 // ==========================================
 // 1. MODELS
@@ -309,7 +310,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }
@@ -420,7 +421,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
                   }
                   if (snapshot.hasError) {
                     return Center(
-                      child: Text('ข้อผิดพลาด: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
+                      child: Text(friendlyError(snapshot.error), style: const TextStyle(color: Colors.red)),
                     );
                   }
                   final summary = snapshot.data;
@@ -478,7 +479,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
                   }
                   if (snapshot.hasError) {
                     return Center(
-                      child: Text('ข้อผิดพลาด: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
+                      child: Text(friendlyError(snapshot.error), style: const TextStyle(color: Colors.red)),
                     );
                   }
                   final items = snapshot.data ?? [];
@@ -597,7 +598,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }

@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// หน้าเปลี่ยนรหัสผ่าน (เปิดจากเมนูในหน้าโปรไฟล์)
 class ChangePasswordScreen extends StatefulWidget {
@@ -67,7 +68,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       _showMessage('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว', success: true);
       Navigator.pop(context);
     } catch (e) {
-      _showMessage(e.toString().replaceFirst('Exception: ', ''));
+      _showMessage(friendlyError(e));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

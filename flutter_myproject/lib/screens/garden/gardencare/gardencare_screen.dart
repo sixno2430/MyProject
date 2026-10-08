@@ -17,6 +17,7 @@ import 'package:flutter_myproject/screens/garden/gardencare/care_types.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
 import 'package:flutter_myproject/config/app_config.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// รายการดูแลสวน 1 รายการ (แปลงจาก JSON ของ API แล้ว)
 class _CareItem {
@@ -147,7 +148,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'ไม่สามารถโหลดข้อมูลได้\n${e.toString().replaceFirst('Exception: ', '')}';
+        _errorMessage = 'ไม่สามารถโหลดข้อมูลได้\n${friendlyError(e)}';
         _isLoading = false;
       });
     }
@@ -193,7 +194,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }

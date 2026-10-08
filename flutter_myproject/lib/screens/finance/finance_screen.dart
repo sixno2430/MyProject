@@ -15,6 +15,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'add_transaction_screen.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 // ==========================================
 // 1. MODELS
@@ -278,7 +279,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }

@@ -14,6 +14,7 @@ import 'package:flutter_myproject/screens/shop/reject_lot_sheet.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/services/shop_service.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 class ShopPurchaseScreen extends StatefulWidget {
   final ShopInfo? shop;
@@ -140,7 +141,7 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', '')), backgroundColor: Colors.red),
+        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
       );
     }
   }
@@ -178,7 +179,7 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
                             Padding(
                               padding: const EdgeInsets.all(32),
                               child: Text(
-                                snap.error.toString().replaceFirst('Exception: ', ''),
+                                friendlyError(snap.error),
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(color: Colors.red),
                               ),

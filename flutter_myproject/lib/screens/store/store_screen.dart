@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' show NumberFormat;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 // ==========================================
 // 1. MODEL
@@ -186,7 +187,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   const SizedBox(height: 120),
                   Center(
                     child: Text(
-                      snapshot.error.toString().replaceFirst('Exception: ', ''),
+                      friendlyError(snapshot.error),
                       style: const TextStyle(color: Colors.red),
                     ),
                   ),

@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/services/shop_service.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// เปิดหน้าต่างไม่รับล็อต — คืน true เมื่อบันทึกสำเร็จ
 Future<bool> showRejectLotSheet(
@@ -67,7 +68,7 @@ class _RejectLotSheetState extends State<_RejectLotSheet> {
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _error = e.toString().replaceFirst('Exception: ', '');
+        _error = friendlyError(e);
       });
     }
   }

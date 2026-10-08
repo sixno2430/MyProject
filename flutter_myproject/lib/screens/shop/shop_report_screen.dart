@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/shop_service.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 class ShopReportScreen extends StatefulWidget {
   final ShopInfo? shop;
@@ -107,7 +108,7 @@ class _ShopReportScreenState extends State<ShopReportScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    snap.error.toString().replaceFirst('Exception: ', ''),
+                    friendlyError(snap.error),
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.red),
                   ),

@@ -10,6 +10,7 @@ import '../../../../services/palm_variety_service.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
 import 'add_palmvariety_screen.dart';
 import 'palm_variety.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// หน้ารายการพันธุ์ปาล์ม (ต้องส่ง token มาด้วย)
 class PalmVarietiesScreen extends StatefulWidget {
@@ -78,7 +79,7 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
       _toast('ลบพันธุ์ปาล์มแล้ว');
       _reload();
     } catch (e) {
-      _toast(e.toString().replaceFirst('Exception: ', ''));
+      _toast(friendlyError(e));
     }
   }
 
@@ -226,9 +227,7 @@ class _PalmVarietiesScreenState extends State<PalmVarietiesScreen> {
                         }
 
                         if (snap.hasError) {
-                          final errorMsg = snap.error
-                              .toString()
-                              .replaceAll('Exception: ', '');
+                          final errorMsg = friendlyError(snap.error);
 
                           return Center(
                             child: Padding(

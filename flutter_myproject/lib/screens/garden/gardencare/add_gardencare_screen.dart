@@ -13,6 +13,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/care_types.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// ฟอร์มบันทึกการดูแลสวน
 class AddGardenCareScreen extends StatefulWidget {
@@ -192,7 +193,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
       _showMessage(_isEdit ? 'แก้ไขรายการเรียบร้อยแล้ว' : 'บันทึกการดูแลเรียบร้อยแล้ว', success: true);
       Navigator.pop(context, true);
     } catch (e) {
-      _showMessage(e.toString().replaceFirst('Exception: ', ''));
+      _showMessage(friendlyError(e));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

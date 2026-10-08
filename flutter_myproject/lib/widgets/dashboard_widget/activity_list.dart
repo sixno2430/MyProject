@@ -28,9 +28,13 @@ class ActivityList extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'กิจกรรมล่าสุด',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              // หัวข้อหดได้ (จอแคบ/ตัวอักษรใหญ่) ปุ่ม "ดูทั้งหมด" จะได้ไม่ถูกดันล้นขวา
+              const Flexible(
+                child: Text(
+                  'กิจกรรมล่าสุด',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
               ),
               GestureDetector(
                 onTap: () async {

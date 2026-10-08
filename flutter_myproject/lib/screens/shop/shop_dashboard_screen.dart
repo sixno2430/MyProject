@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/shop_service.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 class ShopDashboardScreen extends StatefulWidget {
   /// ร้านของบัญชีนี้ (null = ยังไม่มีร้าน)
@@ -89,7 +90,7 @@ class _ShopDashboardScreenState extends State<ShopDashboardScreen> {
                     child: Column(
                       children: [
                         Text(
-                          snap.error.toString().replaceFirst('Exception: ', ''),
+                          friendlyError(snap.error),
                           textAlign: TextAlign.center,
                           style: const TextStyle(color: Colors.red),
                         ),

@@ -7,6 +7,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// รวมฟังก์ชันเรียก API โปรไฟล์ (เรียกแบบ static)
 class ProfileService {
@@ -35,7 +36,7 @@ class ProfileService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้: $e',
+        'message': friendlyError(e),
       };
     }
   }
@@ -63,7 +64,7 @@ class ProfileService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้: $e',
+        'message': friendlyError(e),
       };
     }
   }

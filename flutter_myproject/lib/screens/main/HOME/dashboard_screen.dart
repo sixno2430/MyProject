@@ -14,6 +14,7 @@ import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/screens/garden/harvest/harvest_screen.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 // โมเดลชั่วคราวเพื่อห่อหุ้ม Data + Token เข้าด้วยกันอย่างปลอดภัย
 /// ห่อข้อมูล Dashboard กับ token ไว้ด้วยกัน (token ต้องส่งต่อให้หน้าพันธุ์ปาล์ม)
@@ -80,6 +81,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// การ์ดสีส้ม "มีผลผลิตรอขาย" แตะแล้วไปหน้าเก็บเกี่ยว (แสดงเฉพาะเมื่อมีรายการรอขาย)
+  /// บรรทัดรองของการ์ดรอขาย: แยกล็อตที่รอร้านยืนยัน กับที่ยังไม่เลือกร้าน
+  /// (ล็อตที่เลือกร้านไว้ เกษตรกรบันทึกขายเองไม่ได้ ต้องรอร้านกดรับซื้อ)
+  String _pendingDetail(DashboardData data) {
+    final waiting = data.pendingWaitingShopCount;
+    final open = data.pendingHarvestCount - waiting;
+    final parts = <String>[
+      if (waiting > 0) 'รอร้านยืนยัน $waiting',
+      if (open > 0) 'ยังไม่เลือกร้าน $open',
+    ];
+    final action = open > 0 ? 'แตะเพื่อเลือกร้านหรือบันทึกขาย' : 'แตะเพื่อดูรายการ';
+    return '${parts.join(' · ')} · รวม ${formatNumber(data.pendingHarvestKg)} กก.\n$action';
+  }
+
   Widget _buildPendingHarvestCard(DashboardData data) {
     const orange = Color(0xFFE65100);
     return Padding(
@@ -120,7 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'รวม ${formatNumber(data.pendingHarvestKg)} กก. · แตะเพื่อบันทึกการขาย',
+                        _pendingDetail(data),
                         style: TextStyle(fontSize: 12, color: Colors.brown[400]),
                       ),
                     ],
@@ -150,7 +164,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 if (snapshot.hasError) {
                   return ErrorView(
-                    error: snapshot.error.toString(),
+                    error: friendlyError(snapshot.error),
                     onRetry: _loadDashboard,
                   );
                 }

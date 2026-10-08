@@ -13,6 +13,7 @@ import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/services/shop_service.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 class MyShopScreen extends StatefulWidget {
   final ShopInfo? shop;
@@ -65,7 +66,7 @@ class _MyShopScreenState extends State<MyShopScreen> {
     ).showSnackBar(SnackBar(content: Text(text), backgroundColor: error ? Colors.red : theme.primary));
   }
 
-  String _err(Object e) => e.toString().replaceFirst('Exception: ', '');
+  String _err(Object e) => friendlyError(e);
 
   // ---------- ข้อมูลร้าน ----------
 
@@ -603,7 +604,7 @@ class _PriceFormSheetState extends State<_PriceFormSheet> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', '')), backgroundColor: Colors.red),
+        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _saving = false);

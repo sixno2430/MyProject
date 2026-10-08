@@ -14,6 +14,7 @@ import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
 import 'harvest_screen.dart' show HarvestData, HarvestService, ShopDropdown, ShopSaleHint, GradePicker;
 import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// ฟอร์มบันทึกการเก็บเกี่ยว
 class AddHarvestScreen extends StatefulWidget {
@@ -306,7 +307,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('เกิดข้อผิดพลาดในการบันทึก: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('บันทึกไม่สำเร็จ: ${friendlyError(e)}'), backgroundColor: Colors.red),
         );
       }
     } finally {

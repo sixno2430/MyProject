@@ -13,6 +13,7 @@ import 'package:flutter_myproject/screens/garden/palmplot/add_plot_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/config/app_config.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 
 // ==========================================
@@ -198,7 +199,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
       setState(() => isLoading = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('ลบไม่สำเร็จ: $e')));
+      ).showSnackBar(SnackBar(content: Text('ลบไม่สำเร็จ: ${friendlyError(e)}')));
     }
   }
 
@@ -242,7 +243,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
       }
     } catch (e) {
       setState(() {
-        errorMessage = 'ไม่สามารถเชื่อมต่อ Server ได้ ($e)';
+        errorMessage = friendlyError(e);
         isLoading = false;
       });
     }
@@ -300,7 +301,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
         setState(() => isLoading = false);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('แก้ไขไม่สำเร็จ: $e')));
+        ).showSnackBar(SnackBar(content: Text('แก้ไขไม่สำเร็จ: ${friendlyError(e)}')));
       }
     }
   }

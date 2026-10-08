@@ -22,6 +22,7 @@ import 'package:flutter_myproject/screens/finance/add_transaction_screen.dart';
 import 'package:flutter_myproject/widgets/activity_widgets/activity_type_badge.dart';
 import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// หน้ารายละเอียดกิจกรรม
 class ActivityDetailScreen extends StatelessWidget {
@@ -124,7 +125,7 @@ class ActivityDetailScreen extends StatelessWidget {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }

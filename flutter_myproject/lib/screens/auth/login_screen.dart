@@ -17,6 +17,7 @@ import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
 // หน้าหลักร้านรับซื้อ
 import 'package:flutter_myproject/screens/shop/shop_home_screen.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -157,7 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (context) {
             final message = e is TimeoutException
                 ? 'เซิร์ฟเวอร์ไม่ตอบกลับ กรุณาตรวจสอบว่าเปิดเซิร์ฟเวอร์ไว้แล้ว'
-                : 'เกิดข้อผิดพลาด: $e';
+                : friendlyError(e);
             return AlertDialog(content: Text(message));
           },
         );

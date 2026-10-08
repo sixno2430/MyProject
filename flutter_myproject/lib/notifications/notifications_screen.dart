@@ -15,6 +15,7 @@ import 'package:flutter_myproject/config/app_config.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/screens/garden/harvest/harvest_screen.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/gardencare_screen.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// การแจ้งเตือน 1 รายการ
 class AppNotification {
@@ -140,7 +141,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       list.add(AppNotification(
         icon: '🏷️',
         title: 'ผลผลิตรอขาย ${h['code'] ?? h['id']}',
-        desc: '${h['plotName']} · ${kg.toStringAsFixed(0)} กก. · แตะเพื่อบันทึกการขาย',
+        // เลือกร้านไว้แล้ว = รอร้านยืนยัน (บันทึกขายเองไม่ได้), ยังไม่เลือก = เลือกร้านหรือขายนอกระบบได้
+        desc: (h['shopId']?.toString() ?? '').isNotEmpty
+            ? '${h['plotName']} · ${kg.toStringAsFixed(0)} กก. · ${h['buyer']}'
+            : '${h['plotName']} · ${kg.toStringAsFixed(0)} กก. · ยังไม่เลือกร้าน แตะเพื่อเลือกร้านหรือบันทึกขาย',
         color: const Color(0xFFE65100),
         destination: () => const HarvestScreen(),
       ));
@@ -200,7 +204,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             }
             if (snapshot.hasError) {
               return _buildMessage(
-                'โหลดการแจ้งเตือนไม่สำเร็จ\n${snapshot.error.toString().replaceFirst('Exception: ', '')}',
+                'โหลดการแจ้งเตือนไม่สำเร็จ\n${friendlyError(snapshot.error)}',
               );
             }
             final items = snapshot.data!;

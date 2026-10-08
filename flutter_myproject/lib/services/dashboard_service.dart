@@ -89,6 +89,7 @@ class DashboardData {
   final double monthlyIncome;
   final int pendingHarvestCount; // ผลผลิตที่ยังรอขาย
   final double pendingHarvestKg;
+  final int pendingWaitingShopCount; // ในนั้น: เลือกร้านไว้แล้ว รอร้านยืนยันรับซื้อ
   final List<ActivityItem> activities;
 
   DashboardData({
@@ -99,6 +100,7 @@ class DashboardData {
     required this.monthlyIncome,
     this.pendingHarvestCount = 0,
     this.pendingHarvestKg = 0,
+    this.pendingWaitingShopCount = 0,
     required this.activities,
   });
 
@@ -110,6 +112,7 @@ class DashboardData {
       totalPlants: int.tryParse(json['total_plants']?.toString() ?? '') ?? 0,
       pendingHarvestCount: int.tryParse(json['pending_harvest_count']?.toString() ?? '') ?? 0,
       pendingHarvestKg: double.tryParse(json['pending_harvest_kg']?.toString() ?? '') ?? 0,
+      pendingWaitingShopCount: int.tryParse(json['pending_waiting_shop_count']?.toString() ?? '') ?? 0,
       monthlyProduction:
           double.tryParse(json['monthly_production'].toString()) ?? 0,
       monthlyIncome: double.tryParse(json['monthly_income'].toString()) ?? 0,

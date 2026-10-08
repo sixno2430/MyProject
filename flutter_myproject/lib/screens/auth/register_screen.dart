@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:flutter_myproject/config/app_config.dart';  // ← เพิ่ม
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// หน้าสมัครสมาชิก
 class RegisterScreen extends StatefulWidget {
@@ -97,7 +98,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            content: Text(friendlyError(e)),
             backgroundColor: Colors.red,
           ),
         );

@@ -16,6 +16,7 @@ import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/services/shop_service.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
 import 'package:flutter_myproject/widgets/button_nav.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 class ShopHomeScreen extends StatefulWidget {
   const ShopHomeScreen({super.key});
@@ -41,6 +42,7 @@ class _ShopHomeScreenState extends State<ShopHomeScreen> {
   String? _error;
   ShopInfo? _shop; // null = บัญชีนี้ยังไม่มีร้าน
   int _purchaseVersion = 0; // เพิ่มทุกครั้งที่รับซื้อ/ยกเลิก ให้แท็บรายงานโหลดใหม่
+  int _incomingCount = 0; // ล็อตที่เกษตรกรส่งมา รอร้านยืนยัน -> ตัวเลขบนแท็บ "รับซื้อ"
 
   @override
   void initState() {
@@ -66,16 +68,31 @@ class _ShopHomeScreenState extends State<ShopHomeScreen> {
         _shop = shop;
         _isLoading = false;
       });
+      _refreshIncoming();
     } catch (e) {
       if (!mounted || silent) return;
       setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '');
+        _error = friendlyError(e);
         _isLoading = false;
       });
     }
   }
 
-  void _goTab(int index) => setState(() => _currentIndex = index);
+  /// นับล็อตที่ส่งมารอร้านยืนยัน (โหลดไม่ได้ก็แค่ไม่แสดงตัวเลข)
+  Future<void> _refreshIncoming() async {
+    final shop = _shop;
+    if (shop == null) return;
+    try {
+      final lots = await ShopService.fetchIncoming(await AuthService.getUserId() ?? '', shop.shopId);
+      if (mounted) setState(() => _incomingCount = lots.length);
+    } catch (_) {}
+  }
+
+  /// เปลี่ยนแท็บ + เช็กล็อตใหม่ทุกครั้ง (เกษตรกรอาจส่งล็อตมาระหว่างที่เปิดแอปค้างไว้)
+  void _goTab(int index) {
+    setState(() => _currentIndex = index);
+    _refreshIncoming();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -122,6 +139,7 @@ class _ShopHomeScreenState extends State<ShopHomeScreen> {
       bottomNavigationBar: ButtonNav(
         currentIndex: _currentIndex,
         onTap: _goTab,
+        badges: {1: _incomingCount}, // แท็บ "รับซื้อ"
         items: _navItems,
         color: theme.primary,
       ),

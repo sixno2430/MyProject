@@ -104,7 +104,9 @@ module.exports = {
 
       // 3.1) ผลผลิตที่ยังรอขาย (ใช้แสดงการ์ดเตือนบน Dashboard)
       var pendingSql =
-          "SELECT COUNT(*) AS pending_count, COALESCE(SUM(h.total_quantity), 0) AS pending_kg " +
+          "SELECT COUNT(*) AS pending_count, COALESCE(SUM(h.total_quantity), 0) AS pending_kg, " +
+          // แยก: เลือกร้านในแอปไว้แล้ว (รอร้านยืนยัน) / ยังไม่เลือกร้าน (เกษตรกรเลือกร้านหรือขายนอกระบบเองได้)
+          "       COALESCE(SUM(h.shop_id IS NOT NULL), 0) AS waiting_shop_count " +
           "FROM harvest h JOIN garden g ON h.garden_id = g.garden_id " +
           "WHERE g.user_id = ? AND COALESCE(h.status, 'sold') <> 'sold'";
       var pendingRows = await conn.query(pendingSql, [userId]);
@@ -120,6 +122,7 @@ module.exports = {
           total_plants: totalPlants,
           pending_harvest_count: Number(pendingRows[0].pending_count),
           pending_harvest_kg: Number(pendingRows[0].pending_kg),
+          pending_waiting_shop_count: Number(pendingRows[0].waiting_shop_count),
           monthly_production: monthlyProduction,
           monthly_income: monthlyIncome,
           activities: activityRows,

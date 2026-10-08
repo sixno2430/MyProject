@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/services/palm_variety_service.dart';
 import 'palm_variety.dart';
+import 'package:flutter_myproject/utils/error_message.dart';
 
 /// ฟอร์มพันธุ์ปาล์ม
 class AddPalmVarietyScreen extends StatefulWidget {
@@ -65,7 +66,7 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(content: Text(friendlyError(e))),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
