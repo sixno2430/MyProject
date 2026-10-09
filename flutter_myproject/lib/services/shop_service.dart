@@ -456,6 +456,27 @@ class ShopService {
     _decode(res);
   }
 
+  /// แก้ไขการรับซื้อ (เซิร์ฟเวอร์อัปเดตผลผลิตฝั่งเกษตรกรให้ตรงกันเอง)
+  static Future<void> updatePurchase({
+    required String userId,
+    required String purchaseId,
+    required double quantity,
+    required double pricePerKg,
+    required String purchaseDate,
+  }) async {
+    final res = await http.put(
+      Uri.parse('$_base/shop/purchases/$purchaseId'),
+      headers: _json,
+      body: jsonEncode({
+        'user_id': userId,
+        'quantity': quantity,
+        'price_per_kg': pricePerKg,
+        'purchase_date': purchaseDate,
+      }),
+    );
+    _decode(res);
+  }
+
   /// รายงานการรับซื้อของปีที่เลือก
   static Future<ShopReport> fetchReport(String shopId, int year) async {
     final res = await http.get(Uri.parse('$_base/shop/$shopId/reports?year=$year'));

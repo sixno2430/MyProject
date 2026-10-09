@@ -9,6 +9,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_myproject/screens/shop/edit_purchase_sheet.dart';
 import 'package:flutter_myproject/screens/shop/record_purchase_screen.dart';
 import 'package:flutter_myproject/screens/shop/reject_lot_sheet.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
@@ -108,6 +109,14 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
     );
     if (!done || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ไม่รับล็อตนี้แล้ว แจ้งเกษตรกรเรียบร้อย')));
+    _load();
+    widget.onChanged();
+  }
+
+  Future<void> _edit(ShopPurchase p) async {
+    final done = await showEditPurchaseSheet(context, p);
+    if (!done || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('แก้ไขการรับซื้อแล้ว')));
     _load();
     widget.onChanged();
   }
@@ -506,8 +515,18 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
           ),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: Colors.grey[400], size: 20),
-            onSelected: (_) => _cancel(p),
+            onSelected: (v) => v == 'edit' ? _edit(p) : _cancel(p),
             itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_outlined, size: 20),
+                    SizedBox(width: 8),
+                    Text('แก้ไข'),
+                  ],
+                ),
+              ),
               PopupMenuItem(
                 value: 'cancel',
                 child: Row(

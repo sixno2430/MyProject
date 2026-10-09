@@ -496,6 +496,58 @@ const shop = {
     }
   },
 
+  /**
+   * แก้ไขการรับซื้อ (น้ำหนัก / ราคาต่อกก. / วันที่)
+   * อัปเดตผลผลิตฝั่งเกษตรกรให้ตรงกันด้วย เพราะรายรับของเกษตรกรอ่านจากตาราง harvest
+   */
+  updatePurchase: async (purchaseId, { user_id, quantity, price_per_kg, purchase_date }) => {
+    const qty = parseFloat(quantity);
+    const price = parseFloat(price_per_kg);
+    if (!(qty > 0)) return { isError: true, data: null, errorMessage: 'น้ำหนักต้องมากกว่า 0' };
+    if (!(price > 0)) return { isError: true, data: null, errorMessage: 'ราคาต้องมากกว่า 0' };
+    if (!purchase_date) return { isError: true, data: null, errorMessage: 'กรุณาเลือกวันที่รับซื้อ' };
+
+    let conn;
+    try {
+      conn = await db.getConnection();
+      await conn.beginTransaction();
+      const found = await conn.query(`
+        SELECT p.harvest_id, DATE_FORMAT(h.harvest_date, '%Y-%m-%d') AS harvest_date
+        FROM purchase p
+        JOIN shop s ON p.shop_id = s.shop_id
+        LEFT JOIN harvest h ON p.harvest_id = h.harvest_id
+        WHERE p.purchase_id = ? AND s.user_id = ? FOR UPDATE
+      `, [purchaseId, user_id]);
+      if (found.length === 0) {
+        await conn.rollback();
+        return { isError: true, data: null, errorMessage: 'ไม่พบรายการ หรือไม่มีสิทธิ์แก้ไข' };
+      }
+      const pd = String(purchase_date).slice(0, 10);
+      if ((found[0].harvest_date && pd < found[0].harvest_date) || pd > new Date().toLocaleDateString('sv-SE')) {
+        await conn.rollback();
+        return { isError: true, data: null, errorMessage: 'วันที่รับซื้อต้องอยู่ระหว่างวันเก็บเกี่ยวถึงวันนี้' };
+      }
+
+      const total = Math.round(qty * price * 100) / 100;
+      await conn.query(`
+        UPDATE purchase SET quantity = ?, price_per_kg = ?, total_price = ?, purchase_date = ?
+        WHERE purchase_id = ?
+      `, [qty, price, total, pd, purchaseId]);
+      await conn.query(`
+        UPDATE harvest SET total_quantity = ?, price_per_kg = ?, total_price = ?, sold_date = ?
+        WHERE harvest_id = ?
+      `, [qty, price, total, pd, found[0].harvest_id]);
+      await conn.commit();
+      return { isError: false, data: { purchase_id: purchaseId, total_price: total }, errorMessage: '' };
+    } catch (error) {
+      if (conn) await conn.rollback().catch(() => {});
+      console.error('Error updatePurchase:', error.message);
+      return { isError: true, data: null, errorMessage: 'แก้ไขการรับซื้อไม่สำเร็จ' };
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   // ดึงรายการรับซื้อทั้งหมดของร้านนี้ (ใหม่สุดก่อน) พร้อมชื่อเกษตรกรและแปลงที่มาของผลผลิต
   getPurchasesByShop: async (shopId) => {
     try {

@@ -628,6 +628,16 @@ app.post('/api/shop/purchases', async (req, res) => {
   }
 });
 
+/** แก้ไขการรับซื้อ body: { user_id (เจ้าของร้าน), quantity, price_per_kg, purchase_date } */
+app.put('/api/shop/purchases/:purchase_id', async (req, res) => {
+  try {
+    const result = await shop.updatePurchase(req.params.purchase_id, req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
 /** ยกเลิกการรับซื้อ (บันทึกผิด) -> ผลผลิตฝั่งเกษตรกรกลับเป็น "รอขาย" */
 app.delete('/api/shop/purchases/:purchase_id', async (req, res) => {
   try {
