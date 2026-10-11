@@ -19,7 +19,7 @@ class RecentActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = _resolveTheme(activity.type);
+    final theme = _resolveTheme(activity);
 
     return GestureDetector(
       onTap: () async {
@@ -144,17 +144,19 @@ class RecentActivityCard extends StatelessWidget {
     }
   }
 
-  _CardTheme _resolveTheme(String type) {
-    switch (type) {
+  /// emoji + สีของการ์ดตามประเภท — ดูแลสวนใช้ emoji/สีของกิจกรรมนั้นจาก care_types.dart
+  _CardTheme _resolveTheme(ActivityItem activity) {
+    switch (activity.type) {
       case 'harvest':
         return _CardTheme(
           emoji: '🧺',
           iconBg: const Color(0xFFFCE4EC),
         );
       case 'care':
+        final care = activity.careType!;
         return _CardTheme(
-          emoji: '💊',
-          iconBg: const Color(0xFFFFEBEE),
+          emoji: care.emoji,
+          iconBg: care.bgColor,
         );
       case 'income':
         return _CardTheme(

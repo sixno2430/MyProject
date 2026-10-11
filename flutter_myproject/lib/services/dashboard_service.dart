@@ -9,6 +9,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
+import 'package:flutter_myproject/screens/garden/gardencare/care_types.dart';
 
 /// ข้อมูลกิจกรรม 1 รายการ (เก็บเกี่ยว / ดูแลสวน / รายรับ / รายจ่าย)
 class ActivityItem {
@@ -24,23 +25,19 @@ class ActivityItem {
   /// ข้อมูลดิบทั้งหมดจาก API ไว้ส่งต่อให้ฟอร์มแก้ไข
   final Map<String, dynamic> raw;
 
-  /// ชื่อกิจกรรมดูแลสวนเป็นภาษาไทย (ใส่ปุ๋ย / ตัดแต่ง / ให้น้ำ ...)
+  /// ประเภทกิจกรรมดูแลสวน (ชื่อ, emoji, สี) จาก care_types.dart ที่เดียวกับฟอร์มบันทึก
+  /// ไอคอนในการ์ดกิจกรรมจึงตรงกับที่เลือกตอนบันทึก (ตัดแต่ง = ✂️, ให้น้ำ = 💧 ...)
+  /// รายการเก่าที่มีแต่ fertilizer_id = ใส่ปุ๋ย, ไม่ใช่รายการดูแลสวน = null
+  CareType? get careType {
+    if (type != 'care') return null;
+    if (raw['fertilizer_id'] != null) return careTypeOf('fertilizer');
+    return careTypeOf(raw['action_type']?.toString());
+  }
+
+  /// ชื่อกิจกรรมดูแลสวนเป็นภาษาไทย (ใส่ปุ๋ย / ตัดแต่ง / ให้น้ำ ...) ประเภท "อื่นๆ" แสดงเป็น "ดูแลสวน"
   String get careLabel {
-    if (raw['fertilizer_id'] != null) return 'ใส่ปุ๋ย';
-    switch (raw['action_type']) {
-      case 'fertilizer':
-        return 'ใส่ปุ๋ย';
-      case 'pruning':
-        return 'ตัดแต่ง';
-      case 'weeding':
-        return 'กำจัดวัชพืช';
-      case 'watering':
-        return 'ให้น้ำ';
-      case 'spraying':
-        return 'พ่นยา';
-      default:
-        return 'ดูแลสวน';
-    }
+    final t = careType;
+    return t == null || t.type == 'other' ? 'ดูแลสวน' : t.label;
   }
 
   /// หน่วยของจำนวน: ดูแลสวนใช้หน่วยที่บันทึกไว้ (ต้น / ครั้ง / กก.) ส่วนเก็บเกี่ยวเป็น กก.

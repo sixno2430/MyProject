@@ -5,9 +5,11 @@
 import 'package:flutter/material.dart';
 
 /// ป้ายประเภทกิจกรรม เช่น "เก็บเกี่ยว", "รายรับ"
+/// emoji ส่งมาเองได้ (ดูแลสวนส่ง emoji ของกิจกรรมนั้น เช่น ✂️ ตัดแต่ง) ไม่ส่ง = ใช้ของหมวด
 class ActivityTypeBadge extends StatelessWidget {
   final String type;
-  const ActivityTypeBadge({super.key, required this.type});
+  final String? emoji;
+  const ActivityTypeBadge({super.key, required this.type, this.emoji});
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +23,7 @@ class ActivityTypeBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(config.emoji, style: const TextStyle(fontSize: 12)),
+          Text(emoji ?? config.emoji, style: const TextStyle(fontSize: 12)),
           const SizedBox(width: 4),
           Text(
             config.label,

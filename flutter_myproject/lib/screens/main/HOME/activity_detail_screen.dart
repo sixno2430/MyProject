@@ -176,7 +176,7 @@ class ActivityDetailScreen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.end,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        ActivityTypeBadge(type: activity.type),
+                        ActivityTypeBadge(type: activity.type, emoji: activity.careType?.emoji),
                         const SizedBox(height: 12),
                         Text(
                           activity.gardenName,

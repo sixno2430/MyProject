@@ -21,7 +21,7 @@ class ActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = _resolveTheme(activity.type);
+    final theme = _resolveTheme(activity);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -83,7 +83,7 @@ class ActivityCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ActivityTypeBadge(type: activity.type),
+                    ActivityTypeBadge(type: activity.type, emoji: activity.careType?.emoji),
                     const SizedBox(height: 6),
                     Text(
                       activity.gardenName,
@@ -181,8 +181,9 @@ class ActivityCard extends StatelessWidget {
     }
   }
 
-  _CardTheme _resolveTheme(String type) {
-    switch (type) {
+  /// emoji + สีของการ์ดตามประเภท — ดูแลสวนใช้ emoji/สีของกิจกรรมนั้นจาก care_types.dart
+  _CardTheme _resolveTheme(ActivityItem activity) {
+    switch (activity.type) {
       case 'harvest':
         return _CardTheme(
           emoji: '🧺',
@@ -191,10 +192,11 @@ class ActivityCard extends StatelessWidget {
           valueColor: const Color(0xFFC2185B),
         );
       case 'care':
+        final care = activity.careType!;
         return _CardTheme(
-          emoji: '💊',
+          emoji: care.emoji,
           accentColor: const Color(0xFFFF9800),
-          iconBg: const Color(0xFFFFF3E0),
+          iconBg: care.bgColor,
           valueColor: const Color(0xFFE65100),
         );
       case 'income':
