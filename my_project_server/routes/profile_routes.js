@@ -89,6 +89,7 @@ router.put('/:user_id', async (req, res) => {
     if (!result.data || !result.data.affectedRows) {
       return res.json({ success: false, message: 'ไม่พบผู้ใช้นี้' });
     }
+    userAccount.logAction(user_id, 'EDIT_PROFILE', req.ip); // ประวัติการใช้งานของแอดมิน
     res.json({ success: true, message: 'บันทึกข้อมูลเรียบร้อยแล้ว' });
   } catch (error) {
     console.error('🔴 [Profile API] Update error:', error);

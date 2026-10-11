@@ -2,7 +2,7 @@
 // admin_logs_screen.dart — ประวัติการใช้งานระบบ (ตาราง USER_LOG)
 //
 // แสดง log ล่าสุด 200 รายการ: ใคร ทำอะไร เมื่อไร จาก IP ไหน จัดกลุ่มตามวัน
-// กรองตามหมวดได้: การเข้าสู่ระบบ / การบันทึกข้อมูล / การจัดการบัญชี (logCategories ใน admin_service.dart)
+// กรองตามหมวดได้: การเข้าสู่ระบบ / เพิ่มข้อมูล / แก้ไข-ลบข้อมูล / การจัดการบัญชี (logCategories ใน admin_service.dart)
 // ส่ง userId มา = ดูเฉพาะบัญชีนั้น (เปิดจากรายละเอียดบัญชีในหน้าจัดการผู้ใช้)
 // log ถูกบันทึกฝั่ง server ตอนล็อกอินและตอนทำรายการสำคัญ (userAccount.logAction)
 // ============================================================
@@ -171,14 +171,18 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     return groups;
   }
 
-  /// ไอคอน + สีตามหมวดของการกระทำ
-  (IconData, Color) _style(String action) => switch (action) {
-    'LOGIN' => (Icons.login, AdminColors.primary),
-    'ADD_HARVEST' || 'ADD_CARE' => (Icons.edit_note, AdminColors.farmer),
-    'ADD_PURCHASE' || 'UPDATE_PRICE' => (Icons.storefront_outlined, AdminColors.shop),
-    'SUSPEND_USER' => (Icons.block, AdminColors.danger),
-    _ => (Icons.manage_accounts_outlined, AdminColors.textMuted),
-  };
+  /// ไอคอน + สีตามประเภทของการกระทำ: ลบ/ยกเลิก = แดง, แก้ไข = ส้ม, ร้าน = ส้มเข้ม, บัญชี = น้ำเงิน, เพิ่มข้อมูล = เขียว
+  (IconData, Color) _style(String action) {
+    if (action == 'LOGIN') return (Icons.login, AdminColors.primary);
+    if (action == 'SUSPEND_USER' || action == 'REJECT_HARVEST') return (Icons.block, AdminColors.danger);
+    if (action.startsWith('DELETE_') || action == 'CANCEL_PURCHASE') return (Icons.delete_outline, AdminColors.danger);
+    if (action.startsWith('EDIT_') || action == 'CHANGE_PASSWORD') return (Icons.edit_outlined, AdminColors.warning);
+    if (action.contains('PURCHASE') || action.contains('PRICE') || action.contains('SHOP')) {
+      return (Icons.storefront_outlined, AdminColors.shop);
+    }
+    if (action.contains('USER') || action == 'REGISTER') return (Icons.manage_accounts_outlined, AdminColors.primary);
+    return (Icons.add_circle_outline, AdminColors.farmer); // เพิ่มข้อมูลของเกษตรกร
+  }
 
   /// IP จาก Node มักขึ้นต้นด้วย ::ffff: (IPv4 ที่ห่อเป็น IPv6) ตัดออกให้อ่านง่าย, ::1 = เครื่องเดียวกับเซิร์ฟเวอร์
   String _ip(String? ip) {

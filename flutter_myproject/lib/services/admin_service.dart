@@ -139,25 +139,63 @@ class AdminLog {
 
 /// คำอธิบายการกระทำใน user_log เป็นภาษาไทย
 const Map<String, String> logActionLabels = {
+  // การเข้าสู่ระบบ / บัญชี
   'LOGIN': 'เข้าสู่ระบบ',
   'REGISTER': 'ลงทะเบียนบัญชีใหม่',
-  'ADD_HARVEST': 'บันทึกการเก็บเกี่ยว',
+  'EDIT_PROFILE': 'แก้ไขข้อมูลส่วนตัว',
+  'CHANGE_PASSWORD': 'เปลี่ยนรหัสผ่าน',
+  // เกษตรกร
+  'ADD_GARDEN': 'เพิ่มแปลงสวน',
+  'EDIT_GARDEN': 'แก้ไขแปลงสวน',
+  'DELETE_GARDEN': 'ลบแปลงสวน',
+  'ADD_VARIETY': 'เพิ่มพันธุ์ปาล์ม',
+  'EDIT_VARIETY': 'แก้ไขพันธุ์ปาล์ม',
+  'DELETE_VARIETY': 'ลบพันธุ์ปาล์ม',
   'ADD_CARE': 'บันทึกการดูแลสวน',
-  'ADD_PURCHASE': 'บันทึกการรับซื้อผลผลิต',
+  'EDIT_CARE': 'แก้ไขการดูแลสวน',
+  'DELETE_CARE': 'ลบการดูแลสวน',
+  'ADD_HARVEST': 'บันทึกการเก็บเกี่ยว',
+  'EDIT_HARVEST': 'แก้ไขการเก็บเกี่ยว',
+  'DELETE_HARVEST': 'ลบการเก็บเกี่ยว',
+  'SELL_HARVEST': 'บันทึกการขายนอกระบบ',
+  'ADD_FINANCE': 'บันทึกรายรับ-รายจ่าย',
+  'EDIT_FINANCE': 'แก้ไขรายรับ-รายจ่าย',
+  'DELETE_FINANCE': 'ลบรายรับ-รายจ่าย',
+  // ร้านรับซื้อ
+  'ADD_SHOP': 'ลงทะเบียนข้อมูลร้าน',
+  'EDIT_SHOP': 'แก้ไขข้อมูลร้าน',
   'UPDATE_PRICE': 'ปรับราคารับซื้อ',
+  'DELETE_PRICE': 'ลบราคารับซื้อ',
+  'ADD_PURCHASE': 'บันทึกการรับซื้อผลผลิต',
+  'EDIT_PURCHASE': 'แก้ไขการรับซื้อ',
+  'CANCEL_PURCHASE': 'ยกเลิกการรับซื้อ',
+  'REJECT_HARVEST': 'ไม่รับซื้อล็อตผลผลิต',
+  // ผู้ดูแลระบบ
   'ADD_USER': 'เพิ่มบัญชีผู้ใช้',
   'EDIT_USER': 'แก้ไขข้อมูลบัญชีผู้ใช้',
   'SUSPEND_USER': 'ระงับการใช้งานบัญชี',
   'ACTIVATE_USER': 'เปิดใช้งานบัญชี',
 };
 
-/// หมวดของประวัติการใช้งาน ใช้เป็นตัวกรองในหน้าประวัติ (ค่า = action ในหมวด คั่นด้วย comma)
-const List<(String, String?)> logCategories = [
+/// action ในหมวดที่ระบุ (ใช้ชื่อขึ้นต้น เช่น ADD_ = เพิ่มข้อมูล) คั่นด้วย comma สำหรับส่งไปกรองที่เซิร์ฟเวอร์
+String _actionsWhere(bool Function(String action) test) => logActionLabels.keys.where(test).join(',');
+
+const _accountActions = {
+  'REGISTER', 'EDIT_PROFILE', 'CHANGE_PASSWORD', 'ADD_USER', 'EDIT_USER', 'SUSPEND_USER', 'ACTIVATE_USER',
+};
+
+/// หมวดของประวัติการใช้งาน ใช้เป็นตัวกรองในหน้าประวัติ (ค่า = action ในหมวด คั่นด้วย comma, null = ทั้งหมด)
+final List<(String, String?)> logCategories = [
   ('ทั้งหมด', null),
   ('การเข้าสู่ระบบ', 'LOGIN'),
-  ('การบันทึกข้อมูล', 'ADD_HARVEST,ADD_CARE,ADD_PURCHASE,UPDATE_PRICE'),
-  ('การจัดการบัญชี', 'REGISTER,ADD_USER,EDIT_USER,SUSPEND_USER,ACTIVATE_USER'),
+  ('เพิ่มข้อมูล', _actionsWhere((a) => !_accountActions.contains(a) && a != 'LOGIN' && !_isChange(a))),
+  ('แก้ไข/ลบข้อมูล', _actionsWhere((a) => !_accountActions.contains(a) && _isChange(a))),
+  ('การจัดการบัญชี', _accountActions.join(',')),
 ];
+
+/// แก้ไข / ลบ / ยกเลิก / ไม่รับซื้อ = การเปลี่ยนแปลงข้อมูลเดิม
+bool _isChange(String a) =>
+    a.startsWith('EDIT_') || a.startsWith('DELETE_') || a == 'CANCEL_PURCHASE' || a == 'REJECT_HARVEST';
 
 /// ข้อมูลหน้ารายงานระบบ
 class AdminReport {

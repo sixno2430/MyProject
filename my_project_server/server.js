@@ -42,6 +42,12 @@ BigInt.prototype.toJSON = function() {
 const hostname = '0.0.0.0'; 
 const port = require('./libs/config').port; // ตั้งใน .env (PORT) ไม่ตั้ง = 3000
 
+// บันทึกประวัติการใช้งาน (ตาราง user_log) เมื่อทำรายการสำเร็จ — ใช้ใน route ที่เพิ่ม/แก้/ลบข้อมูล
+// หน้า "ประวัติการใช้งานระบบ" ของแอดมินอ่านจากตารางนี้ (บันทึกไม่สำเร็จก็ไม่กระทบรายการหลัก)
+function logIfOk(result, userId, action, req) {
+  if (result && !result.isError) userAccount.logAction(userId, action, req.ip);
+}
+
 // ==========================================
 // USER & AUTHENTICATION API
 // ==========================================
@@ -249,6 +255,7 @@ app.post('/api/gardens', async (req, res) => {
     if (garden && typeof garden.createGarden === 'function') {
       const result = await garden.createGarden(req.body);
       if (result.isError) return res.status(500).json(result);
+      logIfOk(result, req.body.user_id, 'ADD_GARDEN', req);
       res.status(201).json(result);
     } else {
       res.status(500).json({ isError: true, errorMessage: "ไม่พบฟังก์ชัน createGarden ใน models/garden.js" });
@@ -263,6 +270,7 @@ app.put('/api/gardens/:garden_id', async (req, res) => {
   try {
     const { garden_id } = req.params;
     const result = await garden.updateGarden(garden_id, req.body);
+    logIfOk(result, req.body.user_id, 'EDIT_GARDEN', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -274,6 +282,7 @@ app.delete('/api/gardens/:garden_id', async (req, res) => {
   try {
     const { garden_id } = req.params;
     const result = await garden.deleteGarden(garden_id, req.query.user_id);
+    logIfOk(result, req.query.user_id, 'DELETE_GARDEN', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -342,6 +351,7 @@ app.post('/api/care-logs', async (req, res) => {
 app.put('/api/care-logs/:care_id', async (req, res) => {
   try {
     const result = await care.updateCareLog(req.params.care_id, req.body.user_id, req.body);
+    logIfOk(result, req.body.user_id, 'EDIT_CARE', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -362,6 +372,7 @@ app.get('/api/care-logs/:care_id', async (req, res) => {
 app.delete('/api/care-logs/:care_id', async (req, res) => {
   try {
     const result = await care.deleteCareLog(req.params.care_id, req.query.user_id);
+    logIfOk(result, req.query.user_id, 'DELETE_CARE', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -382,6 +393,7 @@ app.get('/api/varieties', async (req, res) => {
 app.post('/api/varieties', async (req, res) => {
   try {
     const result = await palmVariety.create(req.body);
+    logIfOk(result, req.body.user_id, 'ADD_VARIETY', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -392,6 +404,7 @@ app.post('/api/varieties', async (req, res) => {
 app.put('/api/varieties/:variety_id', async (req, res) => {
   try {
     const result = await palmVariety.update(req.params.variety_id, req.body);
+    logIfOk(result, req.body.user_id, 'EDIT_VARIETY', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -402,6 +415,7 @@ app.put('/api/varieties/:variety_id', async (req, res) => {
 app.delete('/api/varieties/:variety_id', async (req, res) => {
   try {
     const result = await palmVariety.remove(req.params.variety_id, req.query.user_id);
+    logIfOk(result, req.query.user_id, 'DELETE_VARIETY', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -452,6 +466,7 @@ app.post('/api/harvests', async (req, res) => {
 app.put('/api/harvests/:harvest_id/sell', async (req, res) => {
   try {
     const result = await harvest.sellHarvest(req.params.harvest_id, req.body.user_id, req.body.price_per_kg, req.body.buyer_name, req.body.sold_date, req.body.quality_grade);
+    logIfOk(result, req.body.user_id, 'SELL_HARVEST', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -462,6 +477,7 @@ app.put('/api/harvests/:harvest_id/sell', async (req, res) => {
 app.put('/api/harvests/:harvest_id', async (req, res) => {
   try {
     const result = await harvest.updateHarvest(req.params.harvest_id, req.body.user_id, req.body);
+    logIfOk(result, req.body.user_id, 'EDIT_HARVEST', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -472,6 +488,7 @@ app.put('/api/harvests/:harvest_id', async (req, res) => {
 app.delete('/api/harvests/:harvest_id', async (req, res) => {
   try {
     const result = await harvest.deleteHarvest(req.params.harvest_id, req.query.user_id);
+    logIfOk(result, req.query.user_id, 'DELETE_HARVEST', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -508,6 +525,7 @@ app.get('/api/finance/transactions', async (req, res) => {
 app.post('/api/finance/add', async (req, res) => {
   try {
     const result = await finance.createTransaction(req.body);
+    logIfOk(result, req.body.user_id, 'ADD_FINANCE', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -518,6 +536,7 @@ app.post('/api/finance/add', async (req, res) => {
 app.put('/api/finance/:finance_id', async (req, res) => {
   try {
     const result = await finance.updateTransaction(req.params.finance_id, req.body.user_id, req.body);
+    logIfOk(result, req.body.user_id, 'EDIT_FINANCE', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -528,6 +547,7 @@ app.put('/api/finance/:finance_id', async (req, res) => {
 app.delete('/api/finance/:finance_id', async (req, res) => {
   try {
     const result = await finance.deleteTransaction(req.params.finance_id, req.query.user_id);
+    logIfOk(result, req.query.user_id, 'DELETE_FINANCE', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -549,6 +569,7 @@ app.put('/api/user/:user_id/password', async (req, res) => {
       return res.json({ isError: true, errorMessage: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัว' });
     }
     const result = await userAccount.changePassword(req.params.user_id, old_password, new_password);
+    logIfOk(result, req.params.user_id, 'CHANGE_PASSWORD', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -594,6 +615,7 @@ app.get('/api/shop/profile/:user_id', async (req, res) => {
 app.post('/api/shop/profile', async (req, res) => {
   try {
     const result = await shop.createShop(req.body);
+    logIfOk(result, req.body.user_id, 'ADD_SHOP', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -604,6 +626,7 @@ app.post('/api/shop/profile', async (req, res) => {
 app.put('/api/shop/profile/:shop_id', async (req, res) => {
   try {
     const result = await shop.updateShopProfile(req.params.shop_id, req.body);
+    logIfOk(result, req.body.user_id, 'EDIT_SHOP', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -624,6 +647,7 @@ app.get('/api/shop/:shop_id/prices', async (req, res) => {
 app.delete('/api/shop/prices/:price_rate_id', async (req, res) => {
   try {
     const result = await shop.deletePriceRate(req.params.price_rate_id, req.query.user_id);
+    logIfOk(result, req.query.user_id, 'DELETE_PRICE', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -666,6 +690,7 @@ app.post('/api/shop/purchases', async (req, res) => {
 app.put('/api/shop/purchases/:purchase_id', async (req, res) => {
   try {
     const result = await shop.updatePurchase(req.params.purchase_id, req.body);
+    logIfOk(result, req.body.user_id, 'EDIT_PURCHASE', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -676,6 +701,7 @@ app.put('/api/shop/purchases/:purchase_id', async (req, res) => {
 app.delete('/api/shop/purchases/:purchase_id', async (req, res) => {
   try {
     const result = await shop.cancelPurchase(req.params.purchase_id, req.query.user_id);
+    logIfOk(result, req.query.user_id, 'CANCEL_PURCHASE', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -686,6 +712,7 @@ app.delete('/api/shop/purchases/:purchase_id', async (req, res) => {
 app.post('/api/shop/harvests/:harvest_id/reject', async (req, res) => {
   try {
     const result = await shop.rejectHarvest({ ...req.body, harvest_id: req.params.harvest_id });
+    logIfOk(result, req.body.user_id, 'REJECT_HARVEST', req);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
