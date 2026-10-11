@@ -16,13 +16,14 @@ import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
 import 'package:flutter_myproject/screens/garden/harvest/add_harvest_screen.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/add_gardencare_screen.dart';
-import 'package:flutter_myproject/screens/finance/finance_screen.dart' show TransactionItem;
+
 import 'package:flutter_myproject/screens/finance/add_transaction_screen.dart';
 import 'package:flutter_myproject/widgets/activity_widgets/activity_type_badge.dart';
 import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 import 'package:flutter_myproject/models/harvest.dart';
+import 'package:flutter_myproject/models/finance.dart';
 
 /// หน้ารายละเอียดกิจกรรม
 class ActivityDetailScreen extends StatelessWidget {

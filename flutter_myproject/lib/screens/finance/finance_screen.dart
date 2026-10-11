@@ -15,99 +15,12 @@ import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'add_transaction_screen.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
-import 'package:flutter_myproject/screens/garden/gardencare/care_types.dart';
+import 'package:flutter_myproject/models/care_type.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
+import 'package:flutter_myproject/models/finance.dart';
+import 'package:flutter_myproject/screens/finance/widgets/transaction_tile.dart';
 
-// ==========================================
-// 1. MODELS
-// ==========================================
-
-/// ยอดสรุปของเดือน (คงเหลือ / รายรับ / รายจ่าย)
-class FinanceSummary {
-  final double balance;
-  final double totalIncome;
-  final double totalExpense;
-
-  FinanceSummary({required this.balance, required this.totalIncome, required this.totalExpense});
-
-  /// แปลง JSON เป็น FinanceSummary (รองรับชื่อ key หลายแบบ)
-  factory FinanceSummary.fromJson(Map<String, dynamic> json) {
-    double parseNum(dynamic val) {
-      if (val == null) return 0.0;
-      if (val is num) return val.toDouble();
-      return double.tryParse(val.toString()) ?? 0.0;
-    }
-
-    final income = parseNum(json['totalIncome'] ?? json['total_income']);
-    final expense = parseNum(json['totalExpense'] ?? json['total_expense']);
-    final bal = json['balance'] != null ? parseNum(json['balance']) : (income - expense);
-
-    return FinanceSummary(balance: bal, totalIncome: income, totalExpense: expense);
-  }
-}
-
-/// รายการเงิน 1 รายการ
-class TransactionItem {
-  final String id;
-  final String title;
-  final String type; // 'income' หรือ 'expense'
-  final double amount;
-  final String category;
-  final String gardenName;
-  final String gardenId;
-  final String date;
-
-  /// รายการที่บันทึกเองในหน้าการเงิน (รหัส FN...) แก้ไข/ลบได้ที่นี่
-  /// ส่วนรายการจากผลผลิต (H...) และการดูแลสวน (C...) ต้องไปแก้ที่หน้านั้นๆ
-  bool get isManualEntry => id.startsWith('FN');
-
-  TransactionItem({
-    required this.id,
-    required this.title,
-    required this.type,
-    required this.amount,
-    required this.category,
-    required this.gardenName,
-    this.gardenId = '',
-    required this.date,
-  });
-
-  /// แปลง JSON เป็น TransactionItem ถ้าไม่ระบุประเภท จะเดาจากหมวด/ชื่อรายการ
-  factory TransactionItem.fromJson(Map<String, dynamic> json) {
-    double parseAmount(dynamic val) {
-      if (val == null) return 0.0;
-      if (val is num) return val.toDouble();
-      return double.tryParse(val.toString()) ?? 0.0;
-    }
-
-    String txType = (json['type'] ?? json['transaction_type'] ?? '').toString().toLowerCase();
-    String cat = (json['category'] ?? json['activity_type'] ?? json['type_name'] ?? '').toString();
-    String titleText = (json['title'] ?? json['description'] ?? '').toString();
-
-    if (txType != 'income' && txType != 'expense') {
-      if (cat.contains('ขาย') || cat.contains('เก็บเกี่ยว') || titleText.contains('ขาย')) {
-        txType = 'income';
-      } else {
-        txType = 'expense';
-      }
-    }
-
-    return TransactionItem(
-      id: json['id']?.toString() ?? json['transaction_id']?.toString() ?? '',
-      title: titleText.isNotEmpty ? titleText : (cat.isNotEmpty ? cat : 'รายการทั่วไป'),
-      type: txType,
-      amount: parseAmount(json['amount'] ?? json['total_price'] ?? json['cost']),
-      category: cat.isNotEmpty ? cat : (txType == 'income' ? 'เก็บเกี่ยว/ขายผลผลิต' : 'ดูแลรักษา'),
-      gardenName: json['gardenName'] ?? json['garden_name'] ?? '',
-      gardenId: json['gardenId']?.toString() ?? '',
-      date: json['date'] ?? json['record_date'] ?? json['created_at'] ?? '',
-    );
-  }
-}
-
-// ==========================================
-// 2. MAIN SCREEN
-// ==========================================
+// model: models/finance.dart · widget ย่อย: widgets/transaction_tile.dart (แถวรายการเงิน)
 
 /// แท็บการเงิน (ส่ง userId มาได้ ถ้าไม่ส่งจะใช้ user ที่ล็อกอินอยู่)
 class FinanceScreen extends StatefulWidget {
@@ -597,7 +510,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     final item = _allTransactions[index];
                     final isIncome = item.type == 'income';
 
-                    return _buildTransactionItem(
+                    return TransactionTile(
                       onLongPress: () => _onTransactionLongPress(item),
                       title: item.title,
                       // ไม่ผูกกับแปลง (gardenId ว่าง) = ส่งชื่อว่าง แล้วแถวรายการจะแสดงเป็น "ส่วนกลาง"
@@ -676,70 +589,6 @@ class _FinanceScreenState extends State<FinanceScreen> {
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  /// แถวรายการเงิน 1 รายการ (กดค้างเพื่อแก้ไข/ลบ)
-  Widget _buildTransactionItem({
-    VoidCallback? onLongPress,
-    required String title,
-    required String gardenName,
-    required String date,
-    required String amount,
-    required bool isIncome,
-    required String icon,
-  }) {
-    return GestureDetector(
-      onLongPress: onLongPress,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2)),
-          ],
-        ),
-        child: Row(
-          children: [
-            Text(icon, style: const TextStyle(fontSize: 28)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      // ไม่ผูกกับแปลง = รายการส่วนกลางของสวน
-                      Text(
-                        gardenName.isNotEmpty ? gardenName : 'ส่วนกลาง',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: gardenName.isNotEmpty ? primaryGreen : const Color(0xFF6D4C41),
-                        ),
-                      ),
-                      const Text(' · ', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      Text(date, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              amount,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                color: isIncome ? const Color(0xFF2E7D32) : const Color(0xFFD32F2F),
-              ),
-            ),
-          ],
         ),
       ),
     );

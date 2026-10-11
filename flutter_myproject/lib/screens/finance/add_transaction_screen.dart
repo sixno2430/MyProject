@@ -14,9 +14,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
-import 'finance_screen.dart' show TransactionItem;
+
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
+import 'package:flutter_myproject/models/finance.dart';
 
 /// ฟอร์มบันทึกรายการเงิน
 class AddTransactionScreen extends StatefulWidget {
@@ -31,7 +32,7 @@ class AddTransactionScreen extends StatefulWidget {
 
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String get baseUrl => AppConfig.apiBaseUri;
-  
+
   // 🟢 ปรับเปลี่ยนสีธีมหลักเป็นสีเขียวเข้มของแอป
   final Color primaryGreen = const Color(0xFF2D6A4F);
 
@@ -152,9 +153,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่')));
       }
       return;
     }
@@ -188,9 +189,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         final resMap = jsonDecode(response.body);
         if (resMap['isError'] == false) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(_isEdit ? 'แก้ไขรายการเรียบร้อยแล้ว' : 'บันทึกข้อมูลเรียบร้อยแล้ว')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(_isEdit ? 'แก้ไขรายการเรียบร้อยแล้ว' : 'บันทึกข้อมูลเรียบร้อยแล้ว')));
             Navigator.pop(context, true);
           }
           return;
@@ -209,7 +210,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   /// วันที่แบบไทย ปี พ.ศ. สำหรับแสดงในฟอร์ม
   String _formatThaiDate(DateTime dt) {
     final thaiYear = dt.year + 543;
-    final months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    final months = [
+      'มกราคม',
+      'กุมภาพันธ์',
+      'มีนาคม',
+      'เมษายน',
+      'พฤษภาคม',
+      'มิถุนายน',
+      'กรกฎาคม',
+      'สิงหาคม',
+      'กันยายน',
+      'ตุลาคม',
+      'พฤศจิกายน',
+      'ธันวาคม',
+    ];
     return '${dt.day} ${months[dt.month - 1]} $thaiYear';
   }
 
@@ -223,7 +237,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       appBar: AppBar(
         backgroundColor: primaryGreen, // 🟢 เปลี่ยน AppBar เป็นสีเขียว
         elevation: 0,
-        title: Text(_isEdit ? 'แก้ไขรายรับ-รายจ่าย' : 'บันทึกรายรับ-รายจ่าย', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+        title: Text(
+          _isEdit ? 'แก้ไขรายรับ-รายจ่าย' : 'บันทึกรายรับ-รายจ่าย',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
@@ -279,7 +296,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       decoration: BoxDecoration(
                         color: _recordType == 'EXPENSE' ? const Color(0xFFD32F2F) : Colors.white,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _recordType == 'EXPENSE' ? const Color(0xFFD32F2F) : Colors.grey[300]!),
+                        border: Border.all(
+                          color: _recordType == 'EXPENSE' ? const Color(0xFFD32F2F) : Colors.grey[300]!,
+                        ),
                       ),
                       child: Center(
                         child: Text(
@@ -321,7 +340,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             const SizedBox(height: 16),
 
             // --- 4. จำนวนเงิน ---
-            _buildTextField('จำนวนเงิน *', '0.00', controller: _amountController, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+            _buildTextField(
+              'จำนวนเงิน *',
+              '0.00',
+              controller: _amountController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
             const SizedBox(height: 16),
 
             // --- 5. วันที่ ---
@@ -394,7 +418,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       elevation: 0,
                     ),
                     child: _isLoading
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
                         : const Text('บันทึก', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                   ),
                 ),
@@ -445,9 +473,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             hintText: hint,
             filled: true,
             fillColor: Colors.white,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: primaryGreen, width: 1.5)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: primaryGreen, width: 1.5),
+            ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
