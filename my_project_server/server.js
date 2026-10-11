@@ -318,10 +318,20 @@ app.get('/api/fertilizers', async (req, res) => {
   }
 });
 
+/** ชื่อปุ๋ยที่ผู้ใช้เคยบันทึก (รายการแนะนำในฟอร์มใส่ปุ๋ย) ?user_id= */
+app.get('/api/fertilizers/used', async (req, res) => {
+  try {
+    res.json(await fertilizer.getUsedByUser(req.query.user_id));
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message, data: [] });
+  }
+});
+
 /** เพิ่มรายการดูแลสวน (body ต้องมี user_id) */
 app.post('/api/care-logs', async (req, res) => {
   try {
     const result = await care.createCareLog(req.body);
+    if (!result.isError) userAccount.logAction(req.body.user_id, 'ADD_CARE', req.ip);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -332,6 +342,16 @@ app.post('/api/care-logs', async (req, res) => {
 app.put('/api/care-logs/:care_id', async (req, res) => {
   try {
     const result = await care.updateCareLog(req.params.care_id, req.body.user_id, req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ isError: true, errorMessage: error.message });
+  }
+});
+
+/** รายการดูแลสวน 1 รายการ พร้อมปุ๋ยทุกชนิด (ใช้เปิดฟอร์มแก้ไข) ?user_id= */
+app.get('/api/care-logs/:care_id', async (req, res) => {
+  try {
+    const result = await care.getCareLog(req.params.care_id, req.query.user_id);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });

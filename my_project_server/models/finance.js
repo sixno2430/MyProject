@@ -151,7 +151,11 @@ class FinanceModel {
           SELECT 
             c.care_id AS id,
             CASE 
-              WHEN f.fertilizer_name IS NOT NULL THEN CONCAT('ใส่ปุ๋ย: ', f.fertilizer_name)
+              -- ใส่ปุ๋ย: ชื่อปุ๋ยทุกชนิดในรอบนั้น (ตาราง care_fertilizer) รายการเก่าใช้ชื่อจากตาราง fertilizer
+              WHEN c.action_type = 'fertilizer' OR f.fertilizer_name IS NOT NULL THEN CONCAT('ใส่ปุ๋ย: ', COALESCE(
+                (SELECT GROUP_CONCAT(cf.fertilizer_name ORDER BY cf.line_no SEPARATOR ', ')
+                 FROM care_fertilizer cf WHERE cf.care_id = c.care_id),
+                f.fertilizer_name, '-'))
               WHEN c.action_type IS NOT NULL AND c.action_type <> 'other' THEN CONCAT('ดูแลสวน: ',
                 CASE c.action_type
                   WHEN 'pruning'  THEN 'ตัดแต่ง'
@@ -166,7 +170,7 @@ class FinanceModel {
             END AS title,
             'EXPENSE' AS type,
             c.cost AS amount,
-            IF(c.fertilizer_id IS NOT NULL, 'ค่าปุ๋ย', 'ค่าดูแลรักษา') AS category,
+            IF(c.fertilizer_id IS NOT NULL OR c.action_type = 'fertilizer', 'ค่าปุ๋ย', 'ค่าดูแลรักษา') AS category,
             c.garden_id,
             g.user_id AS user_id,
             c.record_date AS date

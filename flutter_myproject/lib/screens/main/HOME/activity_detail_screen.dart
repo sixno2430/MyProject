@@ -397,8 +397,11 @@ class ActivityDetailScreen extends StatelessWidget {
   String _buildMainValue() {
     switch (activity.type) {
       case 'harvest':
-      case 'care':
         return formatNumber(activity.quantity ?? 0);
+      case 'care':
+        // ใส่ปุ๋ยหลายชนิดที่หน่วยต่างกัน (กก. + กระสอบ) รวมกันไม่ได้ ปริมาณรวมจึงเป็น 0 -> แสดง "-"
+        final q = activity.quantity ?? 0;
+        return q == 0 ? '-' : formatNumber(q);
       case 'income':
         return '+${formatNumber(activity.amount ?? 0)}';
       case 'expense':

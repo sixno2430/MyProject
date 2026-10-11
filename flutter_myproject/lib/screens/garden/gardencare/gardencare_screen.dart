@@ -26,6 +26,7 @@ class _CareItem {
   final String gardenName;
   final String? fertilizerName;
   final String note;
+  final String detail; // รายละเอียดตามประเภท เช่น วิธีให้น้ำ, ชื่อสารที่พ่น
   final double quantity;
   final String unit;
   final double cost;
@@ -38,6 +39,7 @@ class _CareItem {
     required this.gardenName,
     required this.fertilizerName,
     required this.note,
+    required this.detail,
     required this.quantity,
     required this.unit,
     required this.cost,
@@ -46,7 +48,10 @@ class _CareItem {
   });
 
   factory _CareItem.fromJson(Map<String, dynamic> j) {
-    final hasFertilizer = j['fertilizer_id'] != null && j['fertilizer_id'].toString().isNotEmpty;
+    // ใส่ปุ๋ย: action_type = fertilizer หรือรายการเก่าที่มี fertilizer_id
+    // fertilizer_name จากเซิร์ฟเวอร์ = ชื่อปุ๋ยทุกชนิดในรอบนั้น คั่นด้วย comma
+    final hasFertilizer = j['action_type'] == 'fertilizer' ||
+        (j['fertilizer_id'] != null && j['fertilizer_id'].toString().isNotEmpty);
     // รายการเก่าที่ไม่มี action_type -> "อื่นๆ"
     final type = hasFertilizer ? careTypeOf('fertilizer') : careTypeOf(j['action_type']?.toString());
     return _CareItem(
@@ -55,6 +60,7 @@ class _CareItem {
       gardenName: j['garden_name']?.toString() ?? 'ไม่ระบุแปลง',
       fertilizerName: hasFertilizer ? j['fertilizer_name']?.toString() : null,
       note: j['note']?.toString().trim() ?? '',
+      detail: j['detail']?.toString().trim() ?? '',
       quantity: double.tryParse(j['quantity']?.toString() ?? '') ?? 0,
       unit: j['quantity_type']?.toString() ?? type.unit,
       cost: double.tryParse(j['cost']?.toString() ?? '') ?? 0,
@@ -463,11 +469,12 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
   Widget _buildCareCard(_CareItem item) {
     final t = item.type;
     final qty = item.quantity % 1 == 0 ? item.quantity.toInt().toString() : item.quantity.toString();
-    // บรรทัดรายละเอียด: ชื่อปุ๋ย / หมายเหตุ / จำนวน
+    // บรรทัดรายละเอียด: ชื่อปุ๋ย / รายละเอียดตามประเภท / จำนวน / หมายเหตุ
     final details = [
       if (item.fertilizerName != null) item.fertilizerName!,
-      if (item.note.isNotEmpty) item.note,
+      if (item.detail.isNotEmpty) item.detail,
       if (item.quantity > 0) '$qty ${item.unit}',
+      if (item.note.isNotEmpty) item.note,
     ].join(' · ');
 
     return Padding(

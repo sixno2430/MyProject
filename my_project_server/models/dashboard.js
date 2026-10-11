@@ -23,7 +23,10 @@ const ACTIVITY_SQL =
     " WHERE g.user_id = ?) " +
     "UNION ALL " +
     "(SELECT 'care', c.care_id, c.garden_id, g.garden_name, " +
-    "   COALESCE(f.fertilizer_name, NULLIF(c.note, '')), c.quantity, c.cost, " +
+    // ใส่ปุ๋ย = ชื่อปุ๋ยทุกชนิด (care_fertilizer), กิจกรรมอื่น = รายละเอียดตามประเภท (detail) หรือหมายเหตุ
+    "   COALESCE((SELECT GROUP_CONCAT(cf.fertilizer_name ORDER BY cf.line_no SEPARATOR ', ') " +
+    "             FROM care_fertilizer cf WHERE cf.care_id = c.care_id), " +
+    "            f.fertilizer_name, NULLIF(c.detail, ''), NULLIF(c.note, '')), c.quantity, c.cost, " +
     "   c.record_date, NULL, NULL, NULL, " +
     "   c.fertilizer_id, c.action_type, c.quantity_type, c.note, NULL, NULL, NULL, NULL, NULL, 0 " +
     " FROM palm_care c JOIN garden g ON c.garden_id = g.garden_id " +
