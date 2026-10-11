@@ -15,6 +15,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'add_transaction_screen.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
+import 'package:flutter_myproject/screens/garden/gardencare/care_types.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 
 // ==========================================
@@ -27,11 +28,7 @@ class FinanceSummary {
   final double totalIncome;
   final double totalExpense;
 
-  FinanceSummary({
-    required this.balance,
-    required this.totalIncome,
-    required this.totalExpense,
-  });
+  FinanceSummary({required this.balance, required this.totalIncome, required this.totalExpense});
 
   /// แปลง JSON เป็น FinanceSummary (รองรับชื่อ key หลายแบบ)
   factory FinanceSummary.fromJson(Map<String, dynamic> json) {
@@ -45,11 +42,7 @@ class FinanceSummary {
     final expense = parseNum(json['totalExpense'] ?? json['total_expense']);
     final bal = json['balance'] != null ? parseNum(json['balance']) : (income - expense);
 
-    return FinanceSummary(
-      balance: bal,
-      totalIncome: income,
-      totalExpense: expense,
-    );
+    return FinanceSummary(balance: bal, totalIncome: income, totalExpense: expense);
   }
 }
 
@@ -119,7 +112,12 @@ class TransactionItem {
 /// แท็บการเงิน (ส่ง userId มาได้ ถ้าไม่ส่งจะใช้ user ที่ล็อกอินอยู่)
 class FinanceScreen extends StatefulWidget {
   final String? userId;
-  const FinanceScreen({super.key, this.userId});
+
+  /// สัญญาณให้โหลดข้อมูลใหม่ — หน้าแรก (HomeScreen) ส่งมาทุกครั้งที่กดแท็บ "การเงิน"
+  /// เพราะแท็บถูกสร้างไว้ครั้งเดียว (IndexedStack) ไม่งั้นแปลง/รายการที่เพิ่มจากหน้าอื่นจะไม่ขึ้น
+  final Listenable? refreshTrigger;
+
+  const FinanceScreen({super.key, this.userId, this.refreshTrigger});
 
   @override
   State<FinanceScreen> createState() => _FinanceScreenState();
@@ -136,14 +134,61 @@ class _FinanceScreenState extends State<FinanceScreen> {
   String? _effectiveUserId;
 
   bool _isLoading = false;
-  FinanceSummary _summary = FinanceSummary(balance: 0, totalIncome: 0, totalExpense: 0);
-  List<TransactionItem> _allTransactions = [];
+
+  // รายการของเดือนที่เลือก (ยังไม่กรองแปลง) — กรองแปลง/ประเภทและคำนวณยอดจากสองรายการนี้ในแอป
+  List<TransactionItem> _incomeList = [];
+  List<TransactionItem> _expenseList = [];
+
+  // ตัวกรองแปลง: null = ทุกแปลง, _commonGarden = ส่วนกลาง (รายการที่ไม่ผูกกับแปลง), อื่นๆ = garden_id
+  static const String _commonGarden = '__common__';
+  String? _gardenFilter;
+  List<Map<String, String>> _gardens = []; // [{id, name}] แปลงของผู้ใช้ สำหรับปุ่มกรอง
+
+  bool _matchGarden(TransactionItem t) {
+    if (_gardenFilter == null) return true;
+    if (_gardenFilter == _commonGarden) return t.gardenId.isEmpty;
+    return t.gardenId == _gardenFilter;
+  }
+
+  List<TransactionItem> get _filteredIncome => _incomeList.where(_matchGarden).toList();
+  List<TransactionItem> get _filteredExpense => _expenseList.where(_matchGarden).toList();
+
+  /// ยอดสรุปของแปลงที่เลือก
+  FinanceSummary get _summary {
+    final inc = _filteredIncome.fold<double>(0, (s, t) => s + t.amount);
+    final exp = _filteredExpense.fold<double>(0, (s, t) => s + t.amount);
+    return FinanceSummary(balance: inc - exp, totalIncome: inc, totalExpense: exp);
+  }
+
+  /// รายการที่แสดงตามแท็บ ทั้งหมด / รายรับ / รายจ่าย (เรียงวันที่ล่าสุดก่อน)
+  List<TransactionItem> get _allTransactions {
+    final list = switch (_filterType) {
+      'income' => _filteredIncome,
+      'expense' => _filteredExpense,
+      _ => [..._filteredIncome, ..._filteredExpense],
+    };
+    return list..sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  /// ชื่อขอบเขตที่กำลังดู (แสดงใต้หัวการ์ดยอดคงเหลือ)
+  String get _scopeLabel {
+    if (_gardenFilter == null) return 'ทุกแปลง';
+    if (_gardenFilter == _commonGarden) return 'ส่วนกลาง';
+    return 'แปลง${_gardens.firstWhere((g) => g['id'] == _gardenFilter, orElse: () => {'name': ''})['name']}';
+  }
 
   @override
   void initState() {
     super.initState();
     _initMonths();
     _initUserData();
+    widget.refreshTrigger?.addListener(_refreshData);
+  }
+
+  @override
+  void dispose() {
+    widget.refreshTrigger?.removeListener(_refreshData);
+    super.dispose();
   }
 
   /// สร้างรายการเดือนย้อนหลังให้เลือกใน dropdown
@@ -153,10 +198,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
       return DateTime(now.year, index + 1, 1);
     });
 
-    _selectedMonth = _months.firstWhere(
-      (m) => m.month == now.month,
-      orElse: () => _months[now.month - 1],
-    );
+    _selectedMonth = _months.firstWhere((m) => m.month == now.month, orElse: () => _months[now.month - 1]);
   }
 
   /// หา user_id ที่จะใช้ แล้วโหลดข้อมูลครั้งแรก
@@ -170,9 +212,11 @@ class _FinanceScreenState extends State<FinanceScreen> {
     }
   }
 
-  /// โหลดรายรับและรายจ่ายของเดือนที่เลือก แล้วคำนวณยอดสรุปเอง
+  /// โหลดรายรับและรายจ่ายของเดือนที่เลือก (ยอดสรุปคำนวณจากรายการตามแปลงที่เลือก ดู _summary)
+  /// โหลดรายชื่อแปลงใหม่ด้วยทุกครั้ง แปลงที่เพิ่ม/ลบจากหน้าสวนจะขึ้นเป็นปุ่มกรองทันที
   Future<void> _refreshData() async {
     if (_effectiveUserId == null || _effectiveUserId!.isEmpty) return;
+    _fetchGardens();
 
     setState(() {
       _isLoading = true;
@@ -184,38 +228,31 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final incomeList = await _fetchRawTransactions(monthKey, 'income', _effectiveUserId!);
     final expenseList = await _fetchRawTransactions(monthKey, 'expense', _effectiveUserId!);
 
-    // คำนวณหายอดรวมรายรับและรายจ่าย
-    double totalInc = 0;
-    for (var item in incomeList) {
-      totalInc += item.amount;
-    }
-
-    double totalExp = 0;
-    for (var item in expenseList) {
-      totalExp += item.amount;
-    }
-
     if (mounted) {
       setState(() {
-        _summary = FinanceSummary(
-          balance: totalInc - totalExp,
-          totalIncome: totalInc,
-          totalExpense: totalExp,
-        );
-
-        // จัดการรายการธุรกรรมที่จะนำมาแสดงตาม Filter Tab
-        if (_filterType == 'income') {
-          _allTransactions = incomeList;
-        } else if (_filterType == 'expense') {
-          _allTransactions = expenseList;
-        } else {
-          _allTransactions = [...incomeList, ...expenseList];
-          // เรียงลำดับจากวันที่ล่าสุด
-          _allTransactions.sort((a, b) => b.date.compareTo(a.date));
-        }
-
+        _incomeList = incomeList;
+        _expenseList = expenseList;
         _isLoading = false;
       });
+    }
+  }
+
+  /// โหลดแปลงสวนของผู้ใช้ มาทำปุ่มกรองรายแปลง
+  Future<void> _fetchGardens() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/gardens/$_effectiveUserId'));
+      final body = jsonDecode(response.body);
+      final List data = body is Map && body['data'] is List ? body['data'] : [];
+      if (!mounted) return;
+      setState(() {
+        _gardens = data.map((g) => {'id': g['garden_id'].toString(), 'name': g['garden_name'].toString()}).toList();
+        // แปลงที่เลือกอยู่ถูกลบไปแล้ว -> กลับไปดูทุกแปลง
+        if (_gardenFilter != null && _gardenFilter != _commonGarden && !_gardens.any((g) => g['id'] == _gardenFilter)) {
+          _gardenFilter = null;
+        }
+      });
+    } catch (_) {
+      // โหลดไม่ได้ก็ยังดูแบบทุกแปลงได้ ปุ่มกรองจะมีแค่ "ทุกแปลง" / "ส่วนกลาง"
     }
   }
 
@@ -247,9 +284,9 @@ class _FinanceScreenState extends State<FinanceScreen> {
   Future<void> _onTransactionLongPress(TransactionItem item) async {
     if (!item.isManualEntry) {
       final where = item.id.startsWith('H') ? 'บันทึกการเก็บเกี่ยว' : 'การดูแลรักษาสวน';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('รายการนี้มาจากหน้า$where กรุณาแก้ไขที่หน้านั้น')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('รายการนี้มาจากหน้า$where กรุณาแก้ไขที่หน้านั้น')));
       return;
     }
 
@@ -268,9 +305,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
     if (!await confirmDelete(context, item.title)) return;
     final userId = await AuthService.getUserId();
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/finance/${item.id}?user_id=$userId'),
-      );
+      final response = await http.delete(Uri.parse('$baseUrl/finance/${item.id}?user_id=$userId'));
       final body = jsonDecode(response.body);
       if (body['isError'] == true) throw Exception(body['errorMessage']);
       if (!mounted) return;
@@ -278,20 +313,13 @@ class _FinanceScreenState extends State<FinanceScreen> {
       _refreshData();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
 
   /// เปิดฟอร์มบันทึกรายการใหม่ กลับมาแล้วโหลดใหม่
   Future<void> _navigateToAddTransaction() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const AddTransactionScreen(),
-      ),
-    );
+    final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const AddTransactionScreen()));
 
     if (result == true) {
       _refreshData();
@@ -303,7 +331,20 @@ class _FinanceScreenState extends State<FinanceScreen> {
     try {
       final dt = DateTime.parse(dateStr);
       final thaiYear = dt.year + 543;
-      final months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+      final months = [
+        'ม.ค.',
+        'ก.พ.',
+        'มี.ค.',
+        'เม.ย.',
+        'พ.ค.',
+        'มิ.ย.',
+        'ก.ค.',
+        'ส.ค.',
+        'ก.ย.',
+        'ต.ค.',
+        'พ.ย.',
+        'ธ.ค.',
+      ];
       return '${dt.day} ${months[dt.month - 1]} $thaiYear';
     } catch (_) {
       return dateStr;
@@ -313,29 +354,52 @@ class _FinanceScreenState extends State<FinanceScreen> {
   /// ชื่อเดือนภาษาไทย ปี พ.ศ. สำหรับ dropdown
   String _formatMonthLabel(DateTime dt) {
     final months = [
-      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
-      'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม',
-      'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+      'มกราคม',
+      'กุมภาพันธ์',
+      'มีนาคม',
+      'เมษายน',
+      'พฤษภาคม',
+      'มิถุนายน',
+      'กรกฎาคม',
+      'สิงหาคม',
+      'กันยายน',
+      'ตุลาคม',
+      'พฤศจิกายน',
+      'ธันวาคม',
     ];
     return months[dt.month - 1];
   }
 
-  /// เลือก emoji ตามหมวด/ชื่อรายการ
+  /// เลือก emoji ตามหมวดก่อน แล้วค่อยดูชื่อรายการ (รายการเก่า/หมวดที่ไม่รู้จัก)
+  /// ค่าดูแลสวนใช้ emoji เดียวกับฟอร์มดูแลสวนและการ์ดกิจกรรม (care_types.dart) เช่น ตัดแต่ง = ✂️
   String _getCategoryIcon(String category, String title, String type) {
-    final text = '$category $title'.toLowerCase();
-    if (type == 'income' || text.contains('ขาย') || text.contains('ผลผลิต') || text.contains('เก็บเกี่ยว')) {
-      return '🧺';
+    switch (category) {
+      case 'ขายผลผลิต':
+        return '🧺';
+      case 'เงินอุดหนุน':
+        return '🏛️';
+      case 'รายรับอื่นๆ':
+        return '💵';
+      case 'ค่าปุ๋ย':
+        return careTypeOf('fertilizer').emoji;
+      case 'ค่าดูแลรักษา':
+        // ชื่อรายการจากเซิร์ฟเวอร์เป็น "ดูแลสวน: ตัดแต่ง" -> หาประเภทจากชื่อ
+        for (final t in careTypes) {
+          if (title.contains(t.label)) return t.emoji;
+        }
+        return '🌿';
+      case 'ค่าแรงงาน':
+        return '👷';
+      case 'ค่าน้ำมัน/เชื้อเพลิง':
+        return '⛽';
+      case 'ค่าอุปกรณ์':
+        return '🧰';
     }
-    if (text.contains('ปุ๋ย')) {
-      return '🧪';
-    }
-    if (text.contains('ตัดแต่ง') || text.contains('หญ้า') || text.contains('ดูแล')) {
-      return '🌿';
-    }
-    if (text.contains('แรงงาน') || text.contains('จ้าง')) {
-      return '👷';
-    }
-    return '📝';
+    // หมวดอื่น/รายการเก่า: ดูจากชื่อรายการ
+    if (title.contains('ขาย') || title.contains('ผลผลิต')) return '🧺';
+    if (title.contains('ปุ๋ย')) return careTypeOf('fertilizer').emoji;
+    if (title.contains('แรงงาน') || title.contains('จ้าง')) return '👷';
+    return type == 'income' ? '💵' : '📝';
   }
 
   @override
@@ -347,10 +411,15 @@ class _FinanceScreenState extends State<FinanceScreen> {
       appBar: AppBar(
         backgroundColor: primaryGreen,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.maybePop(context),
-        ),
+        // หน้านี้เปิดได้ 2 ทาง: เมนูในหน้าหลัก (เปิดซ้อน ย้อนกลับได้) กับแท็บ "การเงิน" ด้านล่าง (ไม่มีหน้าให้ย้อน)
+        // แสดงปุ่มย้อนกลับเฉพาะตอนที่ย้อนได้ ไม่งั้นเป็นปุ่มที่กดแล้วไม่เกิดอะไร (เหมือนหน้าสวน)
+        automaticallyImplyLeading: false,
+        leading: Navigator.of(context).canPop()
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: const Text(
           'การเงินและรายรับรายจ่าย',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
@@ -371,48 +440,85 @@ class _FinanceScreenState extends State<FinanceScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Dropdown ประจำเดือน
+              // 1. ตัวกรอง: เดือน + แปลง (ทุกแปลง / แต่ละแปลง / ส่วนกลาง)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 4, offset: const Offset(0, 2))
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 4, offset: const Offset(0, 2)),
                   ],
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(Icons.calendar_month_rounded, color: primaryGreen, size: 20),
-                        const SizedBox(width: 8),
-                        const Text('ประจำเดือน:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        Row(
+                          children: [
+                            Icon(Icons.calendar_month_rounded, color: primaryGreen, size: 20),
+                            const SizedBox(width: 8),
+                            const Text('ประจำเดือน', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          ],
+                        ),
+                        DropdownButton<DateTime>(
+                          value: _selectedMonth,
+                          underline: const SizedBox(),
+                          icon: Icon(Icons.arrow_drop_down_rounded, color: primaryGreen, size: 26),
+                          menuMaxHeight: 300,
+                          items: _months.map((m) {
+                            return DropdownMenuItem<DateTime>(
+                              value: m,
+                              child: Text(
+                                _formatMonthLabel(m),
+                                style: TextStyle(fontWeight: FontWeight.bold, color: primaryGreen, fontSize: 14),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedMonth = val;
+                              });
+                              _refreshData();
+                            }
+                          },
+                        ),
                       ],
                     ),
-                    DropdownButton<DateTime>(
-                      value: _selectedMonth,
-                      underline: const SizedBox(),
-                      icon: Icon(Icons.arrow_drop_down_rounded, color: primaryGreen, size: 26),
-                      menuMaxHeight: 300,
-                      items: _months.map((m) {
-                        return DropdownMenuItem<DateTime>(
-                          value: m,
-                          child: Text(
-                            _formatMonthLabel(m),
-                            style: TextStyle(fontWeight: FontWeight.bold, color: primaryGreen, fontSize: 14),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            _selectedMonth = val;
-                          });
-                          _refreshData();
-                        }
-                      },
+                    const Divider(height: 4),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.forest_outlined, color: primaryGreen, size: 20),
+                        const SizedBox(width: 8),
+                        const Text('ดูตามแปลง', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    // แถวเดียวเลื่อนซ้าย-ขวา: กล่องสูงเท่าเดิมไม่ว่าจะมีกี่แปลง
+                    // "ทุกแปลง" กับ "ส่วนกลาง" อยู่หน้าสุดเสมอ (ไม่ถูกดันไปท้ายจนมองไม่เห็น)
+                    // ขอบขวาจางลง (ShaderMask) ให้รู้ว่ายังเลื่อนดูแปลงต่อได้
+                    ShaderMask(
+                      shaderCallback: (rect) => const LinearGradient(
+                        colors: [Colors.white, Colors.white, Colors.transparent],
+                        stops: [0, 0.9, 1],
+                      ).createShader(rect),
+                      blendMode: BlendMode.dstIn,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.only(right: 24), // ปุ่มสุดท้ายเลื่อนพ้นช่วงที่จางได้
+                        child: Row(
+                          spacing: 8,
+                          children: [
+                            _buildGardenChip('ทุกแปลง', null, icon: Icons.select_all_rounded),
+                            _buildGardenChip('ส่วนกลาง', _commonGarden, icon: Icons.home_work_outlined),
+                            for (final g in _gardens) _buildGardenChip(g['name']!, g['id'], icon: Icons.park_outlined),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -426,16 +532,12 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   color: primaryGreen,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    )
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 3)),
                   ],
                 ),
                 child: Column(
                   children: [
-                    const Text('ยอดเงินคงเหลือ', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                    Text('ยอดเงินคงเหลือ · $_scopeLabel', style: const TextStyle(color: Colors.white70, fontSize: 14)),
                     const SizedBox(height: 8),
                     Text(
                       '${_summary.balance >= 0 ? '+' : ''}${formatter.format(_summary.balance)} ฿',
@@ -445,8 +547,16 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildBalanceItem('รายรับ (เก็บเกี่ยว)', '+${formatter.format(_summary.totalIncome)} ฿', const Color(0xFF81C784)),
-                        _buildBalanceItem('รายจ่าย (ดูแลรักษา)', '-${formatter.format(_summary.totalExpense)} ฿', const Color(0xFFE57373)),
+                        _buildBalanceItem(
+                          'รายรับ',
+                          '+${formatter.format(_summary.totalIncome)} ฿',
+                          const Color(0xFF81C784),
+                        ),
+                        _buildBalanceItem(
+                          'รายจ่าย',
+                          '-${formatter.format(_summary.totalExpense)} ฿',
+                          const Color(0xFFE57373),
+                        ),
                       ],
                     ),
                   ],
@@ -469,10 +579,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
               // 4. รายการธุรกรรม
               if (_isLoading)
                 const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(32),
-                    child: CircularProgressIndicator(),
-                  ),
+                  child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()),
                 )
               else if (_allTransactions.isEmpty)
                 const Center(
@@ -493,7 +600,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
                     return _buildTransactionItem(
                       onLongPress: () => _onTransactionLongPress(item),
                       title: item.title,
-                      gardenName: item.gardenName,
+                      // ไม่ผูกกับแปลง (gardenId ว่าง) = ส่งชื่อว่าง แล้วแถวรายการจะแสดงเป็น "ส่วนกลาง"
+                      gardenName: item.gardenId.isEmpty ? '' : item.gardenName,
                       date: _formatThaiDate(item.date),
                       amount: '${isIncome ? '+' : '-'}${formatter.format(item.amount)} ฿',
                       isIncome: isIncome,
@@ -508,13 +616,37 @@ class _FinanceScreenState extends State<FinanceScreen> {
     );
   }
 
+  /// ปุ่มกรองแปลง 1 ปุ่ม (value: null = ทุกแปลง, _commonGarden = ส่วนกลาง, อื่นๆ = garden_id)
+  Widget _buildGardenChip(String label, String? value, {required IconData icon}) {
+    final selected = _gardenFilter == value;
+    return ChoiceChip(
+      avatar: Icon(icon, size: 16, color: selected ? Colors.white : primaryGreen),
+      label: Text(label),
+      selected: selected,
+      showCheckmark: false,
+      selectedColor: primaryGreen,
+      backgroundColor: const Color(0xFFF1F8F4),
+      side: BorderSide(color: selected ? primaryGreen : const Color(0xFFD7E8DE)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      labelStyle: TextStyle(
+        fontSize: 13,
+        fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+        color: selected ? Colors.white : const Color(0xFF1B4332),
+      ),
+      onSelected: (_) => setState(() => _gardenFilter = value),
+    );
+  }
+
   /// ตัวเลขรายรับ/รายจ่ายในการ์ดยอดคงเหลือ
   Widget _buildBalanceItem(String label, String value, Color valueColor) {
     return Column(
       children: [
         Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
         const SizedBox(height: 4),
-        Text(value, style: TextStyle(color: valueColor, fontSize: 15, fontWeight: FontWeight.bold)),
+        Text(
+          value,
+          style: TextStyle(color: valueColor, fontSize: 15, fontWeight: FontWeight.bold),
+        ),
       ],
     );
   }
@@ -525,9 +657,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
     return GestureDetector(
       onTap: () {
         setState(() {
-          _filterType = type;
+          _filterType = type; // กรองจากข้อมูลที่โหลดไว้แล้ว ไม่ต้องโหลดใหม่
         });
-        _refreshData();
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
@@ -535,9 +666,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
         decoration: BoxDecoration(
           color: isSelected ? primaryGreen : Colors.white,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? primaryGreen : Colors.black12,
-          ),
+          border: Border.all(color: isSelected ? primaryGreen : Colors.black12),
         ),
         child: Center(
           child: Text(
@@ -565,55 +694,54 @@ class _FinanceScreenState extends State<FinanceScreen> {
     return GestureDetector(
       onLongPress: onLongPress,
       child: Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          )
-        ],
-      ),
-      child: Row(
-        children: [
-          Text(icon, style: const TextStyle(fontSize: 28)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    if (gardenName.isNotEmpty) ...[
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Row(
+          children: [
+            Text(icon, style: const TextStyle(fontSize: 28)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      // ไม่ผูกกับแปลง = รายการส่วนกลางของสวน
                       Text(
-                        gardenName,
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: primaryGreen),
+                        gardenName.isNotEmpty ? gardenName : 'ส่วนกลาง',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: gardenName.isNotEmpty ? primaryGreen : const Color(0xFF6D4C41),
+                        ),
                       ),
                       const Text(' · ', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text(date, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
                     ],
-                    Text(date, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          Text(
-            amount,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              color: isIncome ? const Color(0xFF2E7D32) : const Color(0xFFD32F2F),
+            Text(
+              amount,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: isIncome ? const Color(0xFF2E7D32) : const Color(0xFFD32F2F),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 }

@@ -2,6 +2,10 @@
 // add_transaction_screen.dart — ฟอร์มบันทึก/แก้ไขรายรับ-รายจ่าย
 //
 // เลือกประเภท (รายรับ/รายจ่าย), หมวด, ชื่อรายการ, จำนวนเงิน, วันที่ และแปลงที่เกี่ยวข้อง
+// ใช้บันทึกรายการ "อื่นๆ" ที่ระบบไม่ได้นับให้เอง:
+//   - ขายผลปาล์ม -> บันทึกที่หน้าเก็บเกี่ยว ระบบนับเป็นรายรับให้อัตโนมัติ
+//   - ค่าปุ๋ย / ค่าดูแลสวน -> กรอกตอนบันทึกการดูแลสวน ระบบนับเป็นรายจ่ายให้อัตโนมัติ
+//   จึงไม่มีหมวด "ขายผลผลิต" และ "ค่าปุ๋ย" ให้เลือกในหน้านี้ กันบันทึกซ้ำแล้วตัวเลขนับสองครั้ง
 // ส่ง existing มา = แก้ไข (PUT /api/finance/:id) ไม่ส่ง = เพิ่มใหม่ (POST /api/finance/add)
 // ============================================================
 
@@ -33,7 +37,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   // Form State
   String _recordType = 'INCOME'; // 'INCOME' หรือ 'EXPENSE'
-  String _selectedCategory = 'ขายผลผลิต';
+  String _selectedCategory = 'เงินอุดหนุน';
   String? _selectedGardenId;
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
@@ -41,16 +45,24 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   // Controllers
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
-  final TextEditingController _noteController = TextEditingController();
 
-  // Categories Mapping
-  final List<String> _incomeCategories = ['ขายผลผลิต', 'เงินอุดหนุน', 'รายรับอื่นๆ'];
-  final List<String> _expenseCategories = ['ค่าปุ๋ย', 'ค่าแรงงาน', 'ค่าน้ำมัน/เชื้อเพลิง', 'ค่าอุปกรณ์', 'รายจ่ายอื่นๆ'];
+  // หมวดที่เลือกได้ เฉพาะรายการที่ไม่ได้บันทึกจากหน้าอื่น (ขายผลผลิต = หน้าเก็บเกี่ยว, ค่าปุ๋ย = หน้าดูแลสวน)
+  final List<String> _incomeCategories = ['เงินอุดหนุน', 'รายรับอื่นๆ'];
+  final List<String> _expenseCategories = ['ค่าแรงงาน', 'ค่าน้ำมัน/เชื้อเพลิง', 'ค่าอุปกรณ์', 'รายจ่ายอื่นๆ'];
 
   // Gardens List
   List<Map<String, String>> _gardens = [];
 
   bool get _isEdit => widget.existing != null;
+
+  /// หมวดของประเภทที่เลือก — โหมดแก้ไขใส่หมวดเดิมของรายการไว้ด้วย ถ้าไม่อยู่ในรายการ
+  /// (เช่น รายการเก่าหมวด "ขายผลผลิต") dropdown จะได้แสดงและบันทึกหมวดเดียวกัน
+  List<String> get _categories {
+    final base = _recordType == 'INCOME' ? _incomeCategories : _expenseCategories;
+    final old = widget.existing?.category ?? '';
+    final oldType = widget.existing?.type == 'income' ? 'INCOME' : 'EXPENSE';
+    return old.isNotEmpty && oldType == _recordType && !base.contains(old) ? [old, ...base] : base;
+  }
 
   @override
   void initState() {
@@ -124,15 +136,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   /// ตรวจข้อมูลแล้วบันทึก (เพิ่มใหม่หรือแก้ไข) สำเร็จแล้วปิดหน้า
   Future<void> _submitData() async {
     final title = _titleController.text.trim();
-    final amountText = _amountController.text.trim();
+    // รองรับตัวเลขที่พิมพ์คอมมา เช่น 1,500
+    final amount = double.tryParse(_amountController.text.replaceAll(',', '').trim());
 
     if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('กรุณากรอกชื่อรายการ')));
       return;
     }
 
-    if (amountText.isEmpty || double.tryParse(amountText) == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('กรุณากรอกจำนวนเงินให้ถูกต้อง')));
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('กรุณากรอกจำนวนเงินที่มากกว่า 0')));
       return;
     }
 
@@ -152,9 +165,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       "user_id": userId,
       "garden_id": _selectedGardenId,
       "record_type": _recordType,
-      "amount": double.parse(amountText),
+      "amount": amount,
       "expense_category": _selectedCategory,
-      "description": _noteController.text.trim().isEmpty ? title : '$title ${_noteController.text.trim()}',
+      "description": title,
       "record_date": DateFormat('yyyy-MM-dd').format(_selectedDate),
     };
 
@@ -202,14 +215,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final categories = _recordType == 'INCOME' ? _incomeCategories : _expenseCategories;
+    final categories = _categories;
+    final isIncome = _recordType == 'INCOME';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         backgroundColor: primaryGreen, // 🟢 เปลี่ยน AppBar เป็นสีเขียว
         elevation: 0,
-        title: Text(_isEdit ? 'แก้ไขรายการ' : 'บันทึกการซื้อขาย', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+        title: Text(_isEdit ? 'แก้ไขรายรับ-รายจ่าย' : 'บันทึกรายรับ-รายจ่าย', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
@@ -299,7 +313,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             const SizedBox(height: 16),
 
             // --- 3. ชื่อรายการ ---
-            _buildTextField('รายการ *', 'เช่น ขายผลปาล์มน้ำมัน แปลง D', controller: _titleController),
+            _buildTextField(
+              'รายการ *',
+              isIncome ? 'เช่น เงินช่วยเหลือเกษตรกรชาวสวนปาล์ม' : 'เช่น ค่าน้ำมันรถตัดหญ้า',
+              controller: _titleController,
+            ),
             const SizedBox(height: 16),
 
             // --- 4. จำนวนเงิน ---
@@ -337,9 +355,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 isExpanded: true,
                 // กันจอแดง: ค่าที่เลือกต้องมีอยู่ในรายการ (ตอนแก้ไข รายการแปลงอาจยังโหลดไม่เสร็จ)
                 value: _gardens.any((g) => g['id'] == _selectedGardenId) ? _selectedGardenId : null,
-                hint: const Text('ไม่ระบุแปลง'),
+                hint: const Text('ส่วนกลาง (ใช้ร่วมทุกแปลง)'),
                 items: [
-                  const DropdownMenuItem<String?>(value: null, child: Text('ไม่ระบุแปลง')),
+                  // ไม่เลือกแปลง = รายการส่วนกลางของสวน เช่น ซื้ออุปกรณ์ใช้ทุกแปลง
+                  const DropdownMenuItem<String?>(value: null, child: Text('ส่วนกลาง (ใช้ร่วมทุกแปลง)')),
                   ..._gardens.map((g) => DropdownMenuItem<String?>(value: g['id'], child: Text(g['name']!))),
                 ],
                 onChanged: (val) => setState(() => _selectedGardenId = val),
@@ -347,9 +366,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ),
             const SizedBox(height: 16),
 
-            // --- 7. หมายเหตุ ---
-            _buildTextField('หมายเหตุ', 'เพิ่มเติม...', controller: _noteController, maxLines: 3),
-            const SizedBox(height: 24),
+            const SizedBox(height: 8),
 
             // --- 8. ปุ่มยกเลิก/บันทึก ---
             Row(

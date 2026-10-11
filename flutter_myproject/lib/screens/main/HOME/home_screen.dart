@@ -26,17 +26,27 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
+  // กดแท็บ "การเงิน" แล้วเพิ่มค่านี้ -> หน้าการเงินโหลดข้อมูลใหม่ (แปลง/รายการที่เพิ่มจากหน้าอื่นขึ้นทันที)
+  final ValueNotifier<int> _financeRefresh = ValueNotifier(0);
+
   // เรียงตามลำดับปุ่มในแถบล่าง
-  final List<Widget> _pages = const [
-    DashboardScreen(),   // index 0: 🏠 หน้าหลัก
-    PalmplotScreen(),    // index 1: 🌴 สวน
-    FinanceScreen(),     // index 2: 💵 การเงิน
-    ReportScreen(),      // index 3: 📈 รายงาน
-    ProfileScreen(),     // index 4: 👤 โปรไฟล์
+  late final List<Widget> _pages = [
+    const DashboardScreen(),   // index 0: 🏠 หน้าหลัก
+    const PalmplotScreen(),    // index 1: 🌴 สวน
+    FinanceScreen(refreshTrigger: _financeRefresh), // index 2: 💵 การเงิน
+    const ReportScreen(),      // index 3: 📈 รายงาน
+    const ProfileScreen(),     // index 4: 👤 โปรไฟล์
   ];
+
+  @override
+  void dispose() {
+    _financeRefresh.dispose();
+    super.dispose();
+  }
 
   /// เปลี่ยนแท็บเมื่อกดปุ่มในแถบด้านล่าง
   void _onNavTapped(int index) {
+    if (index == 2) _financeRefresh.value++;
     setState(() {
       _currentIndex = index;
     });
