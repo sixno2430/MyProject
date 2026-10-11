@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_myproject/services/admin_service.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 import 'admin_widgets.dart';
+import 'package:flutter_myproject/models/admin.dart';
 
 class AdminLogsScreen extends StatefulWidget {
   final String? userId;

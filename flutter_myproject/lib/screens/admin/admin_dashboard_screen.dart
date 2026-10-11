@@ -18,6 +18,7 @@ import 'admin_logs_screen.dart';
 import 'admin_report_screen.dart';
 import 'admin_widgets.dart';
 import 'user_management_screen.dart';
+import 'package:flutter_myproject/models/admin.dart';
 
 /// หน้าภาพรวมสำหรับ Admin
 class AdminDashboardScreen extends StatefulWidget {

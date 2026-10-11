@@ -13,6 +13,7 @@ import 'package:flutter_myproject/services/shop_service.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
+import 'package:flutter_myproject/models/shop.dart';
 
 class ShopDashboardScreen extends StatefulWidget {
   /// ร้านของบัญชีนี้ (null = ยังไม่มีร้าน)

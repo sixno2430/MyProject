@@ -20,52 +20,36 @@ class ProfileService {
     try {
       final url = '$_baseUri/profile/$userId';
 
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(Uri.parse(url), headers: {'Content-Type': 'application/json'})
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        return {
-          'success': false,
-          'message': 'ไม่สามารถดึงข้อมูลได้ (Status: ${response.statusCode})',
-        };
+        return {'success': false, 'message': 'ไม่สามารถดึงข้อมูลได้ (Status: ${response.statusCode})'};
       }
     } catch (e) {
-      return {
-        'success': false,
-        'message': friendlyError(e),
-      };
+      return {'success': false, 'message': friendlyError(e)};
     }
   }
 
   /// อัปเดตข้อมูลโปรไฟล์ (เช่น full_name, phone)
-  static Future<Map<String, dynamic>> updateProfile(
-      String userId, Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> updateProfile(String userId, Map<String, dynamic> data) async {
     try {
       final url = '$_baseUri/profile/$userId';
 
-      final response = await http.put(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(data),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .put(Uri.parse(url), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        return {
-          'success': false,
-          'message': 'บันทึกข้อมูลไม่สำเร็จ (${response.statusCode})',
-        };
+        return {'success': false, 'message': 'บันทึกข้อมูลไม่สำเร็จ (${response.statusCode})'};
       }
     } catch (e) {
-      return {
-        'success': false,
-        'message': friendlyError(e),
-      };
+      return {'success': false, 'message': friendlyError(e)};
     }
   }
 }

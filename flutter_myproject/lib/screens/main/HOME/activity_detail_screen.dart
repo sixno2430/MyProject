@@ -19,11 +19,11 @@ import 'package:flutter_myproject/screens/garden/gardencare/add_gardencare_scree
 
 import 'package:flutter_myproject/screens/finance/add_transaction_screen.dart';
 import 'package:flutter_myproject/widgets/activity_widgets/activity_type_badge.dart';
-import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 import 'package:flutter_myproject/models/harvest.dart';
 import 'package:flutter_myproject/models/finance.dart';
+import 'package:flutter_myproject/models/activity.dart';
 
 /// หน้ารายละเอียดกิจกรรม
 class ActivityDetailScreen extends StatelessWidget {

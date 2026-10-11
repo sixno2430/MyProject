@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/shop_service.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
+import 'package:flutter_myproject/models/shop.dart';
 
 class ShopReportScreen extends StatefulWidget {
   final ShopInfo? shop;

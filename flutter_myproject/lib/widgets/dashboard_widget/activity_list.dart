@@ -5,9 +5,9 @@
 // ============================================================
 
 import 'package:flutter/material.dart';
-import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/widgets/dashboard_widget/recent_activity_card.dart';
 import 'package:flutter_myproject/screens/main/HOME/activity_screen.dart';
+import 'package:flutter_myproject/models/activity.dart';
 
 /// รายการกิจกรรมล่าสุด เรียก onChanged เมื่อมีการแก้ไข/ลบ ให้ Dashboard โหลดใหม่
 class ActivityList extends StatelessWidget {

@@ -11,6 +11,7 @@ import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/services/shop_service.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
+import 'package:flutter_myproject/models/shop.dart';
 
 /// เปิดหน้าต่างแก้ไขการรับซื้อ — คืน true เมื่อบันทึกสำเร็จ
 Future<bool> showEditPurchaseSheet(BuildContext context, ShopPurchase purchase) async {

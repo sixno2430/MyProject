@@ -53,9 +53,7 @@ class AuthService {
     try {
       final parts = token.split('.');
       if (parts.length != 3) return true;
-      final payload = jsonDecode(
-        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
-      );
+      final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))));
       final exp = payload['exp'];
       if (exp is! int) return true;
       final expiry = DateTime.fromMillisecondsSinceEpoch(exp * 1000);

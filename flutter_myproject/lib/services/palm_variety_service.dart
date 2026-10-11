@@ -11,7 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
-import '../screens/garden/plamvarieties/palm_variety.dart';
+import 'package:flutter_myproject/models/palm_variety.dart';
 
 /// เรียก API พันธุ์ปาล์ม
 class PalmVarietyService {
@@ -26,10 +26,7 @@ class PalmVarietyService {
       final userId = await AuthService.getUserId() ?? '';
       final res = await http.get(
         Uri.parse('$baseUrl/varieties?user_id=$userId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       );
 
       debugPrint('Status Code: ${res.statusCode}');
@@ -66,11 +63,7 @@ class PalmVarietyService {
   /// เพิ่ม (id = null) หรือแก้ไขพันธุ์ปาล์ม — เซิร์ฟเวอร์ตอบ error เป็นภาษาไทย (เช่น ชื่อซ้ำ) จะโยน Exception
   static Future<void> saveVariety({String? id, required String name, String? scientificName}) async {
     final userId = await AuthService.getUserId() ?? '';
-    final body = jsonEncode({
-      'user_id': userId,
-      'variety_name': name,
-      'scientific_name': scientificName ?? '',
-    });
+    final body = jsonEncode({'user_id': userId, 'variety_name': name, 'scientific_name': scientificName ?? ''});
     const headers = {'Content-Type': 'application/json'};
     final res = id == null
         ? await http.post(Uri.parse('$baseUrl/varieties'), headers: headers, body: body)

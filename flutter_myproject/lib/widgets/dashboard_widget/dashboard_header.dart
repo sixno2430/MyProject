@@ -6,11 +6,11 @@
 // ============================================================
 
 import 'package:flutter/material.dart';
-import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/services/profile_service.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 import 'package:flutter_myproject/notifications/notifications_screen.dart';
+import 'package:flutter_myproject/models/activity.dart';
 
 /// ส่วนหัว Dashboard รับข้อมูลสถิติจาก DashboardData
 class DashboardHeader extends StatefulWidget {

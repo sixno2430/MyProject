@@ -1,5 +1,5 @@
 // ============================================================
-// palm_variety.dart (plamvarieties/) — โมเดลพันธุ์ปาล์มที่ใช้กับ PalmVarietyService
+// palm_variety.dart — model พันธุ์ปาล์มของผู้ใช้ (หน้าพันธุ์ปาล์ม, ใช้กับ PalmVarietyService)
 // ============================================================
 
 /// พันธุ์ปาล์ม 1 พันธุ์ (ของผู้ใช้คนนี้)
@@ -22,10 +22,10 @@ class PalmVariety {
 
   /// แปลง JSON จาก API เป็น PalmVariety
   factory PalmVariety.fromJson(Map<String, dynamic> json) => PalmVariety(
-        varietyId: (json['variety_id'] ?? '').toString(),
-        varietyName: (json['variety_name'] ?? '').toString(),
-        scientificName: json['scientific_name']?.toString(),
-        plantCount: int.tryParse(json['plant_count']?.toString() ?? '') ?? 0,
-        gardenCount: int.tryParse(json['garden_count']?.toString() ?? '') ?? 0,
-      );
+    varietyId: (json['variety_id'] ?? '').toString(),
+    varietyName: (json['variety_name'] ?? '').toString(),
+    scientificName: json['scientific_name']?.toString(),
+    plantCount: int.tryParse(json['plant_count']?.toString() ?? '') ?? 0,
+    gardenCount: int.tryParse(json['garden_count']?.toString() ?? '') ?? 0,
+  );
 }

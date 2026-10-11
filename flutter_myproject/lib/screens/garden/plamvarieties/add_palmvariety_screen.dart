@@ -8,7 +8,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/services/palm_variety_service.dart';
-import 'palm_variety.dart';
+import 'package:flutter_myproject/models/palm_variety.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 
 /// ฟอร์มพันธุ์ปาล์ม

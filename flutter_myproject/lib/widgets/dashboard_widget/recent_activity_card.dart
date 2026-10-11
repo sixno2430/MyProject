@@ -5,9 +5,9 @@
 // ============================================================
 
 import 'package:flutter/material.dart';
-import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 import 'package:flutter_myproject/screens/main/HOME/activity_detail_screen.dart';
+import 'package:flutter_myproject/models/activity.dart';
 
 /// การ์ดแสดงกิจกรรมล่าสุดในหน้า Dashboard
 /// แตกต่างจาก ActivityCard ในหน้า Activity ตรงที่ดีไซน์กะทัดรัดกว่า

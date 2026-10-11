@@ -7,8 +7,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/screens/main/HOME/activity_detail_screen.dart';
 import 'package:flutter_myproject/widgets/activity_widgets/activity_type_badge.dart';
-import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
+import 'package:flutter_myproject/models/activity.dart';
 
 /// การ์ดกิจกรรม (แถบสีซ้ายตามประเภท + ข้อความ + ตัวเลข)
 class ActivityCard extends StatelessWidget { 

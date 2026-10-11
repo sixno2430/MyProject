@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import '../../../../services/palm_variety_service.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
 import 'add_palmvariety_screen.dart';
-import 'palm_variety.dart';
+import 'package:flutter_myproject/models/palm_variety.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 
 /// หน้ารายการพันธุ์ปาล์ม (ต้องส่ง token มาด้วย)
