@@ -8,6 +8,7 @@
 //              (ผู้ใช้ใหม่ยังไม่มีรายการแนะนำ บันทึกครั้งแรกแล้วชื่อนั้นจะขึ้นแนะนำครั้งต่อไป)
 //   - อื่นๆ   : รายละเอียดเฉพาะประเภท (วิธีให้น้ำ, วิธีกำจัดวัชพืช, ชื่อสารที่พ่น ...) + ปริมาณพร้อมหน่วยที่เลือกได้
 // ปุ่มบันทึกติดอยู่ด้านล่างจอเสมอ
+// ส่วนประกอบของฟอร์มอยู่ใน widgets/care_form_fields.dart และ widgets/fertilizer_item_card.dart
 // ส่ง existing มา = โหมดแก้ไข: โหลดข้อมูลเต็ม (รวมปุ๋ยทุกชนิด) จาก GET /care-logs/:care_id แล้ว PUT
 // ไม่ส่ง = เพิ่มใหม่ (POST) — รหัสรายการใหม่เซิร์ฟเวอร์สร้างให้
 // ============================================================
@@ -18,26 +19,10 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/config/app_config.dart';
-import 'package:flutter_myproject/screens/garden/gardencare/care_types.dart';
+import 'package:flutter_myproject/models/care_type.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
-
-/// ปุ๋ย 1 ชนิดในฟอร์ม (มีช่องกรอกของตัวเอง)
-class _FertilizerItem {
-  final TextEditingController name;
-  final TextEditingController quantity;
-  final FocusNode focus = FocusNode(); // ใช้กับรายการแนะนำชื่อปุ๋ย
-  String unit;
-
-  _FertilizerItem({String name = '', String quantity = '', this.unit = 'กก.'})
-      : name = TextEditingController(text: name),
-        quantity = TextEditingController(text: quantity);
-
-  void dispose() {
-    name.dispose();
-    quantity.dispose();
-    focus.dispose();
-  }
-}
+import 'widgets/care_form_fields.dart';
+import 'widgets/fertilizer_item_card.dart';
 
 /// ฟอร์มบันทึกการดูแลสวน
 class AddGardenCareScreen extends StatefulWidget {
@@ -66,7 +51,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
   bool get _isFertilizer => _type.type == 'fertilizer';
 
   // ใส่ปุ๋ย: รายการปุ๋ย (อย่างน้อย 1 ชนิด) + ชื่อปุ๋ยแนะนำ = ปุ๋ยที่ผู้ใช้คนนี้เคยบันทึก
-  final List<_FertilizerItem> _items = [_FertilizerItem()];
+  final List<FertilizerItem> _items = [FertilizerItem()];
   List<String> _fertilizerSuggestions = [];
 
   // กิจกรรมอื่น: รายละเอียด + ปริมาณ + หน่วย
@@ -137,11 +122,15 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
           }
           _items
             ..clear()
-            ..addAll(items.map((it) => _FertilizerItem(
+            ..addAll(
+              items.map(
+                (it) => FertilizerItem(
                   name: it['fertilizer_name']?.toString() ?? '',
                   quantity: _numText(it['quantity']),
                   unit: it['unit']?.toString() ?? 'กก.',
-                )));
+                ),
+              ),
+            );
         } else {
           _detailController.text = d['detail']?.toString() ?? '';
           _amountController.text = _numText(d['quantity']);
@@ -166,9 +155,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
       final List data = body is Map && body['data'] is List ? body['data'] : [];
       if (!mounted) return;
       setState(() {
-        _plots = data
-            .map((g) => {'id': g['garden_id'].toString(), 'name': g['garden_name'].toString()})
-            .toList();
+        _plots = data.map((g) => {'id': g['garden_id'].toString(), 'name': g['garden_name'].toString()}).toList();
         // โหมดแก้ไขคงแปลงเดิมไว้ ถ้าไม่มีค่อยเลือกแปลงแรก
         if (!_plots.any((p) => p['id'] == _selectedGardenId) && _plots.isNotEmpty) {
           _selectedGardenId = _plots.first['id'];
@@ -225,8 +212,6 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
   /// วันที่ที่เลือก แสดงเป็นภาษาไทย ปี พ.ศ. เช่น "29 กันยายน 2569"
   String get _thaiDate => '${DateFormat('d MMMM', 'th_TH').format(_selectedDate)} ${_selectedDate.year + 543}';
 
-  double _parse(String text) => double.tryParse(text.replaceAll(',', '').trim()) ?? 0;
-
   /// ตรวจฟอร์ม แล้วส่งบันทึก (เพิ่มใหม่หรือแก้ไข) สำเร็จแล้วปิดหน้า
   Future<void> _save() async {
     if (_selectedGardenId == null) {
@@ -247,25 +232,24 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
         'user_id': userId,
         'garden_id': _selectedGardenId,
         'action_type': _type.type,
-        'cost': _parse(_costController.text),
+        'cost': parseNumber(_costController.text),
         'record_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
         'note': _noteController.text.trim(),
         if (_isFertilizer)
           'fertilizer_items': [
             for (final it in _items)
-              {'fertilizer_name': it.name.text.trim(), 'quantity': _parse(it.quantity.text), 'unit': it.unit},
+              {'fertilizer_name': it.name.text.trim(), 'quantity': parseNumber(it.quantity.text), 'unit': it.unit},
           ]
         else ...{
           'detail': _detailController.text.trim(),
-          'quantity': _type.hasQuantity ? _parse(_amountController.text) : 0,
+          'quantity': _type.hasQuantity ? parseNumber(_amountController.text) : 0,
           'quantity_type': _type.hasQuantity ? _unit : null,
         },
       });
       const headers = {'Content-Type': 'application/json'};
 
       final response = _isEdit
-          ? await http.put(Uri.parse('$apiUrl/care-logs/${widget.existing!['care_id']}'),
-              headers: headers, body: body)
+          ? await http.put(Uri.parse('$apiUrl/care-logs/${widget.existing!['care_id']}'), headers: headers, body: body)
           : await http.post(Uri.parse('$apiUrl/care-logs'), headers: headers, body: body);
 
       final res = jsonDecode(response.body);
@@ -284,10 +268,9 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
 
   void _showMessage(String text, {bool success = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(text),
-      backgroundColor: success ? primaryGreen : null,
-    ));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(text), backgroundColor: success ? primaryGreen : null));
   }
 
   // ==========================================
@@ -317,8 +300,12 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 children: [
-                  _section(step: '1', title: 'ทำกิจกรรมอะไร', child: _buildTypeGrid()),
-                  _section(
+                  FormSection(
+                    step: '1',
+                    title: 'ทำกิจกรรมอะไร',
+                    child: CareTypeGrid(selected: _type, onSelect: _selectType),
+                  ),
+                  FormSection(
                     step: '2',
                     title: 'รายละเอียดการ${_type.label}',
                     child: Column(
@@ -332,12 +319,12 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
                       ],
                     ),
                   ),
-                  _section(
+                  FormSection(
                     step: '3',
                     title: 'ค่าใช้จ่ายและหมายเหตุ',
                     child: Column(
                       children: [
-                        _numberField(
+                        CareNumberField(
                           controller: _costController,
                           label: _isFertilizer ? 'ค่าใช้จ่ายรวม (ค่าปุ๋ย + ค่าแรง)' : 'ค่าใช้จ่ายรวม',
                           icon: Icons.payments_outlined,
@@ -348,7 +335,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
                           controller: _noteController,
                           maxLines: 3,
                           minLines: 2,
-                          decoration: _decoration(
+                          decoration: careInputDecoration(
                             label: 'หมายเหตุ (ไม่บังคับ)',
                             hint: _isFertilizer ? 'เช่น ใส่รอบโคนต้น ต้นละ 2 กก.' : 'เช่น จ้างคนงาน 2 คน',
                           ),
@@ -362,98 +349,27 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
     );
   }
 
-  // ---------- การ์ดแต่ละส่วน ----------
-
-  Widget _section({required String step, required String title, required Widget child}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration: const BoxDecoration(color: primaryGreen, shape: BoxShape.circle),
-                child: Center(
-                  child: Text(step,
-                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
-    );
-  }
-
-  /// ตารางเลือกประเภทกิจกรรม 3 คอลัมน์
-  Widget _buildTypeGrid() {
-    return GridView.count(
-      crossAxisCount: 3,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 1.15,
-      children: careTypes.map((t) {
-        final selected = t.type == _type.type;
-        return GestureDetector(
-          onTap: () => _selectType(t),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            decoration: BoxDecoration(
-              color: selected ? t.bgColor : const Color(0xFFF7F8F7),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: selected ? t.color : Colors.transparent, width: 2),
-            ),
-            padding: const EdgeInsets.all(6),
-            // FittedBox: จอแคบจะย่อ emoji + ชื่อลงให้พอดีช่อง แทนการล้น
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(t.emoji, style: const TextStyle(fontSize: 26)),
-                  const SizedBox(height: 6),
-                  Text(
-                    t.label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                      color: selected ? t.color : Colors.grey[700],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
   /// ใส่ปุ๋ย: การ์ดปุ๋ยทีละชนิด + ปุ่มเพิ่มอีกชนิด
   Widget _buildFertilizerList() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('ปุ๋ยที่ใส่ในรอบนี้ (${_items.length} ชนิด)',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        Text(
+          'ปุ๋ยที่ใส่ในรอบนี้ (${_items.length} ชนิด)',
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 10),
-        for (var i = 0; i < _items.length; i++) _buildFertilizerCard(i),
+        for (var i = 0; i < _items.length; i++)
+          FertilizerItemCard(
+            index: i,
+            item: _items[i],
+            suggestions: _fertilizerSuggestions,
+            canRemove: _items.length > 1,
+            onRemove: () => setState(() => _items.removeAt(i).dispose()),
+            onUnitChanged: (u) => setState(() => _items[i].unit = u),
+          ),
         OutlinedButton.icon(
-          onPressed: () => setState(() => _items.add(_FertilizerItem())),
+          onPressed: () => setState(() => _items.add(FertilizerItem())),
           icon: const Icon(Icons.add),
           label: const Text('เพิ่มปุ๋ยอีกชนิด'),
           style: OutlinedButton.styleFrom(
@@ -467,93 +383,6 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
     );
   }
 
-  Widget _buildFertilizerCard(int index) {
-    final item = _items[index];
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE0E6E3)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Text('ชนิดที่ ${index + 1}',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: primaryGreen)),
-              const Spacer(),
-              if (_items.length > 1)
-                IconButton(
-                  tooltip: 'ลบปุ๋ยชนิดนี้',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                  onPressed: () => setState(() => _items.removeAt(index).dispose()),
-                ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          // ชื่อปุ๋ย: พิมพ์เองได้ หรือเลือกจากรายการแนะนำที่ขึ้นมาตอนพิมพ์
-          RawAutocomplete<String>(
-            textEditingController: item.name,
-            focusNode: item.focus,
-            optionsBuilder: (value) {
-              final q = value.text.trim().toLowerCase();
-              return _fertilizerSuggestions.where((s) => q.isEmpty || s.toLowerCase().contains(q));
-            },
-            fieldViewBuilder: (context, controller, focusNode, onSubmit) => TextFormField(
-              controller: controller,
-              focusNode: focusNode,
-              validator: (v) => (v ?? '').trim().isEmpty ? 'กรุณาระบุชื่อปุ๋ย' : null,
-              decoration: _decoration(label: 'ชื่อ/สูตรปุ๋ย', hint: 'เช่น ปุ๋ยสูตร 15-15-15', icon: Icons.science_outlined),
-            ),
-            optionsViewBuilder: (context, onSelected, options) => Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(12),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 220, maxWidth: 320),
-                  child: ListView(
-                    padding: EdgeInsets.zero,
-                    shrinkWrap: true,
-                    children: [
-                      for (final o in options) ListTile(dense: true, title: Text(o), onTap: () => onSelected(o)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: TextFormField(
-                  controller: item.quantity,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  validator: (v) => _parse(v ?? '') > 0 ? null : 'ระบุปริมาณ',
-                  decoration: _decoration(label: 'ปริมาณ', icon: Icons.scale_outlined),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: _unitDropdown(
-                  value: item.unit,
-                  units: fertilizerUnits,
-                  onChanged: (u) => setState(() => item.unit = u),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   /// กิจกรรมอื่นนอกจากใส่ปุ๋ย: รายละเอียดเฉพาะประเภท + ปริมาณพร้อมหน่วย
   Widget _buildTypeDetail() {
     final t = _type;
@@ -562,18 +391,17 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
       children: [
         if (t.detailLabel != null) ...[
           if (t.detailOptions != null) ...[
-            Text('${t.detailLabel} (เลือกได้ 1 อย่าง)',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            Text(
+              '${t.detailLabel} (เลือกได้ 1 อย่าง)',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 // ค่าเดิมที่ไม่อยู่ในตัวเลือก (บันทึกไว้ก่อนหน้า) ก็แสดงให้เห็นด้วย
-                for (final o in {
-                  ...t.detailOptions!,
-                  if (_detailController.text.isNotEmpty) _detailController.text,
-                })
+                for (final o in {...t.detailOptions!, if (_detailController.text.isNotEmpty) _detailController.text})
                   ChoiceChip(
                     label: Text(o),
                     selected: _detailController.text == o,
@@ -592,9 +420,8 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
             TextFormField(
               controller: _detailController,
               maxLength: 200,
-              validator: (v) =>
-                  t.detailRequired && (v ?? '').trim().isEmpty ? 'กรุณาระบุ${t.detailLabel}' : null,
-              decoration: _decoration(
+              validator: (v) => t.detailRequired && (v ?? '').trim().isEmpty ? 'กรุณาระบุ${t.detailLabel}' : null,
+              decoration: careInputDecoration(
                 label: '${t.detailLabel}${t.detailRequired ? ' *' : ''}',
                 hint: t.detailHint,
                 icon: Icons.edit_note,
@@ -608,38 +435,21 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
             children: [
               Expanded(
                 flex: 3,
-                child: _numberField(
-                  controller: _amountController,
-                  label: t.quantityLabel,
-                  icon: Icons.straighten,
-                ),
+                child: CareNumberField(controller: _amountController, label: t.quantityLabel, icon: Icons.straighten),
               ),
               const SizedBox(width: 10),
               Expanded(
                 flex: 2,
                 child: t.units.length == 1
-                    ? InputDecorator(decoration: _decoration(label: 'หน่วย'), child: Text(t.units.first))
-                    : _unitDropdown(value: _unit, units: t.units, onChanged: (u) => setState(() => _unit = u)),
+                    ? InputDecorator(
+                        decoration: careInputDecoration(label: 'หน่วย'),
+                        child: Text(t.units.first),
+                      )
+                    : UnitDropdown(value: _unit, units: t.units, onChanged: (u) => setState(() => _unit = u)),
               ),
             ],
           ),
       ],
-    );
-  }
-
-  Widget _unitDropdown({
-    required String value,
-    required List<String> units,
-    required ValueChanged<String> onChanged,
-  }) {
-    return DropdownButtonFormField<String>(
-      initialValue: units.contains(value) ? value : units.first,
-      isExpanded: true,
-      decoration: _decoration(label: 'หน่วย'),
-      items: units.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
-      onChanged: (u) {
-        if (u != null) onChanged(u);
-      },
     );
   }
 
@@ -655,8 +465,10 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(12)),
-        child: const Text('ยังไม่มีแปลงสวน กรุณาเพิ่มแปลงสวนก่อนบันทึกการดูแล',
-            style: TextStyle(color: Color(0xFFE65100))),
+        child: const Text(
+          'ยังไม่มีแปลงสวน กรุณาเพิ่มแปลงสวนก่อนบันทึกการดูแล',
+          style: TextStyle(color: Color(0xFFE65100)),
+        ),
       );
     }
     return DropdownButtonFormField<String>(
@@ -664,7 +476,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
       key: ValueKey('garden-$_selectedGardenId'),
       initialValue: _plots.any((p) => p['id'] == _selectedGardenId) ? _selectedGardenId : null,
       isExpanded: true,
-      decoration: _decoration(label: 'แปลงสวน', icon: Icons.forest_outlined),
+      decoration: careInputDecoration(label: 'แปลงสวน', icon: Icons.forest_outlined),
       items: _plots.map((p) => DropdownMenuItem<String>(value: p['id'], child: Text(p['name']!))).toList(),
       onChanged: (v) => setState(() => _selectedGardenId = v),
     );
@@ -675,7 +487,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
       onTap: _pickDate,
       borderRadius: BorderRadius.circular(12),
       child: InputDecorator(
-        decoration: _decoration(label: 'วันที่ดำเนินการ', icon: Icons.calendar_today_outlined),
+        decoration: careInputDecoration(label: 'วันที่ดำเนินการ', icon: Icons.calendar_today_outlined),
         child: Row(
           children: [
             Expanded(
@@ -684,46 +496,6 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
             Icon(Icons.keyboard_arrow_down, color: Colors.grey[500]),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _numberField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    String? suffix,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      validator: (v) {
-        if (v == null || v.trim().isEmpty) return null; // ไม่กรอก = 0
-        return double.tryParse(v.replaceAll(',', '').trim()) == null ? 'ใส่เป็นตัวเลข' : null;
-      },
-      decoration: _decoration(label: label, icon: icon, suffix: suffix),
-    );
-  }
-
-  InputDecoration _decoration({String? label, String? hint, IconData? icon, String? suffix}) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      suffixText: suffix,
-      prefixIcon: icon == null ? null : Icon(icon, color: primaryGreen, size: 20),
-      floatingLabelStyle: const TextStyle(color: primaryGreen),
-      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-      filled: true,
-      fillColor: const Color(0xFFF7F8F7),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: primaryGreen, width: 1.5),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.red),
       ),
     );
   }
@@ -741,7 +513,10 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
           onPressed: _isSubmitting || _isLoadingExisting || _plots.isEmpty ? null : _save,
           icon: _isSubmitting
               ? const SizedBox(
-                  width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                )
               : const Icon(Icons.check),
           label: Text(
             _isSubmitting ? 'กำลังบันทึก...' : (_isEdit ? 'บันทึกการแก้ไข' : 'บันทึก${_type.label}'),

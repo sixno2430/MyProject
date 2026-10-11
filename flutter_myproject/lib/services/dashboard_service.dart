@@ -9,7 +9,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
-import 'package:flutter_myproject/screens/garden/gardencare/care_types.dart';
+import 'package:flutter_myproject/models/care_type.dart';
 
 /// ข้อมูลกิจกรรม 1 รายการ (เก็บเกี่ยว / ดูแลสวน / รายรับ / รายจ่าย)
 class ActivityItem {

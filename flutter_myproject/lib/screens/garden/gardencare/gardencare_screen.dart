@@ -13,63 +13,13 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/add_gardencare_screen.dart';
-import 'package:flutter_myproject/screens/garden/gardencare/care_types.dart';
+import 'package:flutter_myproject/models/care_type.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
-
-/// รายการดูแลสวน 1 รายการ (แปลงจาก JSON ของ API แล้ว)
-class _CareItem {
-  final String careId;
-  final CareType type;
-  final String gardenName;
-  final String? fertilizerName;
-  final String note;
-  final String detail; // รายละเอียดตามประเภท เช่น วิธีให้น้ำ, ชื่อสารที่พ่น
-  final double quantity;
-  final String unit;
-  final double cost;
-  final DateTime date;
-  final Map<String, dynamic> raw; // ข้อมูลดิบไว้ส่งให้หน้าแก้ไข
-
-  _CareItem({
-    required this.careId,
-    required this.type,
-    required this.gardenName,
-    required this.fertilizerName,
-    required this.note,
-    required this.detail,
-    required this.quantity,
-    required this.unit,
-    required this.cost,
-    required this.date,
-    required this.raw,
-  });
-
-  factory _CareItem.fromJson(Map<String, dynamic> j) {
-    // ใส่ปุ๋ย: action_type = fertilizer หรือรายการเก่าที่มี fertilizer_id
-    // fertilizer_name จากเซิร์ฟเวอร์ = ชื่อปุ๋ยทุกชนิดในรอบนั้น คั่นด้วย comma
-    final hasFertilizer = j['action_type'] == 'fertilizer' ||
-        (j['fertilizer_id'] != null && j['fertilizer_id'].toString().isNotEmpty);
-    // รายการเก่าที่ไม่มี action_type -> "อื่นๆ"
-    final type = hasFertilizer ? careTypeOf('fertilizer') : careTypeOf(j['action_type']?.toString());
-    return _CareItem(
-      careId: j['care_id'].toString(),
-      type: type,
-      gardenName: j['garden_name']?.toString() ?? 'ไม่ระบุแปลง',
-      fertilizerName: hasFertilizer ? j['fertilizer_name']?.toString() : null,
-      note: j['note']?.toString().trim() ?? '',
-      detail: j['detail']?.toString().trim() ?? '',
-      quantity: double.tryParse(j['quantity']?.toString() ?? '') ?? 0,
-      unit: j['quantity_type']?.toString() ?? type.unit,
-      cost: double.tryParse(j['cost']?.toString() ?? '') ?? 0,
-      // DB ส่งวันที่มาเป็น UTC ต้องแปลงเป็นเวลาไทย ไม่งั้นวันที่จะเลื่อนไป 1 วัน
-      date: DateTime.tryParse(j['record_date']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
-      raw: j,
-    );
-  }
-}
+import 'package:flutter_myproject/models/care_log.dart';
+import 'package:flutter_myproject/screens/garden/gardencare/widgets/care_log_card.dart';
 
 /// หน้ารายการดูแลสวน
 class GardenCareScreen extends StatefulWidget {
@@ -91,7 +41,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
   String _selectedType = _all; // ค่า type ของ CareType หรือ "ทั้งหมด"
 
   List<String> _plots = [];
-  List<_CareItem> _items = [];
+  List<CareLog> _items = [];
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -134,15 +84,11 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
         return [];
       }
 
-      final items = listOf(responses[0].body)
-          .map((e) => _CareItem.fromJson(e as Map<String, dynamic>))
-          .toList()
+      final items = listOf(responses[0].body).map((e) => CareLog.fromJson(e as Map<String, dynamic>)).toList()
         ..sort((a, b) => b.date.compareTo(a.date));
-      final plots = listOf(responses[1].body)
-          .map((g) => g['garden_name']?.toString())
-          .whereType<String>()
-          .toSet()
-          .toList();
+      final plots = listOf(
+        responses[1].body,
+      ).map((g) => g['garden_name']?.toString()).whereType<String>().toSet().toList();
 
       if (!mounted) return;
       setState(() {
@@ -161,10 +107,12 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
   }
 
   /// รายการที่ผ่านตัวกรองแปลงและประเภท
-  List<_CareItem> get _filtered => _items
-      .where((i) =>
-          (_selectedPlot == _all || i.gardenName == _selectedPlot) &&
-          (_selectedType == _all || i.type.type == _selectedType))
+  List<CareLog> get _filtered => _items
+      .where(
+        (i) =>
+            (_selectedPlot == _all || i.gardenName == _selectedPlot) &&
+            (_selectedType == _all || i.type.type == _selectedType),
+      )
       .toList();
 
   /// เปิดฟอร์มเพิ่ม/แก้ไข กลับมาแล้วโหลดใหม่ถ้ามีการบันทึก
@@ -177,7 +125,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
   }
 
   /// เมนูแก้ไข/ลบ ของรายการ
-  Future<void> _showActions(_CareItem item) async {
+  Future<void> _showActions(CareLog item) async {
     final action = await showItemActionsSheet(context);
     if (action == null || !mounted) return;
 
@@ -189,9 +137,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     if (!await confirmDelete(context, '${item.type.label} · ${item.gardenName}')) return;
     final userId = await AuthService.getUserId();
     try {
-      final response = await http.delete(
-        Uri.parse('$apiUrl/care-logs/${item.careId}?user_id=$userId'),
-      );
+      final response = await http.delete(Uri.parse('$apiUrl/care-logs/${item.careId}?user_id=$userId'));
       final body = jsonDecode(response.body);
       if (body['isError'] == true) throw Exception(body['errorMessage']);
       if (!mounted) return;
@@ -199,9 +145,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
       _fetchData();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
 
@@ -237,12 +181,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
 
     if (_errorMessage != null) {
-      return _buildCenterMessage(
-        emoji: '⚠️',
-        title: _errorMessage!,
-        buttonText: 'ลองใหม่',
-        onPressed: _fetchData,
-      );
+      return _buildCenterMessage(emoji: '⚠️', title: _errorMessage!, buttonText: 'ลองใหม่', onPressed: _fetchData);
     }
 
     if (_items.isEmpty) {
@@ -282,7 +221,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
 
   // ---------- การ์ดสรุป ----------
 
-  Widget _buildSummaryCard(List<_CareItem> items) {
+  Widget _buildSummaryCard(List<CareLog> items) {
     final totalCost = items.fold<double>(0, (s, i) => s + i.cost);
     final last = items.isEmpty ? null : items.first.date;
     final daysAgo = last == null ? null : DateTime.now().difference(last).inDays;
@@ -317,10 +256,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
             children: [
               _summaryPill(Icons.event_note, '${items.length} ครั้ง'),
               if (daysAgo != null)
-                _summaryPill(
-                  Icons.history,
-                  daysAgo == 0 ? 'ล่าสุด วันนี้' : 'ล่าสุด $daysAgo วันก่อน',
-                ),
+                _summaryPill(Icons.history, daysAgo == 0 ? 'ล่าสุด วันนี้' : 'ล่าสุด $daysAgo วันก่อน'),
             ],
           ),
         ],
@@ -331,10 +267,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
   Widget _summaryPill(IconData icon, String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-      ),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -403,12 +336,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     );
   }
 
-  Widget _chip({
-    required String label,
-    required bool selected,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  Widget _chip({required String label, required bool selected, required Color color, required VoidCallback onTap}) {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: GestureDetector(
@@ -437,7 +365,7 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
 
   // ---------- รายการจัดกลุ่มตามเดือน ----------
 
-  List<Widget> _buildGroupedList(List<_CareItem> items) {
+  List<Widget> _buildGroupedList(List<CareLog> items) {
     final widgets = <Widget>[];
     String? currentMonth;
     for (final item in items) {
@@ -446,123 +374,26 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
         currentMonth = month;
         final inMonth = items.where((i) => i.date.year == item.date.year && i.date.month == item.date.month);
         final monthCost = inMonth.fold<double>(0, (s, i) => s + i.cost);
-        widgets.add(Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(month, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-              ),
-              Text(
-                '${inMonth.length} รายการ · ${_money.format(monthCost)} ฿',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-            ],
-          ),
-        ));
-      }
-      widgets.add(_buildCareCard(item));
-    }
-    return widgets;
-  }
-
-  Widget _buildCareCard(_CareItem item) {
-    final t = item.type;
-    final qty = item.quantity % 1 == 0 ? item.quantity.toInt().toString() : item.quantity.toString();
-    // บรรทัดรายละเอียด: ชื่อปุ๋ย / รายละเอียดตามประเภท / จำนวน / หมายเหตุ
-    final details = [
-      if (item.fertilizerName != null) item.fertilizerName!,
-      if (item.detail.isNotEmpty) item.detail,
-      if (item.quantity > 0) '$qty ${item.unit}',
-      if (item.note.isNotEmpty) item.note,
-    ].join(' · ');
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => _showActions(item),
-          onLongPress: () => _showActions(item),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 4, 14),
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Row(
               children: [
-                // ไอคอนประเภท + วันที่
-                Column(
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(color: t.bgColor, borderRadius: BorderRadius.circular(14)),
-                      child: Center(child: Text(t.emoji, style: const TextStyle(fontSize: 22))),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      DateFormat('d MMM', 'th_TH').format(item.date),
-                      style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text.rich(
-                        TextSpan(children: [
-                          TextSpan(
-                            text: t.label,
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: t.color),
-                          ),
-                          TextSpan(
-                            text: '  ·  ${item.gardenName}',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                          ),
-                        ]),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (details.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          details,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 13, color: Colors.grey[600], height: 1.3),
-                        ),
-                      ],
-                    ],
-                  ),
+                  child: Text(month, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                 ),
-                const SizedBox(width: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 90),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      item.cost > 0 ? '-${_money.format(item.cost)} ฿' : '-',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: item.cost > 0 ? const Color(0xFFD32F2F) : Colors.grey[400],
-                      ),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.more_vert, color: Colors.grey[400], size: 20),
-                  onPressed: () => _showActions(item),
-                  tooltip: 'แก้ไข / ลบ',
+                Text(
+                  '${inMonth.length} รายการ · ${_money.format(monthCost)} ฿',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
+        );
+      }
+      widgets.add(CareLogCard(item: item, onActions: () => _showActions(item)));
+    }
+    return widgets;
   }
 
   // ---------- ข้อความกลางจอ (ว่าง / ผิดพลาด) ----------
@@ -587,14 +418,18 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
               child: Center(child: Text(emoji, style: const TextStyle(fontSize: 44))),
             ),
             const SizedBox(height: 20),
-            Text(title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
             if (subtitle != null) ...[
               const SizedBox(height: 8),
-              Text(subtitle,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.5)),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.5),
+              ),
             ],
             const SizedBox(height: 24),
             ElevatedButton.icon(

@@ -1,9 +1,9 @@
 // ============================================================
-// care_types.dart — ประเภทกิจกรรมการดูแลสวน (ใช้ร่วมกันทั้งหน้ารายการและฟอร์ม)
+// care_type.dart — ประเภทกิจกรรมการดูแลสวน (ใช้ร่วมกันทั้งหน้ารายการ ฟอร์ม การ์ดกิจกรรม และหน้าการเงิน)
 //
 // type ตรงกับค่า action_type ในตาราง palm_care
 // แต่ละประเภทกำหนดว่าฟอร์มต้องถามอะไร (ฟอร์มจึงหน้าตาไม่เหมือนกันทุกประเภท):
-//   - ใส่ปุ๋ย     : รายการปุ๋ยหลายชนิด (ชื่อ + ปริมาณ + หน่วย) กด + เพิ่มได้ — ดู add_gardencare_screen.dart
+//   - ใส่ปุ๋ย     : รายการปุ๋ยหลายชนิด (ชื่อ + ปริมาณ + หน่วย) กด + เพิ่มได้ — ดู screens/garden/gardencare/add_gardencare_screen.dart
 //   - อื่นๆ ทุกประเภท: ช่องรายละเอียด (detail) + ปริมาณพร้อมหน่วยที่เลือกได้
 // ============================================================
 
@@ -114,5 +114,4 @@ const List<CareType> careTypes = [
 const List<String> fertilizerUnits = ['กก.', 'กระสอบ', 'ลิตร'];
 
 /// หาประเภทจากค่าในฐานข้อมูล (ไม่รู้จัก/ว่าง = "อื่นๆ")
-CareType careTypeOf(String? type) =>
-    careTypes.firstWhere((t) => t.type == type, orElse: () => careTypes.last);
+CareType careTypeOf(String? type) => careTypes.firstWhere((t) => t.type == type, orElse: () => careTypes.last);
