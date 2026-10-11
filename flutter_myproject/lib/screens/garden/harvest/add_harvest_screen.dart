@@ -12,9 +12,11 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
-import 'harvest_screen.dart' show HarvestData, HarvestService, ShopDropdown, ShopSaleHint, GradePicker;
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
+import 'package:flutter_myproject/models/harvest.dart';
+import 'package:flutter_myproject/services/harvest_service.dart';
+import 'package:flutter_myproject/screens/garden/harvest/widgets/sale_fields.dart';
 
 /// ฟอร์มบันทึกการเก็บเกี่ยว
 class AddHarvestScreen extends StatefulWidget {
@@ -128,23 +130,26 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       }
 
       // Map ข้อมูลอย่างรัดกุม รองรับชื่อคีย์ทุกรูปแบบใน DB
-      final parsedGardens = list.map<Map<String, String>>((item) {
-        final id = (item['garden_id'] ?? item['plot_id'] ?? item['id'] ?? '').toString();
-        
-        String name = item['display_name']?.toString() ?? '';
-        if (name.isEmpty) {
-          final gardenName = (item['garden_name'] ?? item['name'] ?? '').toString();
-          final plotName = (item['plot_name'] ?? '').toString();
-          if (gardenName.isNotEmpty && plotName.isNotEmpty) {
-            name = '$plotName — $gardenName';
-          } else {
-            name = gardenName.isNotEmpty ? gardenName : plotName;
-          }
-        }
-        if (name.isEmpty) name = 'แปลงสวน ($id)';
+      final parsedGardens = list
+          .map<Map<String, String>>((item) {
+            final id = (item['garden_id'] ?? item['plot_id'] ?? item['id'] ?? '').toString();
 
-        return {'id': id, 'name': name};
-      }).where((g) => g['id']!.isNotEmpty).toList();
+            String name = item['display_name']?.toString() ?? '';
+            if (name.isEmpty) {
+              final gardenName = (item['garden_name'] ?? item['name'] ?? '').toString();
+              final plotName = (item['plot_name'] ?? '').toString();
+              if (gardenName.isNotEmpty && plotName.isNotEmpty) {
+                name = '$plotName — $gardenName';
+              } else {
+                name = gardenName.isNotEmpty ? gardenName : plotName;
+              }
+            }
+            if (name.isEmpty) name = 'แปลงสวน ($id)';
+
+            return {'id': id, 'name': name};
+          })
+          .where((g) => g['id']!.isNotEmpty)
+          .toList();
 
       if (parsedGardens.isNotEmpty) {
         setState(() {
@@ -198,8 +203,18 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
   void _updateDateDisplay() {
     final thaiYear = _selectedDate.year + 543;
     final monthNames = [
-      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+      'มกราคม',
+      'กุมภาพันธ์',
+      'มีนาคม',
+      'เมษายน',
+      'พฤษภาคม',
+      'มิถุนายน',
+      'กรกฎาคม',
+      'สิงหาคม',
+      'กันยายน',
+      'ตุลาคม',
+      'พฤศจิกายน',
+      'ธันวาคม',
     ];
     _dateController.text = '${_selectedDate.day} ${monthNames[_selectedDate.month - 1]} $thaiYear';
   }
@@ -213,9 +228,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       lastDate: DateTime(2030),
       builder: (context, child) {
         return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: Color(0xFF1E5631)),
-          ),
+          data: Theme.of(context).copyWith(colorScheme: const ColorScheme.light(primary: Color(0xFF1E5631))),
           child: child!,
         );
       },
@@ -235,18 +248,16 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedGardenId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กรุณาเพิ่มแปลงสวนก่อนบันทึกผลผลิต')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('กรุณาเพิ่มแปลงสวนก่อนบันทึกผลผลิต')));
       return;
     }
 
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่')));
       }
       return;
     }
@@ -306,9 +317,9 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('บันทึกไม่สำเร็จ: ${friendlyError(e)}'), backgroundColor: Colors.red),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('บันทึกไม่สำเร็จ: ${friendlyError(e)}'), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -350,10 +361,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
                       items: _gardens.map((g) {
                         return DropdownMenuItem<String>(
                           value: g['id'],
-                          child: Text(
-                            g['name'] ?? '',
-                            style: const TextStyle(color: Colors.black87),
-                          ),
+                          child: Text(g['name'] ?? '', style: const TextStyle(color: Colors.black87)),
                         );
                       }).toList(),
                       onChanged: (val) => setState(() => _selectedGardenId = val),
@@ -412,8 +420,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
                 controller: _pricePerKgController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: _buildInputDecoration(hintText: '5.50'),
-                validator: (val) =>
-                    (_status == 'sold' && (val == null || val.isEmpty)) ? 'กรุณากรอกราคาขาย' : null,
+                validator: (val) => (_status == 'sold' && (val == null || val.isEmpty)) ? 'กรุณากรอกราคาขาย' : null,
               ),
               const SizedBox(height: 16),
 
@@ -423,9 +430,7 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
                 controller: _totalPriceController,
                 readOnly: true,
                 style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E5631)),
-                decoration: _buildInputDecoration(hintText: '9,900 บาท').copyWith(
-                  fillColor: Colors.grey[100],
-                ),
+                decoration: _buildInputDecoration(hintText: '9,900 บาท').copyWith(fillColor: Colors.grey[100]),
               ),
               const SizedBox(height: 16),
 
@@ -516,7 +521,10 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
                               width: 20,
                               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                             )
-                          : const Text('บันทึก', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                          : const Text(
+                              'บันทึก',
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
                     ),
                   ),
                 ],
@@ -580,19 +588,12 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
         decoration: BoxDecoration(
           color: isSelected ? activeColor.withValues(alpha: 0.1) : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? activeColor : Colors.black26,
-            width: isSelected ? 2 : 1,
-          ),
+          border: Border.all(color: isSelected ? activeColor : Colors.black26, width: isSelected ? 2 : 1),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isSelected ? activeColor : Colors.grey,
-            ),
+            Icon(icon, size: 18, color: isSelected ? activeColor : Colors.grey),
             const SizedBox(width: 6),
             Flexible(
               child: Text(

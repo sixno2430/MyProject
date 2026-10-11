@@ -14,7 +14,6 @@ import 'package:intl/intl.dart' show DateFormat;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
-import 'package:flutter_myproject/screens/garden/harvest/harvest_screen.dart' show HarvestData;
 import 'package:flutter_myproject/screens/garden/harvest/add_harvest_screen.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/add_gardencare_screen.dart';
 import 'package:flutter_myproject/screens/finance/finance_screen.dart' show TransactionItem;
@@ -23,6 +22,7 @@ import 'package:flutter_myproject/widgets/activity_widgets/activity_type_badge.d
 import 'package:flutter_myproject/services/dashboard_service.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
+import 'package:flutter_myproject/models/harvest.dart';
 
 /// หน้ารายละเอียดกิจกรรม
 class ActivityDetailScreen extends StatelessWidget {

@@ -10,235 +10,18 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_myproject/config/app_config.dart';
 import 'add_harvest_screen.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
+import 'package:flutter_myproject/models/harvest.dart';
+import 'package:flutter_myproject/services/harvest_service.dart';
+import 'package:flutter_myproject/screens/garden/harvest/widgets/harvest_monthly_chart.dart';
+import 'package:flutter_myproject/screens/garden/harvest/widgets/sell_sheet.dart';
 
-// ==========================================
-// 1. MODELS
-// ==========================================
-
-/// ข้อมูลการเก็บเกี่ยว 1 รายการ
-class HarvestData {
-  final String id;
-  final String gardenId;
-
-  /// รหัสร้านในแอป ('' = ไม่มี) รอขาย = ร้านที่จะขายให้, ขายแล้ว = ร้านที่รับซื้อ
-  final String shopId;
-
-  /// ชื่อร้านนอกระบบที่พิมพ์เอง ('' = ไม่ระบุ)
-  final String buyerName;
-
-  /// วันที่ขาย yyyy-MM-dd ('' = ยังไม่ขาย)
-  final String soldDate;
-
-  /// true = ร้านในแอปบันทึกรับซื้อแล้ว แก้/ลบเองไม่ได้
-  final bool purchasedByShop;
-
-  /// หมายเหตุที่เกษตรกรพิมพ์เอง ('' = ไม่มี)
-  final String note;
-
-  /// เกรดที่ร้านในแอปให้ตอนรับซื้อ ('' = ไม่มี)
-  final String grade;
-
-  /// ร้านล่าสุดที่ไม่รับล็อตนี้ + เหตุผล ('' = ไม่มี / เลือกร้านใหม่แล้ว)
-  final String rejectedBy;
-  final String rejectReason;
-  final String code;
-  final String plotName;
-  final String buyer;
-  final double quantityKg;
-  final double pricePerKg;
-  final double totalPrice;
-  final String date;
-  final String status;
-
-  HarvestData({
-    required this.id,
-    this.gardenId = '',
-    this.shopId = '',
-    this.buyerName = '',
-    this.soldDate = '',
-    this.purchasedByShop = false,
-    this.note = '',
-    this.grade = '',
-    this.rejectedBy = '',
-    this.rejectReason = '',
-    required this.code,
-    required this.plotName,
-    required this.buyer,
-    required this.quantityKg,
-    required this.pricePerKg,
-    required this.totalPrice,
-    required this.date,
-    required this.status,
-  });
-
-  /// แปลง JSON จาก API เป็น HarvestData
-  factory HarvestData.fromJson(Map<String, dynamic> json) {
-    return HarvestData(
-      id: json['id']?.toString() ?? '',
-      gardenId: json['gardenId']?.toString() ?? '',
-      shopId: json['shopId']?.toString() ?? '',
-      buyerName: json['buyerName']?.toString() ?? '',
-      soldDate: json['soldDate']?.toString() ?? '',
-      // MariaDB ส่งค่า boolean มาเป็น 0/1
-      purchasedByShop: json['purchasedByShop'] == true || json['purchasedByShop'] == 1,
-      note: json['note']?.toString() ?? '',
-      grade: json['grade']?.toString() ?? '',
-      rejectedBy: json['rejectedBy']?.toString() ?? '',
-      rejectReason: json['rejectReason']?.toString() ?? '',
-      code: json['code'] ?? '',
-      plotName: json['plotName'] ?? json['plot_name'] ?? '',
-      buyer: json['buyer'] ?? '',
-      quantityKg: (json['quantityKg'] ?? json['quantity_kg'] ?? 0).toDouble(),
-      pricePerKg: (json['pricePerKg'] ?? json['price_per_kg'] ?? 0).toDouble(),
-      totalPrice: (json['totalPrice'] ?? json['total_price'] ?? 0).toDouble(),
-      date: json['date'] ?? '',
-      status: json['status'] ?? 'sold',
-    );
-  }
-}
-
-/// ข้อมูลสรุป: ผลผลิตรวม, รายได้ (เฉพาะที่ขายแล้ว), ราคาเฉลี่ย, ผลผลิตรายเดือน
-class HarvestSummary {
-  final double totalQuantityKg;
-  final double totalRevenue;
-  final double averagePrice;
-  final Map<String, double> last12MonthsProduction;
-
-  HarvestSummary({
-    required this.totalQuantityKg,
-    required this.totalRevenue,
-    required this.averagePrice,
-    required this.last12MonthsProduction,
-  });
-
-  /// แปลง JSON จาก API เป็น HarvestSummary
-  factory HarvestSummary.fromJson(Map<String, dynamic> json) {
-    return HarvestSummary(
-      totalQuantityKg: (json['totalQuantityKg'] ?? json['total_quantity_kg'] ?? 0).toDouble(),
-      totalRevenue: (json['totalRevenue'] ?? json['total_revenue'] ?? 0).toDouble(),
-      averagePrice: (json['averagePrice'] ?? json['average_price'] ?? 0).toDouble(),
-      last12MonthsProduction: Map<String, double>.from(
-        (json['last12MonthsProduction'] ?? json['last6MonthsProduction'] ?? json['monthly_production'] ?? {}).map(
-          (k, v) => MapEntry(k, (v as num).toDouble()),
-        ),
-      ),
-    );
-  }
-}
-
-// ==========================================
-// 2. SERVICE
-// ==========================================
-
-/// เรียก API การเก็บเกี่ยว (ส่ง user_id ของคนที่ล็อกอินไปทุกครั้ง)
-class HarvestService {
-  static String get baseUrl => AppConfig.apiBaseUri;
-
-  // สร้าง query ที่มี user_id ของคนที่ล็อกอินอยู่เสมอ (+ garden_id ถ้ามี)
-  /// รายชื่อร้านรับซื้อในแอป [{id, name, open}] สำหรับ dropdown (โหลดไม่ได้ = รายการว่าง)
-  static Future<List<Map<String, String>>> fetchShops() async {
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/shops'));
-      final body = jsonDecode(response.body);
-      if (body is! Map || body['isError'] == true) return [];
-      return (body['data'] as List)
-          .map((s) => {
-                'id': s['shop_id'].toString(),
-                'name': s['shop_name'].toString(),
-                'open': (s['status']?.toString().toUpperCase() == 'ACTIVE').toString(),
-              })
-          .toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<Map<String, String>> _buildQuery(String? gardenId, int? year) async {
-    final userId = await AuthService.getUserId();
-    if (userId == null || userId.isEmpty) {
-      throw Exception('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่');
-    }
-    return {
-      'user_id': userId,
-      'garden_id': ?gardenId,
-      if (year != null) 'year': '$year',
-    };
-  }
-
-  /// ดึงรายการเก็บเกี่ยวของปีที่กำหนด (ไม่ส่ง year = ปีนี้)
-  Future<List<HarvestData>> fetchHarvestRecords({String? gardenId, int? year}) async {
-    final uri = Uri.parse('$baseUrl/harvests').replace(
-      queryParameters: await _buildQuery(gardenId, year),
-    );
-
-    final response = await http.get(uri);
-
-    if (response.statusCode == 200) {
-      final resMap = jsonDecode(response.body);
-
-      if (resMap is Map) {
-        if (resMap['isError'] == false && resMap['data'] != null) {
-          final data = resMap['data'];
-
-          if (data is List) {
-            return data.map((item) => HarvestData.fromJson(item)).toList();
-          }
-
-          if (data is Map) {
-            final listData = data['items'] ?? data['harvests'] ?? data['records'] ?? data['rows'];
-            if (listData is List) {
-              return listData.map((item) => HarvestData.fromJson(item)).toList();
-            }
-          }
-
-          return [];
-        } else {
-          throw Exception(resMap['errorMessage'] ?? 'ไม่สามารถดึงข้อมูลได้');
-        }
-      } else if (resMap is List) {
-        return resMap.map((item) => HarvestData.fromJson(item)).toList();
-      }
-      return [];
-    } else {
-      throw Exception('ไม่สามารถเชื่อมต่อ Server ได้');
-    }
-  }
-
-  /// ดึงข้อมูลสรุปและผลผลิตรายเดือนของปีนี้
-  Future<HarvestSummary> fetchHarvestSummary({String? gardenId, int? year}) async {
-    final uri = Uri.parse('$baseUrl/harvests/summary').replace(
-      queryParameters: await _buildQuery(gardenId, year),
-    );
-
-    final response = await http.get(uri);
-
-    if (response.statusCode == 200) {
-      final resMap = jsonDecode(response.body);
-      if (resMap is Map) {
-        if (resMap['isError'] == false && resMap['data'] != null) {
-          return HarvestSummary.fromJson(resMap['data']);
-        } else if (resMap['totalQuantityKg'] != null || resMap['total_quantity_kg'] != null) {
-          return HarvestSummary.fromJson(resMap as Map<String, dynamic>);
-        } else {
-          throw Exception(resMap['errorMessage'] ?? 'ไม่สามารถดึงข้อมูลสรุปได้');
-        }
-      }
-      throw Exception('ข้อมูลสรุปรูปแบบไม่ถูกต้อง');
-    } else {
-      throw Exception('ไม่สามารถเชื่อมต่อ Server ได้');
-    }
-  }
-}
-
-// ==========================================
-// 3. UI SCREEN
-// ==========================================
+// model: models/harvest.dart · เรียก API: services/harvest_service.dart
+// widget ย่อย: widgets/harvest_monthly_chart.dart (กราฟ), widgets/sell_sheet.dart (ขายนอกระบบ)
 
 /// หน้าบันทึกการเก็บเกี่ยว
 class HarvestScreen extends StatefulWidget {
@@ -280,9 +63,11 @@ class _HarvestScreenState extends State<HarvestScreen> {
   Future<void> _onHarvestLongPress(HarvestData item) async {
     // ร้านในแอปบันทึกรับซื้อแล้ว แก้/ลบเองไม่ได้ (กันข้อมูลร้านกับเกษตรกรไม่ตรงกัน)
     if (item.purchasedByShop) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${item.buyer} บันทึกการรับซื้อรายการนี้แล้ว แก้ไขหรือลบไม่ได้ หากผิดพลาดให้ติดต่อร้าน'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${item.buyer} บันทึกการรับซื้อรายการนี้แล้ว แก้ไขหรือลบไม่ได้ หากผิดพลาดให้ติดต่อร้าน'),
+        ),
+      );
       return;
     }
     final action = await showItemActionsSheet(context);
@@ -300,9 +85,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
     if (!await confirmDelete(context, '${item.code} · ${item.plotName}')) return;
     final userId = await AuthService.getUserId();
     try {
-      final response = await http.delete(
-        Uri.parse('${HarvestService.baseUrl}/harvests/${item.id}?user_id=$userId'),
-      );
+      final response = await http.delete(Uri.parse('${HarvestService.baseUrl}/harvests/${item.id}?user_id=$userId'));
       final body = jsonDecode(response.body);
       if (body['isError'] == true) throw Exception(body['errorMessage']);
       if (!mounted) return;
@@ -310,9 +93,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
       _refreshData();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
 
@@ -354,12 +135,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
   }
 
   Future<void> _navigateToAddHarvest() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const AddHarvestScreen(),
-      ),
-    );
+    final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const AddHarvestScreen()));
 
     if (result == true || result != null) {
       _refreshData();
@@ -380,10 +156,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
             ),
             SizedBox(height: 2),
-            Text(
-              'บันทึกผลผลิต · ราคา · ร้านรับซื้อ',
-              style: TextStyle(fontSize: 11, color: Colors.white70),
-            ),
+            Text('บันทึกผลผลิต · ราคา · ร้านรับซื้อ', style: TextStyle(fontSize: 11, color: Colors.white70)),
           ],
         ),
         centerTitle: true,
@@ -395,7 +168,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
           IconButton(
             icon: const Icon(Icons.add, color: Colors.white, size: 26),
             onPressed: _navigateToAddHarvest,
-          )
+          ),
         ],
       ),
       body: RefreshIndicator(
@@ -415,10 +188,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
                 future: _summaryFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const SizedBox(
-                      height: 80,
-                      child: Center(child: CircularProgressIndicator()),
-                    );
+                    return const SizedBox(height: 80, child: Center(child: CircularProgressIndicator()));
                   }
                   if (snapshot.hasError) {
                     return Center(
@@ -432,9 +202,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
                       ? (summary.last12MonthsProduction[_selectedMonth] ?? 0)
                       : summary.totalQuantityKg;
 
-                  final String cardTitle = _selectedMonth != null
-                      ? 'ผลผลิตเดือน $_selectedMonth'
-                      : 'ผลผลิตทั้งปี';
+                  final String cardTitle = _selectedMonth != null ? 'ผลผลิตเดือน $_selectedMonth' : 'ผลผลิตทั้งปี';
 
                   return Column(
                     children: [
@@ -444,11 +212,13 @@ class _HarvestScreenState extends State<HarvestScreen> {
                           const SizedBox(width: 8),
                           Expanded(child: _buildSummaryCard('รายได้รวม', formatNumber(summary.totalRevenue), 'บาท')),
                           const SizedBox(width: 8),
-                          Expanded(child: _buildSummaryCard('ราคาเฉลี่ย', summary.averagePrice.toStringAsFixed(2), '฿/กก.')),
+                          Expanded(
+                            child: _buildSummaryCard('ราคาเฉลี่ย', summary.averagePrice.toStringAsFixed(2), '฿/กก.'),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      _InteractiveChartCard(
+                      HarvestMonthlyChart(
                         monthlyData: summary.last12MonthsProduction,
                         onHoverMonth: (month) {
                           setState(() {
@@ -472,10 +242,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(32.0),
-                        child: CircularProgressIndicator(),
-                      ),
+                      child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator()),
                     );
                   }
                   if (snapshot.hasError) {
@@ -569,7 +336,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _SellSheet(item: item),
+      builder: (_) => SellSheet(item: item),
     );
     if (sale == null || !mounted) return;
 
@@ -590,17 +357,12 @@ class _HarvestScreenState extends State<HarvestScreen> {
       if (body['isError'] == true) throw Exception(body['errorMessage']);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('บันทึกการขาย ${item.code} แล้ว'),
-          backgroundColor: const Color(0xFF1E5631),
-        ),
+        SnackBar(content: Text('บันทึกการขาย ${item.code} แล้ว'), backgroundColor: const Color(0xFF1E5631)),
       );
       _refreshData();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
 
@@ -646,11 +408,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
           // รอขาย = มีขอบส้มบางๆ ให้เห็นชัดว่ายังต้องจัดการ
           border: isSold ? null : Border.all(color: orange.withValues(alpha: 0.35)),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2)),
           ],
         ),
         child: Column(
@@ -721,7 +479,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
                         Text(
                           isSold || item.pricePerKg > 0
                               ? '${item.grade.isEmpty ? '' : '${item.grade} · '}'
-                                  '${item.quantityKg.toStringAsFixed(0)} กก. × ${item.pricePerKg.toStringAsFixed(2)} บาท'
+                                    '${item.quantityKg.toStringAsFixed(0)} กก. × ${item.pricePerKg.toStringAsFixed(2)} บาท'
                               : '${item.quantityKg.toStringAsFixed(0)} กก. · ยังไม่ได้ขาย',
                           style: const TextStyle(color: Colors.black87, fontSize: 13),
                         ),
@@ -741,11 +499,7 @@ class _HarvestScreenState extends State<HarvestScreen> {
                   const SizedBox(width: 8),
                   Text(
                     '${item.totalPrice.toStringAsFixed(0)} ฿',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: isSold ? green : Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: isSold ? green : Colors.grey),
                   ),
                 ],
               ),
@@ -837,578 +591,20 @@ class _HarvestScreenState extends State<HarvestScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          )
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2))],
       ),
       child: Column(
         children: [
           Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E5631))),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E5631)),
+          ),
           const SizedBox(height: 2),
           Text(unit, style: const TextStyle(fontSize: 10, color: Colors.grey)),
         ],
       ),
-    );
-  }
-}
-
-// ==========================================
-// 4. INTERACTIVE CHART COMPONENT
-// ==========================================
-
-/// กราฟแท่งผลผลิต 12 เดือน แตะแท่งเพื่อดูยอดของเดือนนั้น (แตะซ้ำ = ยกเลิก)
-class _InteractiveChartCard extends StatefulWidget {
-  final Map<String, double> monthlyData;
-  final ValueChanged<String?>? onHoverMonth;
-
-  const _InteractiveChartCard({
-    required this.monthlyData,
-    this.onHoverMonth,
-  });
-
-  @override
-  State<_InteractiveChartCard> createState() => _InteractiveChartCardState();
-}
-
-class _InteractiveChartCardState extends State<_InteractiveChartCard> {
-  static const _green = Color(0xFF2D6A4F);
-  static const _greenDark = Color(0xFF1B4332);
-  String? _selected; // เดือนที่แตะเลือกอยู่ (null = ไม่ได้เลือก)
-
-  /// แตะเดือนเดิมซ้ำ = ยกเลิกการเลือก แล้วแจ้งหน้าแม่ให้เปลี่ยนตัวเลขสรุปด้านบน
-  void _toggle(String month) {
-    setState(() => _selected = _selected == month ? null : month);
-    widget.onHoverMonth?.call(_selected);
-  }
-
-  /// ย่อตัวเลขบนแท่งให้พอดีช่องแคบ เช่น 8200 -> 8.2K, 950 -> 950
-  String _compact(double v) {
-    if (v >= 1000) {
-      final k = v / 1000;
-      return '${k >= 10 ? k.toStringAsFixed(0) : k.toStringAsFixed(1).replaceAll('.0', '')}K';
-    }
-    return v.toStringAsFixed(0);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final data = widget.monthlyData;
-    final maxKg = data.values.fold<double>(0, (m, v) => v > m ? v : m);
-    final total = data.values.fold<double>(0, (s, v) => s + v);
-    const chartHeight = 150.0;
-    const labelSpace = 44.0; // ตัวเลขบนแท่ง + ชื่อเดือนใต้แท่ง
-    const barArea = chartHeight - labelSpace;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('ผลผลิตรายเดือน', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                    SizedBox(height: 2),
-                    Text('หน่วย กิโลกรัม · แตะแท่งเพื่อดูยอดของเดือนนั้น',
-                        style: TextStyle(fontSize: 11, color: Colors.grey)),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Text('รวมทั้งปี', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                  Text('${formatNumber(total)} กก.',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (maxKg <= 0)
-            const SizedBox(
-              height: chartHeight,
-              child: Center(child: Text('ยังไม่มีผลผลิตในปีนี้', style: TextStyle(color: Colors.grey))),
-            )
-          else
-            SizedBox(
-              height: chartHeight,
-              child: Stack(
-                children: [
-                  // เส้นฐานของกราฟ
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: labelSpace - 22,
-                    child: Container(height: 1, color: const Color(0xFFE5E7EB)),
-                  ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      for (final e in data.entries)
-                        Expanded(child: _buildBar(e.key, e.value, maxKg, barArea)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// แท่ง 1 เดือน: ตัวเลขด้านบน (เฉพาะเดือนที่มีผลผลิต) + แท่ง + ชื่อเดือน
-  /// เดือนที่ไม่มีผลผลิต = ไม่มีแท่ง ไม่มีเลข 0 ให้รก แต่ยังแตะเลือกได้
-  Widget _buildBar(String month, double kg, double maxKg, double barArea) {
-    final hasData = kg > 0;
-    final selected = _selected == month;
-    final dimmed = _selected != null && !selected;
-    final barHeight = hasData ? (barArea * kg / maxKg).clamp(6.0, barArea) : 0.0;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque, // แตะบริเวณว่างเหนือแท่งก็เลือกเดือนได้
-      onTap: () => _toggle(month),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // ตัวเลขบนแท่ง: เลือกอยู่ = ป้ายเข้มพร้อมคอมมา, ปกติ = ตัวเลขย่อสีเทา
-          if (selected)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              decoration: BoxDecoration(color: _greenDark, borderRadius: BorderRadius.circular(4)),
-              child: FittedBox(
-                child: Text(
-                  hasData ? formatNumber(kg) : 'ไม่มี',
-                  style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
-            )
-          else
-            Text(
-              hasData ? _compact(kg) : '',
-              style: TextStyle(fontSize: 9, color: Colors.grey[dimmed ? 400 : 600]),
-            ),
-          const SizedBox(height: 4),
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            height: barHeight,
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            decoration: BoxDecoration(
-              color: selected ? _greenDark : (dimmed ? _green.withValues(alpha: 0.35) : _green),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            month,
-            maxLines: 1,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              color: selected ? _greenDark : (hasData ? Colors.black87 : Colors.grey[400]),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ==========================================
-// 4. BOTTOM SHEET: บันทึกขายนอกระบบ
-// ==========================================
-
-/// ขายให้ร้านที่ไม่อยู่ในแอป: ถามราคาต่อกิโลกรัม ชื่อร้าน (ไม่บังคับ) และวันที่ขาย
-/// คำนวณรายได้ให้ดูทันที แล้วคืนค่าที่กรอก
-class _SellSheet extends StatefulWidget {
-  final HarvestData item;
-  const _SellSheet({required this.item});
-
-  @override
-  State<_SellSheet> createState() => _SellSheetState();
-}
-
-class _SellSheetState extends State<_SellSheet> {
-  static const green = Color(0xFF1E5631);
-  late final TextEditingController _priceCtrl;
-  final _buyerCtrl = TextEditingController();
-  final _gradeCtrl = TextEditingController();
-  DateTime _soldDate = DateTime.now();
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    final p = widget.item.pricePerKg;
-    _priceCtrl = TextEditingController(
-      text: p > 0 ? (p % 1 == 0 ? p.toInt().toString() : p.toString()) : '',
-    );
-    _priceCtrl.addListener(() => setState(() => _error = null));
-  }
-
-  @override
-  void dispose() {
-    _priceCtrl.dispose();
-    _buyerCtrl.dispose();
-    _gradeCtrl.dispose();
-    super.dispose();
-  }
-
-  /// ราคาที่กรอก (null ถ้าไม่ใช่ตัวเลข)
-  double? get _price => double.tryParse(_priceCtrl.text.trim());
-
-  String _ymd(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-  Future<void> _pickDate() async {
-    // ขายได้ตั้งแต่วันเก็บเกี่ยวถึงวันนี้ (วันเก็บเกี่ยวอยู่ในอนาคต = เริ่มที่วันนี้ กัน firstDate > lastDate)
-    final today = DateUtils.dateOnly(DateTime.now());
-    final harvested = DateTime.tryParse(widget.item.date);
-    final first = harvested == null || harvested.isAfter(today) ? today : harvested;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _soldDate.isBefore(first) ? first : _soldDate,
-      firstDate: first,
-      lastDate: DateTime.now(),
-    );
-    if (picked != null) setState(() => _soldDate = picked);
-  }
-
-  /// ตรวจว่าราคามากกว่า 0 แล้วปิด sheet พร้อมส่งค่ากลับ
-  void _confirm() {
-    final price = _price;
-    if (price == null || price <= 0) {
-      setState(() => _error = 'กรุณาใส่ราคาที่มากกว่า 0');
-      return;
-    }
-    Navigator.pop(context, (
-      price: price,
-      buyerName: _buyerCtrl.text.trim(),
-      soldDate: _ymd(_soldDate),
-      grade: _gradeCtrl.text.trim(),
-    ));
-  }
-
-  InputDecoration _decoration(String label, IconData icon, {String? suffix, String? hint, String? error}) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      suffixText: suffix,
-      errorText: error,
-      prefixIcon: Icon(icon, color: green),
-      floatingLabelStyle: const TextStyle(color: green),
-      filled: true,
-      fillColor: const Color(0xFFF9FAFB),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: green, width: 1.5),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final item = widget.item;
-    final total = (_price ?? 0) * item.quantityKg;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text('ขายนอกระบบ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text(
-                  '${item.code} · ${item.plotName} · ${item.quantityKg.toStringAsFixed(0)} กก.',
-                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 12),
-                // บอกทางที่ถูกถ้าร้านอยู่ในแอป: ให้ร้านเป็นคนยืนยัน ยอดสองฝั่งจะได้ตรงกัน
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF7ED),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFED7AA)),
-                  ),
-                  child: const Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.info_outline, size: 18, color: Color(0xFFC2410C)),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'ขายให้ร้านที่อยู่ในแอป? กดค้างที่รายการ > แก้ไข แล้วเลือกร้าน '
-                          'ร้านจะเป็นคนยืนยันรับซื้อ',
-                          style: TextStyle(fontSize: 12.5, color: Color(0xFF7C2D12), height: 1.4),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _priceCtrl,
-                  autofocus: true,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  cursorColor: green,
-                  decoration: _decoration('ราคาขายต่อกิโลกรัม', Icons.payments_outlined,
-                      suffix: 'บาท/กก.', error: _error),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _buyerCtrl,
-                  cursorColor: green,
-                  maxLength: 100,
-                  decoration: _decoration('ชื่อร้านที่ขายให้ (ไม่บังคับ)', Icons.storefront_outlined,
-                          hint: 'เช่น ลานเทสมชาย')
-                      .copyWith(counterText: ''),
-                ),
-                const SizedBox(height: 12),
-                GradePicker(controller: _gradeCtrl),
-                const SizedBox(height: 12),
-                InkWell(
-                  onTap: _pickDate,
-                  borderRadius: BorderRadius.circular(12),
-                  child: InputDecorator(
-                    decoration: _decoration('วันที่ขาย', Icons.calendar_today_outlined),
-                    child: Text('${_soldDate.day}/${_soldDate.month}/${_soldDate.year + 543}'),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5E9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Text('รายได้จากการขาย', style: TextStyle(fontSize: 14)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            '${total.toStringAsFixed(2)} ฿',
-                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: green),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _confirm,
-                    icon: const Icon(Icons.check),
-                    label: const Text('ยืนยันขายแล้ว', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: green,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ==========================================
-// 5. เลือกร้านในแอปที่จะขายให้ (ใช้ในฟอร์มเก็บเกี่ยว ตอนสถานะรอขาย)
-// ==========================================
-
-/// Dropdown เลือกร้านรับซื้อในแอป ตัวเลือกแรกคือ "ยังไม่เลือกร้าน" (value = null)
-/// ร้านที่ปิดรับซื้อชั่วคราวแสดงไว้แต่เลือกไม่ได้
-class ShopDropdown extends StatelessWidget {
-  final List<Map<String, String>> shops;
-  final String? value;
-  final ValueChanged<String?> onChanged;
-
-  const ShopDropdown({
-    super.key,
-    required this.shops,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // ค่าที่เลือกต้องมีอยู่ในรายการ ไม่งั้น Dropdown จะ error (เช่น ตอนรายชื่อร้านยังโหลดไม่เสร็จ)
-    final safeValue = shops.any((s) => s['id'] == value) ? value : null;
-    return DropdownButtonFormField<String?>(
-      // initialValue ถูกอ่านแค่ตอนสร้าง -> เปลี่ยน key เมื่อรายชื่อร้าน/ค่าที่เลือกเปลี่ยน ให้สร้างใหม่แสดงค่าที่ถูกต้อง
-      key: ValueKey('${shops.length}-$safeValue'),
-      initialValue: safeValue,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: 'ร้านในแอปที่จะขายให้',
-        prefixIcon: const Icon(Icons.storefront_outlined, color: Color(0xFF1E5631)),
-        filled: true,
-        fillColor: const Color(0xFFF9FAFB),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      items: [
-        const DropdownMenuItem<String?>(value: null, child: Text('ยังไม่เลือกร้าน')),
-        ...shops.map((s) {
-          final open = s['open'] != 'false';
-          return DropdownMenuItem<String?>(
-            value: s['id'],
-            enabled: open || s['id'] == value,
-            child: Text(
-              open ? s['name']! : '${s['name']} (ปิดรับซื้อชั่วคราว)',
-              overflow: TextOverflow.ellipsis,
-              style: open ? null : const TextStyle(color: Colors.grey),
-            ),
-          );
-        }),
-      ],
-      onChanged: onChanged,
-    );
-  }
-}
-
-/// ข้อความใต้ช่องเลือกร้าน บอกว่าการเลือกนี้มีผลยังไง
-class ShopSaleHint extends StatelessWidget {
-  final String? shopName; // null = ยังไม่เลือกร้าน
-  const ShopSaleHint({super.key, required this.shopName});
-
-  @override
-  Widget build(BuildContext context) {
-    final chosen = shopName != null;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(chosen ? Icons.sync_alt : Icons.info_outline, size: 15, color: Colors.grey[600]),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            chosen
-                ? '$shopName จะเห็นล็อตนี้ และเป็นคนกดยืนยันรับซื้อ รายการจะเปลี่ยนเป็น "ขายแล้ว" เอง'
-                : 'ร้านในแอปค้นหาแล้วรับซื้อได้ หรือคุณบันทึก "ขายนอกระบบ" เองภายหลัง',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ==========================================
-// 6. เลือกเกรดที่ขาย (ใช้ในหน้าต่างขายนอกระบบ และฟอร์มเก็บเกี่ยว)
-// ==========================================
-
-/// ปุ่มลัดเกรดที่ใช้บ่อย + ช่องพิมพ์เอง (ไม่บังคับ) ค่าอยู่ใน controller
-class GradePicker extends StatefulWidget {
-  final TextEditingController controller;
-  const GradePicker({super.key, required this.controller});
-
-  static const quickGrades = ['เกรด A', 'เกรด B', 'เกรด C', 'ลูกร่วง', 'ทะลายสด'];
-
-  @override
-  State<GradePicker> createState() => _GradePickerState();
-}
-
-class _GradePickerState extends State<GradePicker> {
-  static const green = Color(0xFF1E5631);
-
-  @override
-  Widget build(BuildContext context) {
-    final current = widget.controller.text.trim();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: GradePicker.quickGrades.map((g) {
-            final selected = current == g;
-            return ChoiceChip(
-              label: Text(g),
-              selected: selected,
-              showCheckmark: false,
-              selectedColor: green,
-              backgroundColor: const Color(0xFFF1F8F3),
-              side: BorderSide(color: selected ? green : const Color(0xFFD5E8DB)),
-              labelStyle: TextStyle(color: selected ? Colors.white : Colors.grey[800], fontSize: 13),
-              // แตะซ้ำที่เกรดที่เลือกอยู่ = ยกเลิก (ไม่ระบุเกรด)
-              onSelected: (_) => setState(() => widget.controller.text = selected ? '' : g),
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: widget.controller,
-          maxLength: 100,
-          cursorColor: green,
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            labelText: 'เกรดที่ขาย (ไม่บังคับ)',
-            hintText: 'เลือกด้านบน หรือพิมพ์เอง',
-            counterText: '',
-            prefixIcon: const Icon(Icons.grade_outlined, color: green),
-            floatingLabelStyle: const TextStyle(color: green),
-            filled: true,
-            fillColor: const Color(0xFFF9FAFB),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: green, width: 1.5),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
