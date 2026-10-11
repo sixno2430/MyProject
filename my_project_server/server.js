@@ -52,25 +52,6 @@ function logIfOk(result, userId, action, req) {
 // USER & AUTHENTICATION API
 // ==========================================
 
-/** ปิดไว้: ไม่อนุญาตให้ดึงรายชื่อผู้ใช้ทั้งหมด */
-app.get("/api/users", (req, res) => {
-  res.status(401).json({
-    isError: true,
-    data: "You are unauthorized for this data"
-  });
-});
-
-/** ข้อมูลผู้ใช้ 1 คน */
-app.get('/api/user/:user_id', async (req, res) => {
-  try {
-    const userId = req.params.user_id;
-    const response = await userAccount.getUserById(userId);
-    res.json(response);
-  } catch (error) {
-    res.status(500).json({ isError: true, errorMessage: error.message, data: null });
-  }
-});
-
 // ตอนสมัครสมาชิก
 app.post('/api/register', async (req, res) => {
   const { role_id, full_name, id_card, phone, username, password } = req.body;
@@ -216,24 +197,6 @@ app.get('/api/activities/:user_id', async (req, res) => {
 // GARDEN API
 // ==========================================
 
-/** แปลงสวนของ user (?user_id=) — เดิมส่งแปลงของทุก user ออกไป ไม่ส่ง user_id = ได้รายการว่าง */
-app.get('/api/gardens', async (req, res) => {
-  try {
-    const userId = req.query.user_id;
-    if (!userId) return res.json({ isError: false, data: [], errorMessage: '' });
-    if (garden && typeof garden.getGardensByUserId === 'function') {
-      const result = await garden.getGardensByUserId(userId);
-      return res.json(result);
-    }
-    
-    const rows = await db.query(`SELECT garden_id AS id, garden_name AS name FROM garden WHERE user_id = ?`, [userId]);
-    res.json({ isError: false, data: rows });
-  } catch (error) {
-    console.error('Error fetching gardens:', error);
-    res.status(500).json({ isError: true, data: [], errorMessage: error.message });
-  }
-});
-
 /** แปลงสวนของ user */
 app.get('/api/gardens/:user_id', async (req, res) => {
   try {
@@ -314,16 +277,6 @@ app.get('/api/care-logs', async (req, res) => {
     res.json(result.data);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching care logs', error: error.message });
-  }
-});
-
-// รายชื่อปุ๋ย สำหรับ dropdown ตอนบันทึก "ใส่ปุ๋ย"
-app.get('/api/fertilizers', async (req, res) => {
-  try {
-    const result = await fertilizer.getAll();
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ isError: true, errorMessage: error.message, data: [] });
   }
 });
 
@@ -498,17 +451,6 @@ app.delete('/api/harvests/:harvest_id', async (req, res) => {
 // ==========================================
 // FINANCE API (รายรับ - รายจ่าย)
 // ==========================================
-
-/** ยอดรวมรายรับ-รายจ่าย ?month=yyyy-MM &user_id= */
-app.get('/api/finance/summary', async (req, res) => {
-  try {
-    const { month, user_id } = req.query;
-    const result = await finance.getSummary(month, user_id);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ isError: true, errorMessage: error.message });
-  }
-});
 
 /** รายการเงิน ?month= &type=income|expense|all &user_id= */
 app.get('/api/finance/transactions', async (req, res) => {

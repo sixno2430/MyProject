@@ -1,7 +1,6 @@
 // ============================================================
 // fertilizer.js — model รายชื่อปุ๋ย
 //
-// - getAll: ตาราง fertilizer (ข้อมูลตั้งต้นของระบบ)
 // - getUsedByUser: ชื่อปุ๋ยที่ผู้ใช้คนนี้เคยบันทึก (ตาราง care_fertilizer) ใช้เป็นรายการแนะนำในฟอร์มใส่ปุ๋ย
 //   ผู้ใช้ใหม่จึงยังไม่มีรายการแนะนำ พอบันทึกปุ๋ยครั้งแรก ชื่อนั้นจะขึ้นแนะนำครั้งต่อไปเฉพาะของคนนั้น
 // ============================================================
@@ -9,20 +8,6 @@
 const db = require('../libs/db_pool');
 
 const fertilizer = {
-  // รายชื่อปุ๋ยทั้งหมด (ใช้ทำ dropdown ตอนบันทึก "ใส่ปุ๋ย")
-  getAll: async () => {
-    try {
-      const rows = await db.query(
-        `SELECT fertilizer_id, fertilizer_name, fertilizer_type, formula
-         FROM fertilizer ORDER BY fertilizer_id`
-      );
-      return { isError: false, data: rows, errorMessage: "" };
-    } catch (error) {
-      console.error('Error fertilizer.getAll:', error.message);
-      return { isError: true, data: [], errorMessage: 'โหลดรายชื่อปุ๋ยไม่สำเร็จ' };
-    }
-  },
-
   // ชื่อปุ๋ยที่ user นี้เคยใช้ เรียงจากที่ใช้ล่าสุด (ชื่อซ้ำนับเป็นชื่อเดียว)
   getUsedByUser: async (userId) => {
     try {

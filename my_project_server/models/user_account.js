@@ -8,34 +8,6 @@ const pool = require('../libs/db_pool');
 const bcrypt = require('bcrypt');
 
 module.exports = {
-  // ดึงข้อมูล user ทีละคนด้วย user_id
-  getUserById: async (userId) => {
-    let conn;
-    let result;
-    try {
-      conn = await pool.getConnection();
-
-      var sql = "SELECT user_id, role_id, citizen_id, full_name, phone, username, created_at FROM user "
-              + "WHERE user_id = ?";
-
-      var rows = await conn.query(sql, [userId]);
-
-      result = {
-        isError: false,
-        data: rows
-      };
-    } catch (error) {
-      result = {
-        isError: true,
-        errorMessage: error.message
-      }
-    } finally {
-      if (conn) conn.release();
-      return result;
-    }
-  },
-
-
   // ค้นหา user ด้วย username (ใช้ตอน login — ต้องได้ password มาด้วยเพื่อเทียบ hash)
   getUserByUsername: async (username) => {
     let conn;
