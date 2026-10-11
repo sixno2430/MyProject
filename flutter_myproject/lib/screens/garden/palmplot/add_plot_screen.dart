@@ -23,7 +23,7 @@ class AddPlotScreen extends StatefulWidget {
 
 class _AddPlotScreenState extends State<AddPlotScreen> {
   final Color primaryGreen = const Color(0xFF2D6A4F);
-  
+
   // ← แก้ตรงนี้: ใช้ AppConfig แทน hardcode
   String get apiUrl => AppConfig.apiBaseUri;
 
@@ -43,7 +43,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchVarieties();  // เรียกดึงพันธุ์ตอนเปิดหน้า
+    _fetchVarieties(); // เรียกดึงพันธุ์ตอนเปิดหน้า
   }
 
   // ← เพิ่มตรงนี้: ฟังก์ชันดึงพันธุ์จาก API
@@ -85,18 +85,16 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
   /// ตรวจข้อมูลแล้วบันทึกแปลงใหม่ สำเร็จแล้วปิดหน้า
   Future<void> _save() async {
     if (_nameCtrl.text.trim().isEmpty || _areaCtrl.text.trim().isEmpty || _treeCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กรุณากรอกข้อมูลที่มี * ให้ครบ')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('กรุณากรอกข้อมูลที่มี * ให้ครบ')));
       return;
     }
 
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่')));
       }
       return;
     }
@@ -120,9 +118,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
       final res = jsonDecode(response.body);
       if ((response.statusCode == 200 || response.statusCode == 201) && res['isError'] == false) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('เพิ่มแปลงสวนสำเร็จ!')),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เพิ่มแปลงสวนสำเร็จ!')));
           Navigator.pop(context, true);
         }
       } else {
@@ -130,9 +126,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(friendlyError(e))),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -158,14 +152,11 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
             _field('ชื่อแปลงสวน *', _nameCtrl),
             _field('พื้นที่ (ไร่) *', _areaCtrl, TextInputType.number),
             _field('จำนวนต้นปาล์ม *', _treeCtrl, TextInputType.number),
-             const SizedBox(height: 16),
+            const SizedBox(height: 16),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'พันธุ์ปาล์มที่ปลูก',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                ),
+                const Text('พันธุ์ปาล์มที่ปลูก', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                 const SizedBox(height: 6),
                 Container(
                   decoration: BoxDecoration(
@@ -177,11 +168,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
                       ? const Padding(
                           padding: EdgeInsets.all(16),
                           child: Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
+                            child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
                           ),
                         )
                       : DropdownButtonHideUnderline(
@@ -266,7 +253,11 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: _isLoading
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
                         : const Text('บันทึก'),
                   ),
                 ),
@@ -291,7 +282,10 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
       ),
