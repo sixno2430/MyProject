@@ -118,8 +118,11 @@ module.exports = {
       console.error('createUser error:', error.message);
       var message = 'สมัครสมาชิกไม่สำเร็จ กรุณาลองใหม่';
       if (error.errno === 1062) {
-        if (error.message.includes('citizen_id')) message = 'เลขบัตรประชาชนนี้ถูกลงทะเบียนแล้ว';
-        else if (error.message.includes('username')) message = 'Username นี้ถูกใช้แล้ว';
+        // ดูจาก sqlMessage (เช่น "Duplicate entry 'x' for key 'user.username'") ไม่ใช่ error.message
+        // เพราะ error.message มีคำสั่ง SQL ทั้งประโยคซึ่งมีคำว่า citizen_id อยู่เสมอ -> ชื่อซ้ำก็ขึ้นว่าเลขบัตรซ้ำ
+        var dupKey = error.sqlMessage || '';
+        if (dupKey.includes('citizen_id')) message = 'เลขบัตรประชาชนนี้ถูกลงทะเบียนแล้ว';
+        else if (dupKey.includes('username')) message = 'Username นี้ถูกใช้แล้ว';
         else message = 'ข้อมูลนี้ถูกใช้ลงทะเบียนแล้ว';
       }
       result = {
@@ -181,6 +184,24 @@ module.exports = {
     } finally {
       if (conn) conn.release();
       return result;
+    }
+  },
+
+  // บันทึกการใช้งานลงตาราง user_log (เช่น LOGIN) ให้หน้าแอดมินดูได้ว่าใครเข้าใช้ล่าสุดเมื่อไร
+  // บันทึกไม่สำเร็จก็ไม่เป็นไร ไม่ให้กระทบการล็อกอิน
+  logAction: async (userId, action, ipAddress) => {
+    try {
+      const rows = await pool.query(
+        "SELECT MAX(CAST(SUBSTRING(log_id, 2) AS UNSIGNED)) AS max_num FROM user_log WHERE log_id LIKE 'L%'"
+      );
+      const maxNum = rows[0].max_num !== null ? Number(rows[0].max_num) : 0;
+      const logId = 'L' + String(maxNum + 1).padStart(3, '0');
+      await pool.query(
+        "INSERT INTO user_log (log_id, user_id, action, ip_address) VALUES (?, ?, ?, ?)",
+        [logId, userId, action, ipAddress || null]
+      );
+    } catch (error) {
+      console.error('Error logAction:', error.message);
     }
   },
 }

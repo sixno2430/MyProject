@@ -6,3 +6,6 @@ node_modules/
 
 # ค่าลับของเซิร์ฟเวอร์ (รหัสผ่าน DB, JWT secret) ใช้ .env.example เป็นแม่แบบ
 .env
+
+# ไฟล์สำรองฐานข้อมูล (มีข้อมูลผู้ใช้และรหัสผ่านแบบ hash) ไม่ขึ้น git
+my_project_server/backups/

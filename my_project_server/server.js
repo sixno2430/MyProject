@@ -27,6 +27,7 @@ const palmVariety = require('./models/palm_variety');
 const report = require('./models/report');
 const shop = require('./models/shop');
 const fertilizer = require('./models/fertilizer');
+const admin = require('./models/admin');
 
 const app = express();
 app.use(cors());
@@ -93,6 +94,7 @@ app.post('/api/register', async (req, res) => {
     const result = await userAccount.createUser(
       userId, role_id, id_card, full_name, phone, username, hashedPassword
     );
+    if (!result.isError) userAccount.logAction(userId, 'REGISTER', req.ip);
 
     res.json(result);
   } catch (error) {
@@ -127,8 +129,14 @@ app.post('/api/authen_request', async (req, res) => {
       return res.json({ isError: true, data: "", errorMessage: 'รหัสผ่านไม่ถูกต้อง' });
     }
 
+    // บัญชีที่แอดมินระงับไว้ เข้าสู่ระบบไม่ได้
+    if (user.status === 'suspended') {
+      return res.json({ isError: true, data: "", errorMessage: 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ' });
+    }
+
     // ตรวจบทบาทหลังรหัสผ่านถูกแล้วเท่านั้น (ไม่บอกคนที่เดารหัสว่าบัญชีนี้เป็นบทบาทอะไร)
-    if (requestedRole && requestedRole !== user.role_id) {
+    // แอดมิน (R001) ไม่มีปุ่มบทบาทในหน้าล็อกอิน จึงเข้าได้ไม่ว่าจะเลือกปุ่มไหน
+    if (requestedRole && requestedRole !== user.role_id && user.role_id !== 'R001') {
       const actual = ROLE_LABELS[user.role_id] || 'บทบาทอื่น';
       return res.json({
         isError: true,
@@ -143,7 +151,10 @@ app.post('/api/authen_request', async (req, res) => {
       '5m'
     );
 
-    res.json({ 
+    // เก็บประวัติเข้าสู่ระบบ ให้แอดมินดูสถานะการใช้งานล่าสุดของแต่ละคน
+    await userAccount.logAction(user.user_id, 'LOGIN', req.ip);
+
+    res.json({
       isError: false, 
       data: authenToken, 
       user_id: user.user_id,
@@ -410,6 +421,7 @@ app.post('/api/harvests', async (req, res) => {
     if (result.isError) {
       return res.status(500).json(result);
     }
+    userAccount.logAction(req.body.user_id, 'ADD_HARVEST', req.ip);
     res.status(201).json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -602,6 +614,7 @@ app.delete('/api/shop/prices/:price_rate_id', async (req, res) => {
 app.post('/api/shop/prices', async (req, res) => {
   try {
     const result = await shop.savePriceRate(req.body);
+    if (!result.isError) userAccount.logAction(req.body.user_id, 'UPDATE_PRICE', req.ip);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -622,6 +635,7 @@ app.get('/api/shop/:shop_id/purchases', async (req, res) => {
 app.post('/api/shop/purchases', async (req, res) => {
   try {
     const result = await shop.createPurchase(req.body);
+    if (!result.isError) userAccount.logAction(req.body.user_id, 'ADD_PURCHASE', req.ip);
     res.json(result);
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message });
@@ -706,6 +720,67 @@ app.get('/api/shop/:shop_id/reports', async (req, res) => {
   } catch (error) {
     res.status(500).json({ isError: true, errorMessage: error.message, data: null });
   }
+});
+
+// ==========================================
+// ADMIN API (ผู้ดูแลระบบ R001)
+// ==========================================
+// ทุก route ต้องส่ง admin_id (query หรือ body) และต้องเป็นบัญชี R001 จริงในฐานข้อมูล
+
+async function requireAdmin(req, res, next) {
+  try {
+    const adminId = req.query.admin_id || (req.body && req.body.admin_id);
+    if (!(await admin.isAdmin(adminId))) {
+      return res.status(403).json({ isError: true, data: null, errorMessage: 'เฉพาะผู้ดูแลระบบเท่านั้น' });
+    }
+    next();
+  } catch (error) {
+    res.status(500).json({ isError: true, data: null, errorMessage: error.message });
+  }
+}
+
+/** ตัวเลขภาพรวมระบบ */
+app.get('/api/admin/overview', requireAdmin, async (req, res) => {
+  res.json(await admin.getOverview());
+});
+
+/** รายชื่อผู้ใช้ทั้งหมด + เข้าสู่ระบบล่าสุด */
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  res.json(await admin.getUsers());
+});
+
+/** แอดมินเพิ่มผู้ใช้ */
+app.post('/api/admin/users', requireAdmin, async (req, res) => {
+  const result = await admin.createUser(req.body);
+  if (!result.isError) userAccount.logAction(req.body.admin_id, 'ADD_USER', req.ip);
+  res.json(result);
+});
+
+/** แอดมินแก้ไขผู้ใช้ (รหัสผ่านว่าง = คงเดิม) */
+app.put('/api/admin/users/:user_id', requireAdmin, async (req, res) => {
+  const result = await admin.updateUser(req.params.user_id, req.body);
+  if (!result.isError) userAccount.logAction(req.body.admin_id, 'EDIT_USER', req.ip);
+  res.json(result);
+});
+
+/** ระงับ / เปิดใช้บัญชี  body: { admin_id, status: 'active' | 'suspended' } */
+app.put('/api/admin/users/:user_id/status', requireAdmin, async (req, res) => {
+  const { admin_id, status } = req.body;
+  const result = await admin.setUserStatus(admin_id, req.params.user_id, status);
+  if (!result.isError) {
+    userAccount.logAction(admin_id, status === 'suspended' ? 'SUSPEND_USER' : 'ACTIVATE_USER', req.ip);
+  }
+  res.json(result);
+});
+
+/** ประวัติการใช้งาน ?action= &user_id= &limit= */
+app.get('/api/admin/logs', requireAdmin, async (req, res) => {
+  res.json(await admin.getLogs(req.query));
+});
+
+/** รายงานระบบ */
+app.get('/api/admin/report', requireAdmin, async (req, res) => {
+  res.json(await admin.getReport());
 });
 
 // ==========================================

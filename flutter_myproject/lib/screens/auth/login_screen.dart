@@ -17,6 +17,9 @@ import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
 // หน้าหลักร้านรับซื้อ
 import 'package:flutter_myproject/screens/shop/shop_home_screen.dart';
+// หน้าหลักผู้ดูแลระบบ
+import 'package:flutter_myproject/screens/admin/admin_dashboard_screen.dart';
+import 'package:flutter_myproject/screens/admin/admin_widgets.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -136,7 +139,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
             // แยกหน้าจอตามบทบาทจริงของบัญชี (เซิร์ฟเวอร์ตรวจแล้วว่าตรงกับที่เลือก)
             // เดิมมี || selectedRole == 1 ทำให้บัญชีชาวสวนที่กดปุ่ม "ร้านค้า" เข้าหน้าร้านได้
-            if (roleId == 'R003') {
+            // แอดมิน (R001) ไม่มีปุ่มบทบาทของตัวเอง เลือกปุ่มไหนก็เข้าหน้าผู้ดูแลระบบ
+            if (roleId == 'R001') {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const AdminTheme(child: AdminDashboardScreen())),
+              );
+            } else if (roleId == 'R003') {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const ShopHomeScreen()),
