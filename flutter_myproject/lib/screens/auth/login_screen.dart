@@ -11,10 +11,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/services/auth_service.dart';
 
 // หน้าหลักเกษตรกร
-import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
+import 'package:flutter_myproject/screens/main/home/home_screen.dart';
 // หน้าหลักร้านรับซื้อ
 import 'package:flutter_myproject/screens/shop/shop_home_screen.dart';
 // หน้าหลักผู้ดูแลระบบ

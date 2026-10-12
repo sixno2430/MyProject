@@ -6,10 +6,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/services/profile_service.dart';
-import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/services/auth_service.dart';
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
 import 'package:flutter_myproject/screens/main/profile/change_password_screen.dart';
-import 'package:flutter_myproject/notifications/notifications_screen.dart';
+import 'package:flutter_myproject/screens/notifications/notifications_screen.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
 
 /// แท็บโปรไฟล์

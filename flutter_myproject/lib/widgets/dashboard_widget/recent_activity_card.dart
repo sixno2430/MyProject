@@ -6,7 +6,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
-import 'package:flutter_myproject/screens/main/HOME/activity_detail_screen.dart';
+import 'package:flutter_myproject/screens/main/home/activity_detail_screen.dart';
 import 'package:flutter_myproject/models/activity.dart';
 
 /// การ์ดแสดงกิจกรรมล่าสุดในหน้า Dashboard

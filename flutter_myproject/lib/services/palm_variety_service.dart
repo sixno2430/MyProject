@@ -1,7 +1,7 @@
 // ============================================================
 // palm_variety_service.dart — เรียก API รายชื่อพันธุ์ปาล์ม
 //
-// ใช้กับหน้าพันธุ์ปาล์มในโฟลเดอร์ plamvarieties/ (ส่ง token ไปใน header ด้วย)
+// ใช้กับหน้าพันธุ์ปาล์มในโฟลเดอร์ screens/garden/palm_varieties/ (ส่ง token ไปใน header ด้วย)
 // พันธุ์แยกตามผู้ใช้: ทุกคำสั่งส่ง user_id ให้เซิร์ฟเวอร์จัดการเฉพาะพันธุ์ของตัวเอง
 //   GET /api/varieties  POST /api/varieties  PUT /api/varieties/:id  DELETE /api/varieties/:id
 // ============================================================
@@ -10,7 +10,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/config/app_config.dart';
-import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/services/auth_service.dart';
 import 'package:flutter_myproject/models/palm_variety.dart';
 
 /// เรียก API พันธุ์ปาล์ม

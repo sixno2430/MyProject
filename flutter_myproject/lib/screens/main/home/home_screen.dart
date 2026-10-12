@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_myproject/widgets/button_nav.dart';
 
 // หน้าทั้ง 5 หน้าในแถบล่าง
-import 'package:flutter_myproject/screens/main/HOME/dashboard_screen.dart';   // หน้าแรก: หน้าหลัก
+import 'package:flutter_myproject/screens/main/home/dashboard_screen.dart';   // หน้าแรก: หน้าหลัก
 import 'package:flutter_myproject/screens/garden/palmplot/palmplot_screen.dart';     // หน้าสวน
 import 'package:flutter_myproject/screens/finance/finance_screen.dart';     // หน้าการเงิน
 import 'package:flutter_myproject/screens/main/report/report_screen.dart';      // หน้ารายงาน

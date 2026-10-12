@@ -11,7 +11,7 @@ import 'package:flutter_myproject/widgets/dashboard_widget/dashboard_header.dart
 import 'package:flutter_myproject/widgets/dashboard_widget/error_view.dart';
 import 'package:flutter_myproject/widgets/dashboard_widget/menu_grid.dart';
 import 'package:flutter_myproject/services/dashboard_service.dart';
-import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/services/auth_service.dart';
 import 'package:flutter_myproject/screens/garden/harvest/harvest_screen.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 import 'package:flutter_myproject/utils/error_message.dart';

@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter_myproject/main.dart';
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
 import 'package:flutter_myproject/screens/auth/splash_screen.dart';
-import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/services/auth_service.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

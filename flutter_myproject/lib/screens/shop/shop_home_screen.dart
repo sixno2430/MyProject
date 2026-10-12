@@ -12,7 +12,7 @@ import 'package:flutter_myproject/screens/shop/my_shop_screen.dart';
 import 'package:flutter_myproject/screens/shop/shop_dashboard_screen.dart';
 import 'package:flutter_myproject/screens/shop/shop_purchase_screen.dart';
 import 'package:flutter_myproject/screens/shop/shop_report_screen.dart';
-import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/services/auth_service.dart';
 import 'package:flutter_myproject/services/shop_service.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
 import 'package:flutter_myproject/widgets/button_nav.dart';

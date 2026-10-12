@@ -10,7 +10,7 @@ import 'package:flutter_myproject/widgets/activity_widgets/activity_card.dart';
 import 'package:flutter_myproject/widgets/activity_widgets/activity_empty_state.dart';
 import 'package:flutter_myproject/widgets/activity_widgets/activity_filter_bar.dart';
 import 'package:flutter_myproject/services/dashboard_service.dart';
-import 'package:flutter_myproject/services/auth_server.dart';
+import 'package:flutter_myproject/services/auth_service.dart';
 import 'package:flutter_myproject/screens/garden/harvest/add_harvest_screen.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/add_gardencare_screen.dart';
 import 'package:flutter_myproject/screens/finance/add_transaction_screen.dart';
