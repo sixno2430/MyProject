@@ -115,11 +115,7 @@ class _ShopDashboardScreenState extends State<ShopDashboardScreen> {
   Widget _buildHeader(ShopInfo? shop) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: theme.headerGradient,
-        ),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: theme.headerGradient),
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
       ),
       child: SafeArea(
@@ -257,8 +253,11 @@ class _ShopDashboardScreenState extends State<ShopDashboardScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-              child: Text('ยังไม่มีการรับซื้อ',
-                  textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[500])),
+              child: Text(
+                'ยังไม่มีการรับซื้อ',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey[500]),
+              ),
             )
           else
             ...d.recent.map(_purchaseCard),
@@ -273,7 +272,9 @@ class _ShopDashboardScreenState extends State<ShopDashboardScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: theme.primary.withValues(alpha: 0.08), blurRadius: 14, offset: const Offset(0, 6))],
+        boxShadow: [
+          BoxShadow(color: theme.primary.withValues(alpha: 0.08), blurRadius: 14, offset: const Offset(0, 6)),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -343,20 +344,22 @@ class _ShopDashboardScreenState extends State<ShopDashboardScreen> {
               spacing: 10,
               runSpacing: 10,
               children: current
-                  .map((r) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(r.grade, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                            Text(
-                              '${_price.format(r.pricePerKg)} ฿/กก.',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: theme.primary),
-                            ),
-                          ],
-                        ),
-                      ))
+                  .map(
+                    (r) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(r.grade, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                          Text(
+                            '${_price.format(r.pricePerKg)} ฿/กก.',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: theme.primary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
                   .toList(),
             )
           else
@@ -364,7 +367,7 @@ class _ShopDashboardScreenState extends State<ShopDashboardScreen> {
               rates.isEmpty
                   ? 'ยังไม่ได้ตั้งราคารับซื้อ เกษตรกรจะยังไม่เห็นราคาของร้าน'
                   : 'ราคาล่าสุดหมดอายุแล้ว (${rates.first.grade} ${_price.format(rates.first.pricePerKg)} ฿/กก.) '
-                      'กรุณาตั้งราคาใหม่',
+                        'กรุณาตั้งราคาใหม่',
               style: const TextStyle(fontSize: 13, color: Color(0xFF8D6E00), height: 1.4),
             ),
         ],
@@ -408,17 +411,22 @@ class _ShopDashboardScreenState extends State<ShopDashboardScreen> {
           CircleAvatar(
             radius: 22,
             backgroundColor: theme.soft,
-            child: Text(initial, style: TextStyle(color: theme.primary, fontWeight: FontWeight.bold, fontSize: 18)),
+            child: Text(
+              initial,
+              style: TextStyle(color: theme.primary, fontWeight: FontWeight.bold, fontSize: 18),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(p.farmerName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                Text(
+                  p.farmerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   '${formatNumber(p.quantity)} กก. × ${_price.format(p.pricePerKg)} ฿ · ${formatRelativeDate(p.date)}',

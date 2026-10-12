@@ -92,7 +92,9 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
   Future<void> _openRecord({IncomingLot? lot}) async {
     final saved = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => RecordPurchaseScreen(shop: widget.shop!, lot: lot)),
+      MaterialPageRoute(
+        builder: (_) => RecordPurchaseScreen(shop: widget.shop!, lot: lot),
+      ),
     );
     if (saved == true) {
       _load();
@@ -150,9 +152,9 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
       widget.onChanged();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
     }
   }
 
@@ -297,7 +299,10 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
         if (_incoming.isNotEmpty) ...[
           _buildIncoming(),
           const SizedBox(height: 18),
-          Text('ประวัติการรับซื้อ', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[800])),
+          Text(
+            'ประวัติการรับซื้อ',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+          ),
           const SizedBox(height: 10),
         ],
         SingleChildScrollView(
@@ -380,14 +385,18 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
               const Text('📦', style: TextStyle(fontSize: 18)),
               const SizedBox(width: 6),
               Expanded(
-                child: Text('ล็อตที่ส่งมาขายร้านนี้ (${_incoming.length})',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: theme.primaryDark)),
+                child: Text(
+                  'ล็อตที่ส่งมาขายร้านนี้ (${_incoming.length})',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: theme.primaryDark),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          Text('เกษตรกรเลือกขายให้ร้านคุณ ชั่งน้ำหนักแล้วกด "รับซื้อ"',
-              style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+          Text(
+            'เกษตรกรเลือกขายให้ร้านคุณ ชั่งน้ำหนักแล้วกด "รับซื้อ"',
+            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+          ),
           const SizedBox(height: 10),
           ..._incoming.map((lot) {
             final h = lot.harvest;
@@ -401,10 +410,12 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(lot.farmer.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text(
+                          lot.farmer.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           '~${_kg.format(h.quantity)} กก. · ${h.gardenName} · '
@@ -520,13 +531,7 @@ class _ShopPurchaseScreenState extends State<ShopPurchaseScreen> {
             itemBuilder: (_) => const [
               PopupMenuItem(
                 value: 'edit',
-                child: Row(
-                  children: [
-                    Icon(Icons.edit_outlined, size: 20),
-                    SizedBox(width: 8),
-                    Text('แก้ไข'),
-                  ],
-                ),
+                child: Row(children: [Icon(Icons.edit_outlined, size: 20), SizedBox(width: 8), Text('แก้ไข')]),
               ),
               PopupMenuItem(
                 value: 'cancel',

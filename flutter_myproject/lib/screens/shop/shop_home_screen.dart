@@ -107,7 +107,11 @@ class _ShopHomeScreenState extends State<ShopHomeScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red),
+              ),
               const SizedBox(height: 12),
               ElevatedButton(onPressed: _loadShop, child: const Text('ลองใหม่')),
             ],
