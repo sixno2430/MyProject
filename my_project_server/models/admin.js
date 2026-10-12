@@ -285,13 +285,13 @@ const admin = {
     }
   },
 
-  // รายงานระบบ: รายเดือน 6 เดือน, เกษตรกรผลผลิตสูงสุด 5 คน, สถิติการเข้าใช้, ร้านรับซื้อ
-  getReport: async () => {
+  // รายงานระบบ: รายเดือนย้อนหลัง n เดือน (6 หรือ 12), เกษตรกรผลผลิตสูงสุด 5 คน, สถิติการเข้าใช้, ร้านรับซื้อ
+  getReport: async (n = 6) => {
     try {
-      const months = lastMonths(6);
+      const months = lastMonths(n);
       const from = months[0] + '-01';
 
-      const harvest = await harvestByMonth(6);
+      const harvest = await harvestByMonth(n);
       const purchaseRows = await db.query(
         `SELECT DATE_FORMAT(purchase_date, '%Y-%m') AS month,
                 SUM(quantity) AS qty, SUM(total_price) AS amount

@@ -1,7 +1,7 @@
 // ============================================================
 // admin_report_screen.dart — รายงานสรุประบบสำหรับผู้ดูแล (proposal 4.1.7)
 //
-// ช่วงเวลา: 6 เดือนล่าสุด
+// ช่วงเวลา: 6 เดือน หรือ 1 ปีล่าสุด (ปุ่มสลับด้านบน) ใช้กับยอดรวม กราฟรายเดือน และสถิติการใช้งาน
 // - สรุปยอดรวมของช่วง: ผลผลิตทั้งชุมชน, ปริมาณรับซื้อผ่านระบบ, มูลค่ารับซื้อ
 // - กราฟแท่งผลผลิต / การรับซื้อรายเดือน (สลับดู กิโลกรัม / บาท)
 // - เกษตรกรที่มีผลผลิตสูงสุด 5 อันดับ (ทั้งหมดในระบบ)
@@ -26,15 +26,16 @@ class AdminReportScreen extends StatefulWidget {
 class _AdminReportScreenState extends State<AdminReportScreen> {
   late Future<AdminReport> _future;
   bool _showAmount = false; // กราฟรับซื้อ: false = กิโลกรัม, true = บาท
+  int _months = 6; // ช่วงรายงาน: 6 หรือ 12 เดือนย้อนหลัง
 
   @override
   void initState() {
     super.initState();
-    _future = AdminService.getReport();
+    _future = AdminService.getReport(months: _months);
   }
 
   Future<void> _reload() async {
-    final future = AdminService.getReport();
+    final future = AdminService.getReport(months: _months);
     setState(() {
       _future = future;
     });
@@ -55,71 +56,102 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
         elevation: 0,
         title: const Text('รายงานสรุประบบ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
       ),
-      body: RefreshIndicator(
-        onRefresh: _reload,
-        child: FutureBuilder<AdminReport>(
-          future: _future,
-          builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snap.hasError) {
-              return AdminErrorView(message: friendlyError(snap.error), onRetry: _reload);
-            }
-            final r = snap.data!;
-            final months = r.harvestMonthly;
-            final period = months.isEmpty
-                ? ''
-                : '${thaiMonthYear(months.first.month)} – ${thaiMonthYear(months.last.month)}';
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-              children: [
-                _buildPeriodSummary(r, period),
-                const AdminSectionTitle('การผลิตและการซื้อขาย'),
-                AdminCard(
-                  title: 'ผลผลิตรวมทั้งชุมชนรายเดือน',
-                  subtitle: 'หน่วย กิโลกรัม',
-                  child: MonthBarChart(data: r.harvestMonthly, color: AdminColors.farmer),
+      body: Column(
+        children: [
+          // ปุ่มเลือกช่วงเวลา อยู่นอก FutureBuilder จะได้ไม่หายตอนกำลังโหลด
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(value: 6, label: Text('6 เดือน')),
+                  ButtonSegment(value: 12, label: Text('1 ปี')),
+                ],
+                selected: {_months},
+                showSelectedIcon: false,
+                style: SegmentedButton.styleFrom(
+                  selectedBackgroundColor: AdminColors.primary,
+                  selectedForegroundColor: Colors.white,
                 ),
-                AdminCard(
-                  title: 'การรับซื้อผ่านระบบรายเดือน',
-                  subtitle: _showAmount ? 'หน่วย บาท' : 'หน่วย กิโลกรัม',
-                  trailing: SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: false, label: Text('กก.')),
-                      ButtonSegment(value: true, label: Text('บาท')),
-                    ],
-                    selected: {_showAmount},
-                    showSelectedIcon: false,
-                    style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                    onSelectionChanged: (s) => setState(() => _showAmount = s.first),
-                  ),
-                  child: MonthBarChart(
-                    data: _showAmount ? r.purchaseMonthlyAmount : r.purchaseMonthlyQty,
-                    color: AdminColors.shop,
-                  ),
+                onSelectionChanged: (s) {
+                  _months = s.first;
+                  _reload();
+                },
+              ),
+            ),
+          ),
+          Expanded(child: _buildBody()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: FutureBuilder<AdminReport>(
+        future: _future,
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return AdminErrorView(message: friendlyError(snap.error), onRetry: _reload);
+          }
+          final r = snap.data!;
+          final months = r.harvestMonthly;
+          final period = months.isEmpty
+              ? ''
+              : '${thaiMonthYear(months.first.month)} – ${thaiMonthYear(months.last.month)}';
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            children: [
+              _buildPeriodSummary(r, period),
+              const AdminSectionTitle('การผลิตและการซื้อขาย'),
+              AdminCard(
+                title: 'ผลผลิตรวมทั้งชุมชนรายเดือน',
+                subtitle: 'หน่วย กิโลกรัม',
+                child: MonthBarChart(data: r.harvestMonthly, color: AdminColors.farmer),
+              ),
+              AdminCard(
+                title: 'การรับซื้อผ่านระบบรายเดือน',
+                subtitle: _showAmount ? 'หน่วย บาท' : 'หน่วย กิโลกรัม',
+                trailing: SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('กก.')),
+                    ButtonSegment(value: true, label: Text('บาท')),
+                  ],
+                  selected: {_showAmount},
+                  showSelectedIcon: false,
+                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                  onSelectionChanged: (s) => setState(() => _showAmount = s.first),
                 ),
-                AdminCard(
-                  title: 'เกษตรกรที่มีผลผลิตสูงสุด',
-                  subtitle: '5 อันดับแรก จากข้อมูลการเก็บเกี่ยวทั้งหมด',
-                  child: _buildTopFarmers(r.topFarmers),
+                child: MonthBarChart(
+                  data: _showAmount ? r.purchaseMonthlyAmount : r.purchaseMonthlyQty,
+                  color: AdminColors.shop,
                 ),
-                const AdminSectionTitle('ร้านรับซื้อและการใช้งานระบบ'),
-                AdminCard(
-                  title: 'ร้านรับซื้อในระบบ',
-                  subtitle: 'ราคาล่าสุดและยอดรับซื้อผ่านระบบ',
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                  child: _buildShops(r.shops),
-                ),
-                AdminCard(
-                  title: 'สถิติการใช้งานระบบรายเดือน',
-                  subtitle: 'จำนวนครั้งที่เข้าสู่ระบบ จำนวนรายการที่บันทึก และจำนวนผู้ใช้',
-                  child: _buildUsageTable(r.usageMonthly),
-                ),
-              ],
-            );
-          },
-        ),
+              ),
+              AdminCard(
+                title: 'เกษตรกรที่มีผลผลิตสูงสุด',
+                subtitle: '5 อันดับแรก จากข้อมูลการเก็บเกี่ยวทั้งหมด',
+                child: _buildTopFarmers(r.topFarmers),
+              ),
+              const AdminSectionTitle('ร้านรับซื้อและการใช้งานระบบ'),
+              AdminCard(
+                title: 'ร้านรับซื้อในระบบ',
+                subtitle: 'ราคาล่าสุดและยอดรับซื้อผ่านระบบ',
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                child: _buildShops(r.shops),
+              ),
+              AdminCard(
+                title: 'สถิติการใช้งานระบบรายเดือน',
+                subtitle: 'จำนวนครั้งที่เข้าสู่ระบบ จำนวนรายการที่บันทึก และจำนวนผู้ใช้',
+                child: _buildUsageTable(r.usageMonthly),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -137,7 +169,10 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('สรุป 6 เดือนล่าสุด', style: TextStyle(color: Colors.white70, fontSize: 12)),
+          Text(
+            _months == 12 ? 'สรุป 1 ปีล่าสุด' : 'สรุป 6 เดือนล่าสุด',
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
           Text(
             period,
             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),

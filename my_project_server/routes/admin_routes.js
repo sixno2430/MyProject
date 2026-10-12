@@ -64,9 +64,9 @@ router.get('/api/admin/logs', requireAdmin, async (req, res) => {
   res.json(await admin.getLogs(req.query));
 });
 
-/** รายงานระบบ */
+/** รายงานระบบ: ?months=12 = ย้อนหลัง 1 ปี, ไม่ส่ง = 6 เดือน */
 router.get('/api/admin/report', requireAdmin, async (req, res) => {
-  res.json(await admin.getReport());
+  res.json(await admin.getReport(req.query.months === '12' ? 12 : 6));
 });
 
 module.exports = router;

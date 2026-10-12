@@ -5,7 +5,7 @@
 //   GET /api/admin/overview       ตัวเลขภาพรวมระบบ
 //   GET/POST/PUT /api/admin/users รายชื่อ / เพิ่ม / แก้ไขผู้ใช้, PUT /users/:id/status ระงับหรือเปิดใช้
 //   GET /api/admin/logs           ประวัติการใช้งาน (ตาราง user_log)
-//   GET /api/admin/report         รายงานระบบ
+//   GET /api/admin/report         รายงานระบบ (?months=12 = ย้อนหลัง 1 ปี, ไม่ส่ง = 6 เดือน)
 // model อยู่ใน models/admin.dart
 // ============================================================
 
@@ -78,8 +78,9 @@ class AdminService {
     return (_data(res) as List).map((e) => AdminLog.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  static Future<AdminReport> getReport() async {
-    final res = await http.get(Uri.parse('$_base/report?admin_id=${await _adminId()}'));
+  /// months: 6 หรือ 12 เดือนย้อนหลัง
+  static Future<AdminReport> getReport({int months = 6}) async {
+    final res = await http.get(Uri.parse('$_base/report?admin_id=${await _adminId()}&months=$months'));
     return AdminReport.fromJson(_data(res) as Map<String, dynamic>);
   }
 

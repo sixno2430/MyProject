@@ -263,6 +263,8 @@ class MonthBarChart extends StatelessWidget {
     }
     const labelSpace = 44.0; // ตัวเลขบนแท่ง + ชื่อเดือนใต้แท่ง (เผื่อสระไทยที่สูงกว่าตัวอังกฤษ)
     final barArea = height - labelSpace;
+    final dense = data.length > 6; // 12 เดือน: แท่งชิดกันขึ้น ตัวหนังสือเล็กลง ให้พอดีจอมือถือ
+    final valueSize = dense ? 8.0 : 10.0;
     return SizedBox(
       height: height,
       child: Row(
@@ -275,19 +277,28 @@ class MonthBarChart extends StatelessWidget {
                 children: [
                   Text(
                     e.value > 0 ? compactNumber(e.value) : '-',
-                    style: const TextStyle(fontSize: 10, color: AdminColors.textMuted),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.visible,
+                    style: TextStyle(fontSize: valueSize, color: AdminColors.textMuted),
                   ),
                   const SizedBox(height: 4),
                   Container(
                     height: e.value > 0 ? (barArea * e.value / maxValue).clamp(4.0, barArea) : 3,
-                    margin: const EdgeInsets.symmetric(horizontal: 7),
+                    margin: EdgeInsets.symmetric(horizontal: dense ? 3 : 7),
                     decoration: BoxDecoration(
                       color: e.value > 0 ? color : AdminColors.border,
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text(thaiMonthShort(e.month), style: const TextStyle(fontSize: 11, color: AdminColors.textMuted)),
+                  Text(
+                    thaiMonthShort(e.month),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.visible,
+                    style: TextStyle(fontSize: dense ? 9 : 11, color: AdminColors.textMuted),
+                  ),
                 ],
               ),
             ),
