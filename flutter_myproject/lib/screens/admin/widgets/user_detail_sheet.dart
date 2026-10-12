@@ -7,7 +7,7 @@
 // ============================================================
 
 import 'package:flutter/material.dart';
-import 'package:flutter_myproject/screens/admin/admin_widgets.dart';
+import 'package:flutter_myproject/screens/admin/widgets/admin_widgets.dart';
 import 'package:flutter_myproject/models/admin.dart';
 
 /// วงกลมตัวอักษรแรกของชื่อ

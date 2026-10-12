@@ -19,7 +19,7 @@ import 'package:flutter_myproject/screens/main/HOME/home_screen.dart';
 import 'package:flutter_myproject/screens/shop/shop_home_screen.dart';
 // หน้าหลักผู้ดูแลระบบ
 import 'package:flutter_myproject/screens/admin/admin_dashboard_screen.dart';
-import 'package:flutter_myproject/screens/admin/admin_widgets.dart';
+import 'package:flutter_myproject/screens/admin/widgets/admin_widgets.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 
 class LoginScreen extends StatefulWidget {

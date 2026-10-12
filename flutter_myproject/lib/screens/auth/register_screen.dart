@@ -8,7 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:flutter_myproject/config/app_config.dart';  // ← เพิ่ม
+import 'package:flutter_myproject/config/app_config.dart';
 import 'package:flutter_myproject/screens/auth/login_screen.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
@@ -55,7 +55,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final url = Uri.parse('${AppConfig.apiBaseUri}/register');
       
       // 🔥 เพิ่มบรรทัดนี้เพื่อดู URL จริง
-      debugPrint('🌐 URL: $url');
 
       final bodyData = {
         'role_id': roles[selectedRole]['role_id'],
@@ -78,7 +77,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       // 🔥 เพิ่มบรรทัดนี้เพื่อดูว่าเซิร์ฟเวอร์ตอบอะไร
-      debugPrint('📥 Status: ${response.statusCode}');
 
       // 🔥 ตรวจสอบก่อนว่า response เป็น JSON จริงๆ
       if (response.statusCode != 200 && response.statusCode != 201) {

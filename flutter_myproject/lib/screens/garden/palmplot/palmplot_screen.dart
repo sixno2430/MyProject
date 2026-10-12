@@ -157,7 +157,7 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     });
   }
 
-  // ← เพิ่ม: ฟังก์ชันแก้ไขสวน
+  // ฟังก์ชันแก้ไขสวน
   /// เปิด bottom sheet แก้ไขแปลง แล้วส่งข้อมูลใหม่ไปบันทึก
   Future<void> _editGarden(Garden garden) async {
     // bottom sheet เลื่อนขึ้นจากด้านล่าง (isScrollControlled ให้สูงได้เกินครึ่งจอและดันขึ้นตามคีย์บอร์ด)

@@ -33,7 +33,7 @@ class AddTransactionScreen extends StatefulWidget {
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String get baseUrl => AppConfig.apiBaseUri;
 
-  // 🟢 ปรับเปลี่ยนสีธีมหลักเป็นสีเขียวเข้มของแอป
+  // ปรับเปลี่ยนสีธีมหลักเป็นสีเขียวเข้มของแอป
   final Color primaryGreen = const Color(0xFF2D6A4F);
 
   // Form State
@@ -235,7 +235,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        backgroundColor: primaryGreen, // 🟢 เปลี่ยน AppBar เป็นสีเขียว
+        backgroundColor: primaryGreen, // เปลี่ยน AppBar เป็นสีเขียว
         elevation: 0,
         title: Text(
           _isEdit ? 'แก้ไขรายรับ-รายจ่าย' : 'บันทึกรายรับ-รายจ่าย',
@@ -411,7 +411,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _submitData,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryGreen, // 🟢 เปลี่ยนปุ่มบันทึกเป็นสีเขียว
+                      backgroundColor: primaryGreen, // เปลี่ยนปุ่มบันทึกเป็นสีเขียว
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

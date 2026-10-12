@@ -16,7 +16,7 @@ import 'package:flutter_myproject/utils/error_message.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
 import 'admin_logs_screen.dart';
 import 'admin_report_screen.dart';
-import 'admin_widgets.dart';
+import 'package:flutter_myproject/screens/admin/widgets/admin_widgets.dart';
 import 'user_management_screen.dart';
 import 'package:flutter_myproject/models/admin.dart';
 

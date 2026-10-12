@@ -34,7 +34,6 @@ class _DashboardHeaderState extends State<DashboardHeader> {
   Future<void> _loadUserProfile() async {
     try {
       final userId = await AuthService.getUserId();
-      debugPrint('🔎 [DEBUG] User ID ที่อ่านได้: $userId');
 
       if (userId == null || userId.isEmpty) {
         if (mounted) {
@@ -46,7 +45,6 @@ class _DashboardHeaderState extends State<DashboardHeader> {
       }
 
       final profileRes = await ProfileService.getProfile(userId);
-      debugPrint('🔎 [DEBUG] Response จาก API: $profileRes');
 
       // 1. ตรวจสอบว่าห่ออยู่ใน 'data' หรือไม่
       dynamic rawData = profileRes;

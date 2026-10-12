@@ -29,8 +29,6 @@ class PalmVarietyService {
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
       );
 
-      debugPrint('Status Code: ${res.statusCode}');
-      debugPrint('Response Body: ${res.body}');
 
       if (res.statusCode == 200) {
         final dynamic decoded = jsonDecode(res.body);

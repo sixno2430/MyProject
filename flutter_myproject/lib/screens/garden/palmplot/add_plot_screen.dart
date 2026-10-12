@@ -9,7 +9,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import '../../../config/app_config.dart'; // ← ใช้ config ที่มีอยู่
+import '../../../config/app_config.dart';
 import 'package:flutter_myproject/services/auth_server.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 
@@ -24,7 +24,7 @@ class AddPlotScreen extends StatefulWidget {
 class _AddPlotScreenState extends State<AddPlotScreen> {
   final Color primaryGreen = const Color(0xFF2D6A4F);
 
-  // ← แก้ตรงนี้: ใช้ AppConfig แทน hardcode
+  // ที่อยู่ API จาก AppConfig (ตั้งค่าที่เดียวใน config/app_config.dart)
   String get apiUrl => AppConfig.apiBaseUri;
 
   final _nameCtrl = TextEditingController();
@@ -34,19 +34,19 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
   DateTime? _selectedDate;
   bool _isLoading = false;
 
-  // ← เพิ่มตรงนี้: ตัวแปรเก็บพันธุ์ปาล์ม
+  // ตัวแปรเก็บพันธุ์ปาล์ม
   List<dynamic> _varieties = [];
   String? _selectedVarietyId;
   bool _loadingVarieties = true;
 
-  // ← เพิ่มตรงนี้: initState (ถ้าไม่มีอยู่แล้ว)
+  // เปิดหน้าแล้วโหลดรายชื่อพันธุ์ปาล์มมาใส่ dropdown
   @override
   void initState() {
     super.initState();
     _fetchVarieties(); // เรียกดึงพันธุ์ตอนเปิดหน้า
   }
 
-  // ← เพิ่มตรงนี้: ฟังก์ชันดึงพันธุ์จาก API
+  // ฟังก์ชันดึงพันธุ์จาก API
   /// โหลดรายชื่อพันธุ์ปาล์มมาใส่ dropdown
   Future<void> _fetchVarieties() async {
     try {

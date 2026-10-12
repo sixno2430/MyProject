@@ -31,7 +31,7 @@ class Garden {
   final int plantCount;
   final int? plantYear;
   final int? plantAge;
-  final String? address; // ← เพิ่ม
+  final String? address;
   final List<GardenVariety>? varieties;
 
   Garden({
@@ -42,7 +42,7 @@ class Garden {
     required this.plantCount,
     this.plantYear,
     this.plantAge,
-    this.address, // ← เพิ่ม
+    this.address,
     this.varieties,
   });
 
@@ -60,12 +60,12 @@ class Garden {
       plantCount: int.tryParse(json['plant_count']?.toString() ?? '0') ?? 0,
       plantYear: json['plant_year'] != null ? int.tryParse(json['plant_year'].toString()) : null,
       plantAge: json['plant_age'] != null ? int.tryParse(json['plant_age'].toString()) : null,
-      address: json['address']?.toString(), // ← เพิ่ม
+      address: json['address']?.toString(),
       varieties: varietyList,
     );
   }
 
-  // ← เพิ่ม: สร้างข้อความ "เหนื่อย่า · 5 ปี · 12 ไร่ · 330 ต้น"
+  // สร้างข้อความ "เหนื่อย่า · 5 ปี · 12 ไร่ · 330 ต้น"
   String get detailText {
     final parts = <String>[];
     if (plantAge != null) parts.add('$plantAge ปี');

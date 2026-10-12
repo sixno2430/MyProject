@@ -13,7 +13,7 @@ import 'package:flutter_myproject/services/admin_service.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 import 'admin_logs_screen.dart';
 import 'admin_user_form_screen.dart';
-import 'admin_widgets.dart';
+import 'package:flutter_myproject/screens/admin/widgets/admin_widgets.dart';
 import 'package:flutter_myproject/models/admin.dart';
 import 'package:flutter_myproject/screens/admin/widgets/user_detail_sheet.dart';
 
