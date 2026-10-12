@@ -6,13 +6,11 @@
 // API: GET/PUT/DELETE /api/gardens
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_myproject/screens/garden/palmplot/add_plot_screen.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/services/auth_service.dart';
-import 'package:flutter_myproject/config/app_config.dart';
+import 'package:flutter_myproject/services/garden_service.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 import 'package:flutter_myproject/models/garden.dart';
 import 'package:flutter_myproject/screens/garden/palmplot/widgets/plot_card.dart';
@@ -35,8 +33,6 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
   bool isLoading = true;
   String errorMessage = '';
   final TextEditingController searchController = TextEditingController();
-
-  String get baseUrl => AppConfig.apiBaseUri;
 
   @override
   void initState() {
@@ -83,17 +79,11 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
 
     setState(() => isLoading = true);
     try {
-      // ส่ง user_id ไปด้วย เซิร์ฟเวอร์ให้ลบได้เฉพาะแปลงของตัวเอง
-      final userId = await AuthService.getUserId();
-      final response = await http.delete(Uri.parse('$baseUrl/gardens/${garden.gardenId}?user_id=$userId'));
-      final body = json.decode(response.body);
+      // server ให้ลบได้เฉพาะแปลงของตัวเอง
+      await GardenService.deleteGarden(garden.gardenId);
       if (!mounted) return;
-      if (body['isError'] == false) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบสำเร็จ')));
-        fetchGardens();
-      } else {
-        throw Exception(body['errorMessage']);
-      }
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบสำเร็จ')));
+      fetchGardens();
     } catch (e) {
       if (!mounted) return;
       setState(() => isLoading = false);
@@ -112,32 +102,13 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
       return;
     }
 
-    final url = Uri.parse('$baseUrl/gardens/$userId');
-
     try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final body = json.decode(response.body);
-        if (body['isError'] == false && body['data'] != null) {
-          final List rawData = body['data'];
-          final loadedGardens = rawData.map((e) => Garden.fromJson(e)).toList();
-          setState(() {
-            gardens = loadedGardens;
-            filteredGardens = loadedGardens;
-            isLoading = false;
-          });
-        } else {
-          setState(() {
-            errorMessage = body['errorMessage'] ?? 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
-            isLoading = false;
-          });
-        }
-      } else {
-        setState(() {
-          errorMessage = 'Server Error (${response.statusCode})';
-          isLoading = false;
-        });
-      }
+      final loadedGardens = (await GardenService.fetchGardens(userId)).map(Garden.fromJson).toList();
+      setState(() {
+        gardens = loadedGardens;
+        filteredGardens = loadedGardens;
+        isLoading = false;
+      });
     } catch (e) {
       setState(() {
         errorMessage = friendlyError(e);
@@ -171,21 +142,11 @@ class _PalmplotScreenState extends State<PalmplotScreen> {
     if (result != null) {
       setState(() => isLoading = true);
       try {
-        // ส่ง user_id ไปด้วย เซิร์ฟเวอร์ให้แก้ได้เฉพาะแปลงของตัวเอง
-        final userId = await AuthService.getUserId();
-        final response = await http.put(
-          Uri.parse('$baseUrl/gardens/${garden.gardenId}'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({...result, 'user_id': userId}),
-        );
-        final body = json.decode(response.body);
+        // server ให้แก้ได้เฉพาะแปลงของตัวเอง
+        await GardenService.updateGarden(garden.gardenId, result);
         if (!mounted) return;
-        if (body['isError'] == false) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('แก้ไขสำเร็จ')));
-          fetchGardens();
-        } else {
-          throw Exception(body['errorMessage']);
-        }
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('แก้ไขสำเร็จ')));
+        fetchGardens();
       } catch (e) {
         if (!mounted) return;
         setState(() => isLoading = false);

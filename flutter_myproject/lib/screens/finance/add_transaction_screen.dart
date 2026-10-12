@@ -9,13 +9,12 @@
 // ส่ง existing มา = แก้ไข (PUT /api/finance/:id) ไม่ส่ง = เพิ่มใหม่ (POST /api/finance/add)
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
 
 import 'package:flutter_myproject/services/auth_service.dart';
+import 'package:flutter_myproject/services/finance_service.dart';
+import 'package:flutter_myproject/services/garden_service.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 import 'package:flutter_myproject/models/finance.dart';
 
@@ -31,8 +30,6 @@ class AddTransactionScreen extends StatefulWidget {
 }
 
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
-  String get baseUrl => AppConfig.apiBaseUri;
-
   // ปรับเปลี่ยนสีธีมหลักเป็นสีเขียวเข้มของแอป
   final Color primaryGreen = const Color(0xFF2D6A4F);
 
@@ -80,31 +77,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _fetchGardens();
   }
 
-  // ดึงแปลงสวนจาก Backend
-  /// โหลดแปลงสวนของ user มาใส่ dropdown "แปลงที่เกี่ยวข้อง"
+  /// โหลดแปลงสวนของ user มาใส่ dropdown "แปลงที่เกี่ยวข้อง" (โหลดไม่ได้ = เลือกได้แค่ส่วนกลาง)
   Future<void> _fetchGardens() async {
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) return;
-
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/gardens/$userId'));
-      if (response.statusCode == 200) {
-        final resMap = jsonDecode(response.body);
-        final data = resMap['data'] ?? resMap;
-        if (data is List) {
-          setState(() {
-            _gardens = data.map<Map<String, String>>((g) {
-              return {
-                'id': g['garden_id']?.toString() ?? '',
-                'name': g['garden_name']?.toString() ?? 'ไม่ระบุชื่อแปลง',
-              };
-            }).toList();
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetchGardens: $e');
-    }
+    final gardens = await GardenService.fetchGardenOptions(userId);
+    if (mounted) setState(() => _gardens = gardens);
   }
 
   // เลือกวันที่
@@ -173,31 +151,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     };
 
     try {
-      final response = _isEdit
-          ? await http.put(
-              Uri.parse('$baseUrl/finance/${widget.existing!.id}'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(payload),
-            )
-          : await http.post(
-              Uri.parse('$baseUrl/finance/add'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(payload),
-            );
-
-      if (response.statusCode == 200) {
-        final resMap = jsonDecode(response.body);
-        if (resMap['isError'] == false) {
-          if (mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(_isEdit ? 'แก้ไขรายการเรียบร้อยแล้ว' : 'บันทึกข้อมูลเรียบร้อยแล้ว')));
-            Navigator.pop(context, true);
-          }
-          return;
-        }
+      await FinanceService.saveTransaction(_isEdit ? widget.existing!.id : null, payload);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_isEdit ? 'แก้ไขรายการเรียบร้อยแล้ว' : 'บันทึกข้อมูลเรียบร้อยแล้ว')));
+        Navigator.pop(context, true);
       }
-      throw Exception('ไม่สามารถบันทึกได้');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));

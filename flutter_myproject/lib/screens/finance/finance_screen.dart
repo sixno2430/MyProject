@@ -7,12 +7,11 @@
 // API: GET /api/finance/transactions, DELETE /api/finance/:id
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/auth_service.dart';
+import 'package:flutter_myproject/services/finance_service.dart';
+import 'package:flutter_myproject/services/garden_service.dart';
 import 'add_transaction_screen.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
 import 'package:flutter_myproject/models/care_type.dart';
@@ -37,7 +36,6 @@ class FinanceScreen extends StatefulWidget {
 }
 
 class _FinanceScreenState extends State<FinanceScreen> {
-  String get baseUrl => AppConfig.apiBaseUri;
   final Color primaryGreen = const Color(0xFF2D6A4F);
 
   late List<DateTime> _months;
@@ -138,8 +136,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
     final monthKey = DateFormat('yyyy-MM').format(_selectedMonth);
 
     // ดึงทั้งรายรับและรายจ่ายเพื่อนำมาคำนวณยอดเงินคงเหลือจริง
-    final incomeList = await _fetchRawTransactions(monthKey, 'income', _effectiveUserId!);
-    final expenseList = await _fetchRawTransactions(monthKey, 'expense', _effectiveUserId!);
+    final incomeList = await FinanceService.fetchTransactions(monthKey, 'income', _effectiveUserId!);
+    final expenseList = await FinanceService.fetchTransactions(monthKey, 'expense', _effectiveUserId!);
 
     if (mounted) {
       setState(() {
@@ -151,48 +149,19 @@ class _FinanceScreenState extends State<FinanceScreen> {
   }
 
   /// โหลดแปลงสวนของผู้ใช้ มาทำปุ่มกรองรายแปลง
+  /// (โหลดไม่ได้ก็ยังดูแบบทุกแปลงได้ ปุ่มกรองจะมีแค่ "ทุกแปลง" / "ส่วนกลาง")
   Future<void> _fetchGardens() async {
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/gardens/$_effectiveUserId'));
-      final body = jsonDecode(response.body);
-      final List data = body is Map && body['data'] is List ? body['data'] : [];
-      if (!mounted) return;
-      setState(() {
-        _gardens = data.map((g) => {'id': g['garden_id'].toString(), 'name': g['garden_name'].toString()}).toList();
-        // แปลงที่เลือกอยู่ถูกลบไปแล้ว -> กลับไปดูทุกแปลง
-        if (_gardenFilter != null && _gardenFilter != _commonGarden && !_gardens.any((g) => g['id'] == _gardenFilter)) {
-          _gardenFilter = null;
-        }
-      });
-    } catch (_) {
-      // โหลดไม่ได้ก็ยังดูแบบทุกแปลงได้ ปุ่มกรองจะมีแค่ "ทุกแปลง" / "ส่วนกลาง"
-    }
-  }
-
-  /// ดึงรายการของเดือน/ประเภทที่กำหนด (โหลดไม่ได้จะคืนรายการว่าง)
-  Future<List<TransactionItem>> _fetchRawTransactions(String monthKey, String type, String userId) async {
-    try {
-      final url = '$baseUrl/finance/transactions?month=$monthKey&type=$type&user_id=$userId';
-      final response = await http.get(Uri.parse(url));
-
-      if (response.statusCode == 200) {
-        final resMap = jsonDecode(response.body);
-        if (resMap['isError'] == false && resMap['data'] != null) {
-          final rawData = resMap['data'];
-
-          if (rawData is List) {
-            return rawData.map((i) => TransactionItem.fromJson(i)).toList();
-          } else if (rawData is Map<String, dynamic>) {
-            return [TransactionItem.fromJson(rawData)];
-          }
-        }
+    final gardens = await GardenService.fetchGardenOptions(_effectiveUserId!);
+    if (!mounted) return;
+    setState(() {
+      _gardens = gardens;
+      // แปลงที่เลือกอยู่ถูกลบไปแล้ว -> กลับไปดูทุกแปลง
+      if (_gardenFilter != null && _gardenFilter != _commonGarden && !_gardens.any((g) => g['id'] == _gardenFilter)) {
+        _gardenFilter = null;
       }
-    } catch (_) {}
-
-    return [];
+    });
   }
 
-  // กดค้างที่รายการ -> เลือกแก้ไข / ลบ
   /// กดค้างที่รายการ: แก้ไข/ลบได้เฉพาะ FN... ถ้าเป็นรายการจากหน้าอื่นจะบอกให้ไปแก้ที่หน้านั้น
   Future<void> _onTransactionLongPress(TransactionItem item) async {
     if (!item.isManualEntry) {
@@ -216,11 +185,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
     }
 
     if (!await confirmDelete(context, item.title)) return;
-    final userId = await AuthService.getUserId();
     try {
-      final response = await http.delete(Uri.parse('$baseUrl/finance/${item.id}?user_id=$userId'));
-      final body = jsonDecode(response.body);
-      if (body['isError'] == true) throw Exception(body['errorMessage']);
+      await FinanceService.deleteTransaction(item.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบรายการแล้ว')));
       _refreshData();
@@ -284,7 +250,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
   }
 
   /// เลือก emoji ตามหมวดก่อน แล้วค่อยดูชื่อรายการ (รายการเก่า/หมวดที่ไม่รู้จัก)
-  /// ค่าดูแลสวนใช้ emoji เดียวกับฟอร์มดูแลสวนและการ์ดกิจกรรม (care_types.dart) เช่น ตัดแต่ง = ✂️
+  /// ค่าดูแลสวนใช้ emoji เดียวกับฟอร์มดูแลสวนและการ์ดกิจกรรม (models/care_type.dart) เช่น ตัดแต่ง = ✂️
   String _getCategoryIcon(String category, String title, String type) {
     switch (category) {
       case 'ขายผลผลิต':

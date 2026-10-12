@@ -7,12 +7,10 @@
 // ส่ง existing มา = โหมดแก้ไข (PUT) ไม่ส่ง = เพิ่มใหม่ (POST)
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_myproject/config/app_config.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/auth_service.dart';
+import 'package:flutter_myproject/services/garden_service.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 import 'package:flutter_myproject/models/harvest.dart';
 import 'package:flutter_myproject/services/harvest_service.dart';
@@ -31,7 +29,6 @@ class AddHarvestScreen extends StatefulWidget {
 
 class _AddHarvestScreenState extends State<AddHarvestScreen> {
   final _formKey = GlobalKey<FormState>();
-  String get baseUrl => AppConfig.apiBaseUri;
 
   // State สำหรับ Dropdown แปลงสวน
   String? _selectedGardenId;
@@ -98,76 +95,25 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     super.dispose();
   }
 
-  // ดึงรายชื่อแปลงสวนจาก Backend
   /// โหลดแปลงสวนของ user มาใส่ dropdown
   Future<void> _fetchGardens() async {
     final userId = await AuthService.getUserId();
     if (userId == null || userId.isEmpty) return;
 
-    try {
-      // 1. ลองดึงจาก /plots ก่อน (ถ้ามี)
-      var response = await http.get(Uri.parse('$baseUrl/plots'));
-      List<dynamic> list = [];
-
-      if (response.statusCode == 200) {
-        final resMap = jsonDecode(response.body);
-        if (resMap is Map && resMap['data'] is List) {
-          list = resMap['data'];
-        }
-      }
-
-      // 2. ถ้าไม่มี /plots หรือได้ค่าว่าง ให้ลองดึงจาก /gardens
-      if (list.isEmpty) {
-        response = await http.get(Uri.parse('$baseUrl/gardens/$userId'));
-        if (response.statusCode == 200) {
-          final resMap = jsonDecode(response.body);
-          if (resMap is Map && resMap['data'] != null) {
-            list = resMap['data'] is List ? resMap['data'] : [];
-          } else if (resMap is List) {
-            list = resMap;
-          }
-        }
-      }
-
-      // Map ข้อมูลอย่างรัดกุม รองรับชื่อคีย์ทุกรูปแบบใน DB
-      final parsedGardens = list
-          .map<Map<String, String>>((item) {
-            final id = (item['garden_id'] ?? item['plot_id'] ?? item['id'] ?? '').toString();
-
-            String name = item['display_name']?.toString() ?? '';
-            if (name.isEmpty) {
-              final gardenName = (item['garden_name'] ?? item['name'] ?? '').toString();
-              final plotName = (item['plot_name'] ?? '').toString();
-              if (gardenName.isNotEmpty && plotName.isNotEmpty) {
-                name = '$plotName — $gardenName';
-              } else {
-                name = gardenName.isNotEmpty ? gardenName : plotName;
-              }
-            }
-            if (name.isEmpty) name = 'แปลงสวน ($id)';
-
-            return {'id': id, 'name': name};
-          })
-          .where((g) => g['id']!.isNotEmpty)
-          .toList();
-
-      if (parsedGardens.isNotEmpty) {
-        setState(() {
-          _gardens = parsedGardens;
-          // โหมดแก้ไขให้คงแปลงเดิมไว้ ถ้าไม่มีค่อยเลือกแปลงแรก
-          if (!_gardens.any((g) => g['id'] == _selectedGardenId)) {
-            _selectedGardenId = _gardens.first['id'];
-          }
-          _isLoadingGardens = false;
-        });
-        return;
-      }
-
+    final gardens = await GardenService.fetchGardenOptions(userId);
+    if (gardens.isEmpty) {
       _useFallbackGardens();
-    } catch (e) {
-      debugPrint('Error fetching gardens: $e');
-      _useFallbackGardens();
+      return;
     }
+    if (!mounted) return;
+    setState(() {
+      _gardens = gardens;
+      // โหมดแก้ไขให้คงแปลงเดิมไว้ ถ้าไม่มีค่อยเลือกแปลงแรก
+      if (!_gardens.any((g) => g['id'] == _selectedGardenId)) {
+        _selectedGardenId = _gardens.first['id'];
+      }
+      _isLoadingGardens = false;
+    });
   }
 
   // โหลดแปลงไม่ได้ / ยังไม่มีแปลง: ปล่อยว่างไว้ (ห้ามใส่แปลงปลอม เพราะจะบันทึกเข้าแปลงที่ไม่มีจริง)
@@ -269,7 +215,6 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
 
     final bodyData = {
       'garden_id': _selectedGardenId,
-      'plot_id': _selectedGardenId,
       'harvest_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
       'total_quantity': qty,
       'price_per_kg': price,
@@ -285,35 +230,15 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
     };
 
     try {
-      final response = _isEdit
-          ? await http.put(
-              Uri.parse('$baseUrl/harvests/${widget.existing!.id}'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(bodyData),
-            )
-          : await http.post(
-              Uri.parse('$baseUrl/harvests'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(bodyData),
-            );
-
-      final resBody = jsonDecode(response.body);
-      if (resBody is Map && resBody['isError'] == true) {
-        throw Exception(resBody['errorMessage'] ?? 'บันทึกไม่สำเร็จ');
-      }
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_isEdit ? 'แก้ไขรายการเรียบร้อย' : 'บันทึกข้อมูลการเก็บเกี่ยวเรียบร้อย'),
-              backgroundColor: const Color(0xFF1E5631),
-            ),
-          );
-          Navigator.pop(context, true); // คืนค่า true เพื่อให้หน้าหลัก Refresh ข้อมูล
-        }
-      } else {
-        throw Exception('เกิดข้อผิดพลาดจาก Server');
+      await HarvestService.saveHarvest(_isEdit ? widget.existing!.id : null, bodyData);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_isEdit ? 'แก้ไขรายการเรียบร้อย' : 'บันทึกข้อมูลการเก็บเกี่ยวเรียบร้อย'),
+            backgroundColor: const Color(0xFF1E5631),
+          ),
+        );
+        Navigator.pop(context, true); // คืนค่า true เพื่อให้หน้าหลัก Refresh ข้อมูล
       }
     } catch (e) {
       if (mounted) {

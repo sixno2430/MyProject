@@ -3,7 +3,6 @@
 //
 // กรอกชื่อพันธุ์ (บังคับ) และชื่อวิทยาศาสตร์ (ไม่บังคับ)
 // ส่ง existing มา = แก้ไข, ไม่ส่ง = เพิ่มใหม่ — บันทึกสำเร็จปิดหน้าด้วย true
-// (นำแบบฟอร์มเดิมจาก palmvarieties/ ที่ถูกลบไปตอนจัดโฟลเดอร์ซ้ำ กลับมาใช้)
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -59,15 +58,13 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
         scientificName: _scientificController.text.trim(),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_isEdit ? 'แก้ไขพันธุ์ปาล์มแล้ว' : 'เพิ่มพันธุ์ปาล์มแล้ว')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_isEdit ? 'แก้ไขพันธุ์ปาล์มแล้ว' : 'เพิ่มพันธุ์ปาล์มแล้ว')));
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -133,10 +130,7 @@ class _AddPalmVarietyScreenState extends State<AddPalmVarietyScreen> {
                               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                             )
                           : const Icon(Icons.save, size: 20),
-                      label: const Text(
-                        'บันทึก',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
+                      label: const Text('บันทึก', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryGreen,
                         foregroundColor: Colors.white,

@@ -8,15 +8,14 @@
 // API: GET /api/care-logs?user_id=..., GET /api/gardens/:userId, DELETE /api/care-logs/:id
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/add_gardencare_screen.dart';
 import 'package:flutter_myproject/models/care_type.dart';
 import 'package:flutter_myproject/services/auth_service.dart';
+import 'package:flutter_myproject/services/care_service.dart';
+import 'package:flutter_myproject/services/garden_service.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
-import 'package:flutter_myproject/config/app_config.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 import 'package:flutter_myproject/models/care_log.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/widgets/care_log_card.dart';
@@ -34,8 +33,6 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
   static const String _all = 'ทั้งหมด';
 
   final NumberFormat _money = NumberFormat('#,##0');
-
-  String get apiUrl => AppConfig.apiBaseUri;
 
   String _selectedPlot = _all;
   String _selectedType = _all; // ค่า type ของ CareType หรือ "ทั้งหมด"
@@ -68,27 +65,13 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     }
 
     try {
-      final responses = await Future.wait([
-        http.get(Uri.parse('$apiUrl/care-logs?user_id=$userId')),
-        http.get(Uri.parse('$apiUrl/gardens/$userId')),
+      // โหลดแปลงไม่ได้ก็ยังแสดงรายการได้ แค่ไม่มีปุ่มกรองรายแปลง
+      final results = await Future.wait([
+        CareService.fetchCareLogs(userId),
+        GardenService.fetchGardens(userId).catchError((_) => <Map<String, dynamic>>[]),
       ]);
-      if (responses[0].statusCode != 200) {
-        throw Exception('เซิร์ฟเวอร์ตอบกลับด้วยสถานะ ${responses[0].statusCode}');
-      }
-
-      // care-logs ส่ง array มาตรงๆ ส่วน gardens ห่อใน { data: [...] }
-      List<dynamic> listOf(String body) {
-        final decoded = jsonDecode(body);
-        if (decoded is List) return decoded;
-        if (decoded is Map && decoded['data'] is List) return decoded['data'];
-        return [];
-      }
-
-      final items = listOf(responses[0].body).map((e) => CareLog.fromJson(e as Map<String, dynamic>)).toList()
-        ..sort((a, b) => b.date.compareTo(a.date));
-      final plots = listOf(
-        responses[1].body,
-      ).map((g) => g['garden_name']?.toString()).whereType<String>().toSet().toList();
+      final items = results[0].map(CareLog.fromJson).toList()..sort((a, b) => b.date.compareTo(a.date));
+      final plots = results[1].map((g) => g['garden_name']?.toString()).whereType<String>().toSet().toList();
 
       if (!mounted) return;
       setState(() {
@@ -135,11 +118,8 @@ class _GardenCareScreenState extends State<GardenCareScreen> {
     }
 
     if (!await confirmDelete(context, '${item.type.label} · ${item.gardenName}')) return;
-    final userId = await AuthService.getUserId();
     try {
-      final response = await http.delete(Uri.parse('$apiUrl/care-logs/${item.careId}?user_id=$userId'));
-      final body = jsonDecode(response.body);
-      if (body['isError'] == true) throw Exception(body['errorMessage']);
+      await CareService.deleteCareLog(item.careId);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบรายการแล้ว')));
       _fetchData();

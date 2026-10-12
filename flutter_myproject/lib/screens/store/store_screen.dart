@@ -6,13 +6,10 @@
 // API: GET /api/shops?user_id=...
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_myproject/services/store_service.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' show NumberFormat;
-import 'package:flutter_myproject/config/app_config.dart';
-import 'package:flutter_myproject/services/auth_service.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 import 'package:flutter_myproject/models/store.dart';
 
@@ -50,13 +47,7 @@ class _StoreScreenState extends State<StoreScreen> {
 
   /// ดึงรายชื่อร้าน แล้วเรียง: ร้านที่เปิดก่อน ตามด้วยราคาปัจจุบันสูงสุด
   Future<List<BuyingShop>> _fetchShops() async {
-    final userId = await AuthService.getUserId();
-    final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUri}/shops?user_id=${userId ?? ''}'),
-    );
-    final body = jsonDecode(response.body);
-    if (body['isError'] == true) throw Exception(body['errorMessage']);
-    final shops = (body['data'] as List).map((e) => BuyingShop.fromJson(e)).toList();
+    final shops = await StoreService.fetchShops();
 
     // ร้านที่เปิดอยู่ขึ้นก่อน แล้วเรียงตามราคาปัจจุบันสูงสุด
     shops.sort((a, b) {
@@ -88,9 +79,7 @@ class _StoreScreenState extends State<StoreScreen> {
   Future<void> _copyPhone(String phone) async {
     await Clipboard.setData(ClipboardData(text: phone));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('คัดลอกเบอร์ $phone แล้ว')),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('คัดลอกเบอร์ $phone แล้ว')));
   }
 
   @override
@@ -117,13 +106,12 @@ class _StoreScreenState extends State<StoreScreen> {
                 children: [
                   const SizedBox(height: 120),
                   Center(
-                    child: Text(
-                      friendlyError(snapshot.error),
-                      style: const TextStyle(color: Colors.red),
-                    ),
+                    child: Text(friendlyError(snapshot.error), style: const TextStyle(color: Colors.red)),
                   ),
                   const SizedBox(height: 12),
-                  Center(child: ElevatedButton(onPressed: _refresh, child: const Text('ลองใหม่'))),
+                  Center(
+                    child: ElevatedButton(onPressed: _refresh, child: const Text('ลองใหม่')),
+                  ),
                 ],
               );
             }
@@ -132,9 +120,7 @@ class _StoreScreenState extends State<StoreScreen> {
             final q = _query.toLowerCase();
             final shops = q.isEmpty
                 ? all
-                : all
-                    .where((s) => s.name.toLowerCase().contains(q) || s.location.toLowerCase().contains(q))
-                    .toList();
+                : all.where((s) => s.name.toLowerCase().contains(q) || s.location.toLowerCase().contains(q)).toList();
 
             return ListView(
               padding: const EdgeInsets.all(16),
@@ -177,10 +163,7 @@ class _StoreScreenState extends State<StoreScreen> {
         filled: true,
         fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(vertical: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       ),
     );
   }
@@ -213,10 +196,7 @@ class _StoreScreenState extends State<StoreScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    shop.name,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  child: Text(shop.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -253,11 +233,7 @@ class _StoreScreenState extends State<StoreScreen> {
             if (shop.rates.isEmpty)
               Text('ร้านยังไม่ได้ประกาศราคา', style: TextStyle(fontSize: 13, color: Colors.grey[500]))
             else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: shop.rates.map(_buildRateChip).toList(),
-              ),
+              Wrap(spacing: 8, runSpacing: 8, children: shop.rates.map(_buildRateChip).toList()),
 
             // ── ประวัติที่เราเคยขายให้ร้านนี้ ──
             if (shop.soldCount > 0) ...[
@@ -291,7 +267,9 @@ class _StoreScreenState extends State<StoreScreen> {
         children: [
           Icon(icon, size: 16, color: Colors.grey[500]),
           const SizedBox(width: 6),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 13, color: Colors.grey[700]))),
+          Expanded(
+            child: Text(text, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
+          ),
         ],
       ),
     );

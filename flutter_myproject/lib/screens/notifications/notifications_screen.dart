@@ -8,10 +8,10 @@
 // เปิดจาก: กระดิ่งบน Dashboard และเมนู "การแจ้งเตือน" ในหน้าโปรไฟล์
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_myproject/config/app_config.dart';
+import 'package:flutter_myproject/services/care_service.dart';
+import 'package:flutter_myproject/services/garden_service.dart';
+import 'package:flutter_myproject/services/harvest_service.dart';
 import 'package:flutter_myproject/services/auth_service.dart';
 import 'package:flutter_myproject/screens/garden/harvest/harvest_screen.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/gardencare_screen.dart';
@@ -76,23 +76,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (userId == null || userId.isEmpty) {
       throw Exception('ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่');
     }
-    final base = AppConfig.apiBaseUri;
     final results = await Future.wait([
-      http.get(Uri.parse('$base/harvests?user_id=$userId')),
-      http.get(Uri.parse('$base/gardens/$userId')),
-      http.get(Uri.parse('$base/care-logs?user_id=$userId')),
+      HarvestService.fetchHarvestJson(userId),
+      GardenService.fetchGardens(userId).catchError((_) => <Map<String, dynamic>>[]),
+      CareService.fetchCareLogs(userId).catchError((_) => <Map<String, dynamic>>[]),
     ]);
-
-    List<dynamic> dataOf(http.Response r) {
-      final body = jsonDecode(r.body);
-      if (body is List) return body; // care-logs ส่ง array มาตรงๆ
-      if (body is Map && body['data'] is List) return body['data'];
-      return [];
-    }
-
-    final harvests = dataOf(results[0]);
-    final gardens = dataOf(results[1]);
-    final careLogs = dataOf(results[2]);
+    final harvests = results[0];
+    final gardens = results[1];
+    final careLogs = results[2];
     final list = <AppNotification>[];
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -104,21 +95,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (h['purchasedByShop'] != true && h['purchasedByShop'] != 1) return false;
       final d = DateTime.tryParse(h['soldDate']?.toString() ?? '');
       return d != null && today.difference(d).inDays <= soldNoticeDays;
-    }).toList()
-      ..sort((a, b) => b['soldDate'].toString().compareTo(a['soldDate'].toString()));
+    }).toList()..sort((a, b) => b['soldDate'].toString().compareTo(a['soldDate'].toString()));
     for (final h in recentSales) {
       final kg = (h['quantityKg'] as num?)?.toDouble() ?? 0;
       final total = (h['totalPrice'] as num?)?.toDouble() ?? 0;
       final d = DateTime.parse(h['soldDate'].toString());
       final days = today.difference(d).inDays;
-      list.add(AppNotification(
-        icon: '🤝',
-        title: 'ขาย ${h['code'] ?? h['id']} ให้ ${h['buyer']} แล้ว',
-        desc: '${kg.toStringAsFixed(0)} กก. · ${total.toStringAsFixed(0)} บาท · '
-            '${days == 0 ? 'วันนี้' : days == 1 ? 'เมื่อวาน' : '$days วันก่อน'}',
-        color: const Color(0xFF2E7D32),
-        destination: () => const HarvestScreen(),
-      ));
+      list.add(
+        AppNotification(
+          icon: '🤝',
+          title: 'ขาย ${h['code'] ?? h['id']} ให้ ${h['buyer']} แล้ว',
+          desc:
+              '${kg.toStringAsFixed(0)} กก. · ${total.toStringAsFixed(0)} บาท · '
+              '${days == 0
+                  ? 'วันนี้'
+                  : days == 1
+                  ? 'เมื่อวาน'
+                  : '$days วันก่อน'}',
+          color: const Color(0xFF2E7D32),
+          destination: () => const HarvestScreen(),
+        ),
+      );
     }
 
     // 0.1) ร้านที่เลือกไว้ไม่รับล็อต ภายใน 7 วัน (เกษตรกรต้องเลือกร้านใหม่)
@@ -126,28 +123,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final by = h['rejectedBy']?.toString() ?? '';
       final d = DateTime.tryParse(h['rejectedAt']?.toString() ?? '');
       if (by.isEmpty || d == null || today.difference(d).inDays > soldNoticeDays) continue;
-      list.add(AppNotification(
-        icon: '🚫',
-        title: '$by ไม่รับ ${h['code'] ?? h['id']}',
-        desc: 'เหตุผล: ${h['rejectReason'] ?? '-'} · แตะเพื่อเลือกร้านใหม่',
-        color: const Color(0xFFDC2626),
-        destination: () => const HarvestScreen(),
-      ));
+      list.add(
+        AppNotification(
+          icon: '🚫',
+          title: '$by ไม่รับ ${h['code'] ?? h['id']}',
+          desc: 'เหตุผล: ${h['rejectReason'] ?? '-'} · แตะเพื่อเลือกร้านใหม่',
+          color: const Color(0xFFDC2626),
+          destination: () => const HarvestScreen(),
+        ),
+      );
     }
 
     // 1) ผลผลิตรอขาย
     for (final h in harvests.where((h) => h['status'] != 'sold')) {
       final kg = (h['quantityKg'] as num?)?.toDouble() ?? 0;
-      list.add(AppNotification(
-        icon: '🏷️',
-        title: 'ผลผลิตรอขาย ${h['code'] ?? h['id']}',
-        // เลือกร้านไว้แล้ว = รอร้านยืนยัน (บันทึกขายเองไม่ได้), ยังไม่เลือก = เลือกร้านหรือขายนอกระบบได้
-        desc: (h['shopId']?.toString() ?? '').isNotEmpty
-            ? '${h['plotName']} · ${kg.toStringAsFixed(0)} กก. · ${h['buyer']}'
-            : '${h['plotName']} · ${kg.toStringAsFixed(0)} กก. · ยังไม่เลือกร้าน แตะเพื่อเลือกร้านหรือบันทึกขาย',
-        color: const Color(0xFFE65100),
-        destination: () => const HarvestScreen(),
-      ));
+      list.add(
+        AppNotification(
+          icon: '🏷️',
+          title: 'ผลผลิตรอขาย ${h['code'] ?? h['id']}',
+          // เลือกร้านไว้แล้ว = รอร้านยืนยัน (บันทึกขายเองไม่ได้), ยังไม่เลือก = เลือกร้านหรือขายนอกระบบได้
+          desc: (h['shopId']?.toString() ?? '').isNotEmpty
+              ? '${h['plotName']} · ${kg.toStringAsFixed(0)} กก. · ${h['buyer']}'
+              : '${h['plotName']} · ${kg.toStringAsFixed(0)} กก. · ยังไม่เลือกร้าน แตะเพื่อเลือกร้านหรือบันทึกขาย',
+          color: const Color(0xFFE65100),
+          destination: () => const HarvestScreen(),
+        ),
+      );
     }
 
     // 2) แปลงที่ไม่ได้ดูแลนาน: หาวันที่ดูแลล่าสุดของแต่ละแปลง
@@ -163,21 +164,25 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final name = g['garden_name']?.toString() ?? 'แปลงสวน';
       final last = lastCare[id];
       if (last == null) {
-        list.add(AppNotification(
-          icon: '🌱',
-          title: 'ยังไม่มีบันทึกการดูแล $name',
-          desc: 'เริ่มบันทึกการใส่ปุ๋ย / ตัดแต่ง เพื่อติดตามการดูแลแปลง',
-          color: primaryGreen,
-          destination: () => const GardenCareScreen(),
-        ));
+        list.add(
+          AppNotification(
+            icon: '🌱',
+            title: 'ยังไม่มีบันทึกการดูแล $name',
+            desc: 'เริ่มบันทึกการใส่ปุ๋ย / ตัดแต่ง เพื่อติดตามการดูแลแปลง',
+            color: primaryGreen,
+            destination: () => const GardenCareScreen(),
+          ),
+        );
       } else if (now.difference(last).inDays > careReminderDays) {
-        list.add(AppNotification(
-          icon: '🌴',
-          title: 'ถึงเวลาดูแล $name',
-          desc: 'ไม่มีบันทึกการดูแลมา ${now.difference(last).inDays} วันแล้ว',
-          color: primaryGreen,
-          destination: () => const GardenCareScreen(),
-        ));
+        list.add(
+          AppNotification(
+            icon: '🌴',
+            title: 'ถึงเวลาดูแล $name',
+            desc: 'ไม่มีบันทึกการดูแลมา ${now.difference(last).inDays} วันแล้ว',
+            color: primaryGreen,
+            destination: () => const GardenCareScreen(),
+          ),
+        );
       }
     }
     return list;
@@ -203,18 +208,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return _buildMessage(
-                'โหลดการแจ้งเตือนไม่สำเร็จ\n${friendlyError(snapshot.error)}',
-              );
+              return _buildMessage('โหลดการแจ้งเตือนไม่สำเร็จ\n${friendlyError(snapshot.error)}');
             }
             final items = snapshot.data!;
             if (items.isEmpty) {
               return _buildMessage('🎉 ไม่มีการแจ้งเตือน\nทุกอย่างเรียบร้อยดี');
             }
-            return ListView(
-              padding: const EdgeInsets.all(16),
-              children: items.map(_buildNotificationItem).toList(),
-            );
+            return ListView(padding: const EdgeInsets.all(16), children: items.map(_buildNotificationItem).toList());
           },
         ),
       ),

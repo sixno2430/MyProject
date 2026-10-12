@@ -11,7 +11,7 @@ import 'package:flutter_myproject/utils/formatters.dart';
 import 'package:flutter_myproject/models/activity.dart';
 
 /// การ์ดกิจกรรม (แถบสีซ้ายตามประเภท + ข้อความ + ตัวเลข)
-class ActivityCard extends StatelessWidget { 
+class ActivityCard extends StatelessWidget {
   final ActivityItem activity;
 
   /// เรียกเมื่อรายการถูกแก้ไข/ลบในหน้ารายละเอียด เพื่อให้หน้าแม่โหลดข้อมูลใหม่
@@ -28,13 +28,7 @@ class ActivityCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: Material(
         color: Colors.transparent, // ใช้สีโปร่งใสเพื่อโชว์สีขาวของ Container
@@ -44,9 +38,7 @@ class ActivityCard extends StatelessWidget {
           onTap: () async {
             final changed = await Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => ActivityDetailScreen(activity: activity),
-              ),
+              MaterialPageRoute(builder: (_) => ActivityDetailScreen(activity: activity)),
             );
             if (changed == true) onChanged?.call();
           },
@@ -58,10 +50,7 @@ class ActivityCard extends StatelessWidget {
                 height: 110,
                 decoration: BoxDecoration(
                   color: theme.accentColor,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    bottomLeft: Radius.circular(16),
-                  ),
+                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
                 ),
               ),
               const SizedBox(width: 14),
@@ -69,13 +58,8 @@ class ActivityCard extends StatelessWidget {
               Container(
                 width: 52,
                 height: 52,
-                decoration: BoxDecoration(
-                  color: theme.iconBg,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(theme.emoji, style: const TextStyle(fontSize: 26)),
-                ),
+                decoration: BoxDecoration(color: theme.iconBg, shape: BoxShape.circle),
+                child: Center(child: Text(theme.emoji, style: const TextStyle(fontSize: 26))),
               ),
               const SizedBox(width: 14),
               // เนื้อหา
@@ -87,19 +71,12 @@ class ActivityCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       activity.gardenName,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1F2937),
-                      ),
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       _buildSubtitle(),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -125,18 +102,10 @@ class ActivityCard extends StatelessWidget {
                   children: [
                     Text(
                       _buildValueText(),
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: theme.valueColor,
-                      ),
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: theme.valueColor),
                     ),
                     const SizedBox(height: 8),
-                    Icon(
-                      Icons.chevron_right,
-                      color: Colors.grey[400],
-                      size: 20,
-                    ),
+                    Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
                   ],
                 ),
               ),
@@ -181,7 +150,7 @@ class ActivityCard extends StatelessWidget {
     }
   }
 
-  /// emoji + สีของการ์ดตามประเภท — ดูแลสวนใช้ emoji/สีของกิจกรรมนั้นจาก care_types.dart
+  /// emoji + สีของการ์ดตามประเภท — ดูแลสวนใช้ emoji/สีของกิจกรรมนั้นจาก models/care_type.dart
   _CardTheme _resolveTheme(ActivityItem activity) {
     switch (activity.type) {
       case 'harvest':
@@ -230,10 +199,5 @@ class _CardTheme {
   final Color accentColor;
   final Color iconBg;
   final Color valueColor;
-  _CardTheme({
-    required this.emoji,
-    required this.accentColor,
-    required this.iconBg,
-    required this.valueColor,
-  });
+  _CardTheme({required this.emoji, required this.accentColor, required this.iconBg, required this.valueColor});
 }

@@ -2,7 +2,7 @@
 // add_gardencare_screen.dart — ฟอร์มเพิ่ม/แก้ไขรายการดูแลสวน
 //
 // แบ่งเป็น 3 การ์ด: 1) เลือกกิจกรรม  2) รายละเอียด  3) ค่าใช้จ่ายและหมายเหตุ
-// การ์ดที่ 2 เปลี่ยนตามประเภทกิจกรรม (กำหนดใน care_types.dart):
+// การ์ดที่ 2 เปลี่ยนตามประเภทกิจกรรม (กำหนดใน models/care_type.dart):
 //   - ใส่ปุ๋ย : รายการปุ๋ยหลายชนิด แต่ละชนิดมี ชื่อ + ปริมาณ + หน่วย กด "+ เพิ่มปุ๋ยอีกชนิด" ได้
 //              (ชีวิตจริงใส่ปุ๋ยหลายสูตรในรอบเดียว) ชื่อปุ๋ยพิมพ์เอง หรือเลือกจากปุ๋ยที่ตัวเองเคยบันทึกไว้
 //              (ผู้ใช้ใหม่ยังไม่มีรายการแนะนำ บันทึกครั้งแรกแล้วชื่อนั้นจะขึ้นแนะนำครั้งต่อไป)
@@ -13,12 +13,11 @@
 // ไม่ส่ง = เพิ่มใหม่ (POST) — รหัสรายการใหม่เซิร์ฟเวอร์สร้างให้
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:flutter_myproject/services/auth_service.dart';
-import 'package:flutter_myproject/config/app_config.dart';
+import 'package:flutter_myproject/services/care_service.dart';
+import 'package:flutter_myproject/services/garden_service.dart';
 import 'package:flutter_myproject/models/care_type.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 import 'widgets/care_form_fields.dart';
@@ -38,8 +37,6 @@ class AddGardenCareScreen extends StatefulWidget {
 class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
   static const Color primaryGreen = Color(0xFF2D6A4F);
   final _formKey = GlobalKey<FormState>();
-
-  String get apiUrl => AppConfig.apiBaseUri;
 
   // แปลงสวน
   String? _selectedGardenId;
@@ -102,11 +99,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
   Future<void> _loadExisting(String careId) async {
     setState(() => _isLoadingExisting = true);
     try {
-      final userId = await AuthService.getUserId() ?? '';
-      final res = await http.get(Uri.parse('$apiUrl/care-logs/$careId?user_id=$userId'));
-      final body = jsonDecode(res.body);
-      if (body is! Map || body['isError'] == true) throw Exception(body is Map ? body['errorMessage'] : null);
-      final d = body['data'] as Map<String, dynamic>;
+      final d = await CareService.fetchCareLog(careId);
       if (!mounted) return;
       setState(() {
         _selectedGardenId = d['garden_id']?.toString() ?? _selectedGardenId;
@@ -145,41 +138,29 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
     }
   }
 
-  /// โหลดแปลงสวนของ user มาใส่ dropdown
+  /// โหลดแปลงสวนของ user มาใส่ dropdown (โหลดไม่ได้ = รายการว่าง แสดงข้อความ "ยังไม่มีแปลงสวน" แทน)
   Future<void> _fetchPlots() async {
     final userId = await AuthService.getUserId();
-    try {
-      if (userId == null || userId.isEmpty) return;
-      final response = await http.get(Uri.parse('$apiUrl/gardens/$userId'));
-      final body = jsonDecode(response.body);
-      final List data = body is Map && body['data'] is List ? body['data'] : [];
-      if (!mounted) return;
-      setState(() {
-        _plots = data.map((g) => {'id': g['garden_id'].toString(), 'name': g['garden_name'].toString()}).toList();
-        // โหมดแก้ไขคงแปลงเดิมไว้ ถ้าไม่มีค่อยเลือกแปลงแรก
-        if (!_plots.any((p) => p['id'] == _selectedGardenId) && _plots.isNotEmpty) {
-          _selectedGardenId = _plots.first['id'];
-        }
-      });
-    } catch (_) {
-      // โหลดไม่ได้ -> แสดงข้อความ "ยังไม่มีแปลงสวน" แทน
-    } finally {
-      if (mounted) setState(() => _isLoadingPlots = false);
-    }
+    final plots = userId == null || userId.isEmpty
+        ? <Map<String, String>>[]
+        : await GardenService.fetchGardenOptions(userId);
+    if (!mounted) return;
+    setState(() {
+      _plots = plots;
+      // โหมดแก้ไขคงแปลงเดิมไว้ ถ้าไม่มีค่อยเลือกแปลงแรก
+      if (!_plots.any((p) => p['id'] == _selectedGardenId) && _plots.isNotEmpty) {
+        _selectedGardenId = _plots.first['id'];
+      }
+      _isLoadingPlots = false;
+    });
   }
 
-  /// ชื่อปุ๋ยแนะนำ = ปุ๋ยที่ผู้ใช้คนนี้เคยบันทึก เรียงจากที่ใช้ล่าสุด (GET /fertilizers/used)
+  /// ชื่อปุ๋ยแนะนำ = ปุ๋ยที่ผู้ใช้คนนี้เคยบันทึก เรียงจากที่ใช้ล่าสุด
+  /// (โหลดไม่ได้ = รายการว่าง ยังพิมพ์ชื่อปุ๋ยเองได้ แค่จะไม่มีรายการแนะนำ)
   Future<void> _fetchFertilizers() async {
-    try {
-      final userId = await AuthService.getUserId() ?? '';
-      final response = await http.get(Uri.parse('$apiUrl/fertilizers/used?user_id=$userId'));
-      final body = jsonDecode(response.body);
-      if (body is! Map || body['isError'] == true) return;
-      if (!mounted) return;
-      setState(() => _fertilizerSuggestions = (body['data'] as List).map((n) => n.toString()).toList());
-    } catch (_) {
-      // โหลดไม่ได้ก็ยังพิมพ์ชื่อปุ๋ยเองได้ แค่จะไม่มีรายการแนะนำ
-    }
+    final names = await CareService.fetchUsedFertilizers();
+    if (!mounted) return;
+    setState(() => _fertilizerSuggestions = names);
   }
 
   /// เปลี่ยนประเภทกิจกรรม: หน่วยกลับเป็นค่าเริ่มต้นของประเภทใหม่ ล้างรายละเอียดที่เป็นตัวเลือกของประเภทเดิม
@@ -228,7 +209,7 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
 
     setState(() => _isSubmitting = true);
     try {
-      final body = jsonEncode({
+      await CareService.saveCareLog(_isEdit ? widget.existing!['care_id'].toString() : null, {
         'user_id': userId,
         'garden_id': _selectedGardenId,
         'action_type': _type.type,
@@ -246,16 +227,6 @@ class _AddGardenCareScreenState extends State<AddGardenCareScreen> {
           'quantity_type': _type.hasQuantity ? _unit : null,
         },
       });
-      const headers = {'Content-Type': 'application/json'};
-
-      final response = _isEdit
-          ? await http.put(Uri.parse('$apiUrl/care-logs/${widget.existing!['care_id']}'), headers: headers, body: body)
-          : await http.post(Uri.parse('$apiUrl/care-logs'), headers: headers, body: body);
-
-      final res = jsonDecode(response.body);
-      if (res is Map && res['isError'] == true) {
-        throw Exception(res['errorMessage'] ?? 'บันทึกไม่สำเร็จ');
-      }
       if (!mounted) return;
       _showMessage(_isEdit ? 'แก้ไขรายการเรียบร้อยแล้ว' : 'บันทึกการดูแลเรียบร้อยแล้ว', success: true);
       Navigator.pop(context, true);

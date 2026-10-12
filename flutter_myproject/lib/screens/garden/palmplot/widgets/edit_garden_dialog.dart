@@ -4,11 +4,9 @@
 // แก้ชื่อ, พื้นที่, จำนวนต้น, ปีที่ปลูก, ที่อยู่ และพันธุ์ที่ปลูก แล้วคืนค่าที่แก้ให้หน้ารายการแปลงส่งไปบันทึก
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_myproject/services/auth_service.dart';
-import 'package:flutter_myproject/config/app_config.dart';
+import 'package:flutter_myproject/services/palm_variety_service.dart';
 import 'package:flutter_myproject/models/garden.dart';
 
 /// bottom sheet แก้ไขแปลงสวน คืนค่า Map ข้อมูลใหม่เมื่อกดบันทึก
@@ -57,14 +55,8 @@ class _EditGardenDialogState extends State<EditGardenDialog> {
   /// โหลดพันธุ์ปาล์มของผู้ใช้ (พันธุ์แยกตามผู้ใช้ เห็นเฉพาะของตัวเอง)
   Future<void> _loadVarieties() async {
     try {
-      final userId = await AuthService.getUserId() ?? '';
-      final res = await http.get(Uri.parse('${AppConfig.apiBaseUri}/varieties?user_id=$userId'));
-      final body = jsonDecode(res.body);
-      if (body is Map && body['isError'] == false && body['data'] is List) {
-        _varieties = (body['data'] as List)
-            .map((v) => {'id': v['variety_id'].toString(), 'name': v['variety_name'].toString()})
-            .toList();
-      }
+      final varieties = await PalmVarietyService.getVarieties(await AuthService.getToken() ?? '');
+      _varieties = varieties.map((v) => {'id': v.varietyId, 'name': v.varietyName}).toList();
     } catch (_) {
       // โหลดไม่ได้: ยังแก้ข้อมูลอื่นได้ และจะไม่ส่งพันธุ์ไป (คงพันธุ์เดิม)
     } finally {

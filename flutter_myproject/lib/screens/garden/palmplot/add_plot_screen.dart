@@ -5,12 +5,12 @@
 // ส่งไป POST /api/gardens โดยผูกกับ user ที่ล็อกอินอยู่
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import '../../../config/app_config.dart';
+import 'package:flutter_myproject/models/palm_variety.dart';
 import 'package:flutter_myproject/services/auth_service.dart';
+import 'package:flutter_myproject/services/garden_service.dart';
+import 'package:flutter_myproject/services/palm_variety_service.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 
 /// หน้าเพิ่มแปลงสวน
@@ -24,9 +24,6 @@ class AddPlotScreen extends StatefulWidget {
 class _AddPlotScreenState extends State<AddPlotScreen> {
   final Color primaryGreen = const Color(0xFF2D6A4F);
 
-  // ที่อยู่ API จาก AppConfig (ตั้งค่าที่เดียวใน config/app_config.dart)
-  String get apiUrl => AppConfig.apiBaseUri;
-
   final _nameCtrl = TextEditingController();
   final _areaCtrl = TextEditingController();
   final _treeCtrl = TextEditingController();
@@ -35,7 +32,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
   bool _isLoading = false;
 
   // ตัวแปรเก็บพันธุ์ปาล์ม
-  List<dynamic> _varieties = [];
+  List<PalmVariety> _varieties = [];
   String? _selectedVarietyId;
   bool _loadingVarieties = true;
 
@@ -51,14 +48,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
   Future<void> _fetchVarieties() async {
     try {
       // พันธุ์แยกตามผู้ใช้: ได้เฉพาะพันธุ์ของตัวเอง (บัญชีใหม่จะว่าง)
-      final userId = await AuthService.getUserId() ?? '';
-      final response = await http.get(Uri.parse('$apiUrl/varieties?user_id=$userId'));
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        if (body['isError'] == false && body['data'] != null) {
-          _varieties = body['data'];
-        }
-      }
+      _varieties = await PalmVarietyService.getVarieties(await AuthService.getToken() ?? '');
     } catch (_) {
       // โหลดไม่ได้ก็ยังเพิ่มแปลงได้ (พันธุ์ไม่บังคับ)
     } finally {
@@ -101,28 +91,17 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final response = await http.post(
-        Uri.parse('$apiUrl/gardens'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user_id': userId,
-          'garden_name': _nameCtrl.text.trim(),
-          'area_size': double.tryParse(_areaCtrl.text.trim()) ?? 0.0,
-          'plant_count': int.tryParse(_treeCtrl.text.trim()) ?? 0,
-          'plant_year': _selectedDate?.year ?? DateTime.now().year,
-          'address': _addressCtrl.text.trim(),
-          'variety_id': _selectedVarietyId,
-        }),
-      );
-
-      final res = jsonDecode(response.body);
-      if ((response.statusCode == 200 || response.statusCode == 201) && res['isError'] == false) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เพิ่มแปลงสวนสำเร็จ!')));
-          Navigator.pop(context, true);
-        }
-      } else {
-        throw Exception(res['errorMessage'] ?? 'บันทึกไม่สำเร็จ');
+      await GardenService.createGarden({
+        'garden_name': _nameCtrl.text.trim(),
+        'area_size': double.tryParse(_areaCtrl.text.trim()) ?? 0.0,
+        'plant_count': int.tryParse(_treeCtrl.text.trim()) ?? 0,
+        'plant_year': _selectedDate?.year ?? DateTime.now().year,
+        'address': _addressCtrl.text.trim(),
+        'variety_id': _selectedVarietyId,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('เพิ่มแปลงสวนสำเร็จ!')));
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -180,10 +159,7 @@ class _AddPlotScreenState extends State<AddPlotScreen> {
                               hintText: 'เลือกพันธุ์ปาล์ม',
                             ),
                             items: _varieties.map<DropdownMenuItem<String>>((v) {
-                              return DropdownMenuItem<String>(
-                                value: v['variety_id'].toString(),
-                                child: Text(v['variety_name'].toString()),
-                              );
+                              return DropdownMenuItem<String>(value: v.varietyId, child: Text(v.varietyName));
                             }).toList(),
                             onChanged: (value) {
                               setState(() => _selectedVarietyId = value);

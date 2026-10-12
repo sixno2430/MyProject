@@ -7,12 +7,11 @@
 // ทำเสร็จแล้ว pop(true) กลับไป ให้หน้าก่อนหน้าโหลดข้อมูลใหม่
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter_myproject/services/care_service.dart';
+import 'package:flutter_myproject/services/finance_service.dart';
+import 'package:flutter_myproject/services/harvest_service.dart';
 import 'package:intl/intl.dart' show DateFormat;
-import 'package:flutter_myproject/config/app_config.dart';
-import 'package:flutter_myproject/services/auth_service.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
 import 'package:flutter_myproject/screens/garden/harvest/add_harvest_screen.dart';
 import 'package:flutter_myproject/screens/garden/gardencare/add_gardencare_screen.dart';
@@ -96,38 +95,27 @@ class ActivityDetailScreen extends StatelessWidget {
 
   /// เปิดฟอร์มแก้ไข ถ้าบันทึกแล้วปิดหน้านี้และบอกหน้าก่อนหน้าให้โหลดใหม่
   Future<void> _edit(BuildContext context) async {
-    final saved = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => _buildEditForm()),
-    );
+    final saved = await Navigator.push(context, MaterialPageRoute(builder: (_) => _buildEditForm()));
     // แก้ไขแล้ว: ปิดหน้านี้พร้อมบอกหน้าก่อนหน้าให้โหลดใหม่ (ข้อมูลในหน้านี้เก่าแล้ว)
     if (saved == true && context.mounted) Navigator.pop(context, true);
   }
 
-  /// ยืนยันแล้วลบรายการผ่าน API ของประเภทนั้น (harvests / care-logs / finance)
+  /// ยืนยันแล้วลบรายการผ่าน service ของประเภทนั้น (เก็บเกี่ยว / ดูแลสวน / การเงิน)
   Future<void> _delete(BuildContext context) async {
     if (!await confirmDelete(context, 'กิจกรรม ${activity.gardenName}')) return;
 
-    final userId = await AuthService.getUserId();
-    final path = switch (activity.type) {
-      'harvest' => 'harvests',
-      'care' => 'care-logs',
-      _ => 'finance',
-    };
     try {
-      final response = await http.delete(
-        Uri.parse('${AppConfig.apiBaseUri}/$path/${activity.id}?user_id=$userId'),
-      );
-      final body = jsonDecode(response.body);
-      if (body['isError'] == true) throw Exception(body['errorMessage']);
+      await switch (activity.type) {
+        'harvest' => HarvestService.deleteHarvest(activity.id),
+        'care' => CareService.deleteCareLog(activity.id),
+        _ => FinanceService.deleteTransaction(activity.id),
+      };
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบรายการแล้ว')));
       Navigator.pop(context, true);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
 
@@ -184,21 +172,14 @@ class ActivityDetailScreen extends StatelessWidget {
                           // ส่วนหัวสูงคงที่ ชื่อยาวขึ้นบรรทัดสองจะล้น -> ตัดเป็น ... บรรทัดเดียว
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           formatThaiDate(activity.recordDate),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.85),
-                            fontSize: 14,
-                          ),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 14),
                         ),
                       ],
                     ),
@@ -233,17 +214,10 @@ class ActivityDetailScreen extends StatelessWidget {
                       children: [
                         Text(
                           _buildMainValue(),
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: theme.valueColor,
-                          ),
+                          style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: theme.valueColor),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          _buildMainLabel(),
-                          style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                        ),
+                        Text(_buildMainLabel(), style: TextStyle(fontSize: 14, color: Colors.grey[600])),
                       ],
                     ),
                   ),
@@ -253,19 +227,11 @@ class ActivityDetailScreen extends StatelessWidget {
                   // รายละเอียด
                   const Text(
                     'รายละเอียด',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF374151),
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF374151)),
                   ),
                   const SizedBox(height: 12),
                   _buildDetailRow(Icons.location_on_outlined, 'แปลงสวน', activity.gardenName),
-                  _buildDetailRow(
-                    Icons.calendar_today_outlined,
-                    'วันที่บันทึก',
-                    formatThaiDate(activity.recordDate),
-                  ),
+                  _buildDetailRow(Icons.calendar_today_outlined, 'วันที่บันทึก', formatThaiDate(activity.recordDate)),
                   if (activity.quantity != null)
                     _buildDetailRow(
                       Icons.scale_outlined,
@@ -273,17 +239,9 @@ class ActivityDetailScreen extends StatelessWidget {
                       '${formatNumber(activity.quantity!)} ${activity.raw['quantity_type'] ?? 'กิโลกรัม'}',
                     ),
                   if (activity.amount != null)
-                    _buildDetailRow(
-                      Icons.attach_money,
-                      'จำนวนเงิน',
-                      '${formatNumber(activity.amount!)} บาท',
-                    ),
+                    _buildDetailRow(Icons.attach_money, 'จำนวนเงิน', '${formatNumber(activity.amount!)} บาท'),
                   if (activity.description != null && activity.description!.isNotEmpty)
-                    _buildDetailRow(
-                      Icons.notes_outlined,
-                      'หมายเหตุ',
-                      activity.description!,
-                    ),
+                    _buildDetailRow(Icons.notes_outlined, 'หมายเหตุ', activity.description!),
 
                   const SizedBox(height: 32),
 
@@ -311,41 +269,37 @@ class ActivityDetailScreen extends StatelessWidget {
                       ),
                     )
                   else
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _edit(context),
-                          icon: const Icon(Icons.edit, size: 18),
-                          label: const Text('แก้ไข'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF2D6A4F),
-                            side: const BorderSide(color: Color(0xFF2D6A4F)),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _edit(context),
+                            icon: const Icon(Icons.edit, size: 18),
+                            label: const Text('แก้ไข'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF2D6A4F),
+                              side: const BorderSide(color: Color(0xFF2D6A4F)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _delete(context),
-                          icon: const Icon(Icons.delete_outline, size: 18),
-                          label: const Text('ลบ'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFEF4444),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _delete(context),
+                            icon: const Icon(Icons.delete_outline, size: 18),
+                            label: const Text('ลบ'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFEF4444),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -373,18 +327,11 @@ class ActivityDetailScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                ),
+                Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F2937),
-                  ),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF1F2937)),
                 ),
               ],
             ),
@@ -431,30 +378,15 @@ class ActivityDetailScreen extends StatelessWidget {
   _DetailTheme _resolveTheme(String type) {
     switch (type) {
       case 'harvest':
-        return _DetailTheme(
-          appBarColor: const Color(0xFFE91E63),
-          valueColor: const Color(0xFFC2185B),
-        );
+        return _DetailTheme(appBarColor: const Color(0xFFE91E63), valueColor: const Color(0xFFC2185B));
       case 'care':
-        return _DetailTheme(
-          appBarColor: const Color(0xFFFF9800),
-          valueColor: const Color(0xFFE65100),
-        );
+        return _DetailTheme(appBarColor: const Color(0xFFFF9800), valueColor: const Color(0xFFE65100));
       case 'income':
-        return _DetailTheme(
-          appBarColor: const Color(0xFF4CAF50),
-          valueColor: const Color(0xFF2E7D32),
-        );
+        return _DetailTheme(appBarColor: const Color(0xFF4CAF50), valueColor: const Color(0xFF2E7D32));
       case 'expense':
-        return _DetailTheme(
-          appBarColor: const Color(0xFFF44336),
-          valueColor: const Color(0xFFC62828),
-        );
+        return _DetailTheme(appBarColor: const Color(0xFFF44336), valueColor: const Color(0xFFC62828));
       default:
-        return _DetailTheme(
-          appBarColor: const Color(0xFF2D6A4F),
-          valueColor: const Color(0xFF2D6A4F),
-        );
+        return _DetailTheme(appBarColor: const Color(0xFF2D6A4F), valueColor: const Color(0xFF2D6A4F));
     }
   }
 }

@@ -128,7 +128,7 @@ myProject/
 
 | ชั้น | อยู่ที่ | หน้าที่ |
 |---|---|---|
-| หน้าจอ | `lib/screens/` | แสดงผล รับ input ไม่เขียน URL ของ API เอง (ยกเว้นบางหน้าที่เก่ากว่า ดูหัวข้อ 6) |
+| หน้าจอ | `lib/screens/` | แสดงผล รับ input ไม่เขียน URL ของ API เอง เรียกผ่าน service เสมอ |
 | service | `lib/services/` | ส่ง HTTP request แล้วแปลงคำตอบเป็น model |
 | model (แอป) | `lib/models/` | class ของข้อมูล + `fromJson` |
 | route | `my_project_server/routes/` | รับ request อ่านพารามิเตอร์ เรียก model ส่งคำตอบกลับ บันทึก log |
@@ -149,7 +149,7 @@ myProject/
 ตัวอย่าง: **เกษตรกรบันทึกเก็บเกี่ยวแล้วส่งให้ร้าน ร้านกดรับซื้อ**
 
 1. เกษตรกรกรอกฟอร์มใน `screens/garden/harvest/add_harvest_screen.dart` เลือกสถานะ "รอขาย" และเลือกร้าน
-2. ฟอร์มส่ง `POST /api/harvests` ไปที่ server
+2. ฟอร์มเรียก `HarvestService.saveHarvest()` (`services/harvest_service.dart`) ซึ่งส่ง `POST /api/harvests` ไปที่ server
 3. `routes/harvest_routes.js` รับ request เรียก `harvest.createHarvest()` ใน `models/harvest.js`
 4. model ตรวจว่าแปลงเป็นของผู้ใช้คนนี้จริง สร้างรหัส `H...` แล้ว `INSERT` ลงตาราง `harvest` ด้วย `status = 'pending'` และ `shop_id` = ร้านที่เลือก
 5. route บันทึก log `ADD_HARVEST` ลงตาราง `user_log` (ผ่าน `libs/log_action.js`)
@@ -231,16 +231,21 @@ myProject/
 
 | ไฟล์ | เรียก API อะไร |
 |---|---|
-| `auth_service.dart` | ไม่เรียก API เก็บ/อ่าน/ลบ `user_id` และ token ในเครื่อง (`AuthService.getUserId()` ใช้ทุกหน้า) |
+| `api.dart` | ของกลาง: ที่อยู่ server, header JSON, `Api.decode` (อ่านคำตอบ isError → โยน Exception ข้อความไทยจาก server) |
+| `auth_service.dart` | ล็อกอิน 2 ขั้น, สมัคร, เปลี่ยนรหัสผ่าน + เก็บ/อ่าน/ลบ `user_id` และ token ในเครื่อง (`AuthService.getUserId()` ใช้ทุกหน้า) |
 | `dashboard_service.dart` | `/dashboard`, `/activities` |
-| `harvest_service.dart` | `/harvests`, `/harvests/summary`, `/shops` |
+| `garden_service.dart` | `/gardens` ดึง/เพิ่ม/แก้/ลบแปลง, `fetchGardenOptions` รายการแปลงสำหรับ dropdown |
+| `care_service.dart` | `/care-logs` ดึง/เพิ่ม/แก้/ลบ, `/fertilizers/used` |
+| `harvest_service.dart` | `/harvests` ดึง/เพิ่ม/แก้/ลบ, `/harvests/summary`, `/harvests/:id/sell`, `/shops` |
+| `finance_service.dart` | `/finance` ดึง/เพิ่ม/แก้/ลบ |
+| `store_service.dart` | `/shops` รายชื่อร้านสำหรับหน้าร้านรับซื้อของเกษตรกร |
 | `palm_variety_service.dart` | `/varieties` |
 | `profile_service.dart` | `/profile` |
 | `report_service.dart` | `/report` |
 | `shop_service.dart` | `/shop/...` ทั้งหมดของฝั่งร้าน |
 | `admin_service.dart` | `/admin/...` ทุกคำสั่งแนบ `admin_id` ให้ server ตรวจ |
 
-หมายเหตุ: บางหน้าที่เขียนไว้ก่อนแยก service ยังเรียก `http` เองในไฟล์หน้าจอ เช่น หน้าดูแลสวน แปลงสวน การเงิน การแจ้งเตือน หน้าล็อกอินและสมัคร ทำงานถูกต้อง แค่ยังไม่ได้ย้ายเข้า service
+เพิ่ม API ใหม่: เขียนฟังก์ชันใน service ของเรื่องนั้น (ใช้ `Api.base`, `Api.jsonHeaders`, `Api.decode`) แล้วให้หน้าจอเรียกฟังก์ชันนั้น อย่าเขียน `http.get(...)` ในไฟล์หน้าจอ
 
 ### screens/auth/ (เข้าสู่ระบบ)
 
@@ -500,6 +505,7 @@ myProject/
 | อยากแก้ | หน้าจอ (แอป) | server |
 |---|---|---|
 | ที่อยู่ server / พอร์ต | `lib/config/app_config.dart` | `.env` (`PORT`) |
+| เรียก API เรื่องไหน | `lib/services/<เรื่อง>_service.dart` | `routes/<เรื่อง>_routes.js` |
 | หน้าล็อกอิน / ปุ่มบทบาท | `screens/auth/login_screen.dart` | `routes/auth_routes.js` |
 | สีของแต่ละบทบาท | `lib/theme/role_theme.dart`, `screens/admin/widgets/admin_widgets.dart` | - |
 | ประเภทการดูแลสวน (เพิ่มประเภท, หน่วย, ตัวเลือก) | `lib/models/care_type.dart` | `models/care.js` |

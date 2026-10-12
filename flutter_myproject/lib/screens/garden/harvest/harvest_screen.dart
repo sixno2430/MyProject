@@ -7,11 +7,8 @@
 // API: GET /api/harvests, GET /api/harvests/summary, PUT /api/harvests/:id/sell, DELETE /api/harvests/:id
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'add_harvest_screen.dart';
-import 'package:flutter_myproject/services/auth_service.dart';
 import 'package:flutter_myproject/widgets/item_actions.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 import 'package:flutter_myproject/utils/formatters.dart';
@@ -83,11 +80,8 @@ class _HarvestScreenState extends State<HarvestScreen> {
     }
 
     if (!await confirmDelete(context, '${item.code} · ${item.plotName}')) return;
-    final userId = await AuthService.getUserId();
     try {
-      final response = await http.delete(Uri.parse('${HarvestService.baseUrl}/harvests/${item.id}?user_id=$userId'));
-      final body = jsonDecode(response.body);
-      if (body['isError'] == true) throw Exception(body['errorMessage']);
+      await HarvestService.deleteHarvest(item.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ลบรายการแล้ว')));
       _refreshData();
@@ -340,21 +334,14 @@ class _HarvestScreenState extends State<HarvestScreen> {
     );
     if (sale == null || !mounted) return;
 
-    final userId = await AuthService.getUserId();
     try {
-      final response = await http.put(
-        Uri.parse('${HarvestService.baseUrl}/harvests/${item.id}/sell'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user_id': userId,
-          'price_per_kg': sale.price,
-          'buyer_name': sale.buyerName,
-          'sold_date': sale.soldDate,
-          'quality_grade': sale.grade,
-        }),
+      await HarvestService.sellOutside(
+        item.id,
+        pricePerKg: sale.price,
+        buyerName: sale.buyerName,
+        soldDate: sale.soldDate,
+        grade: sale.grade,
       );
-      final body = jsonDecode(response.body);
-      if (body['isError'] == true) throw Exception(body['errorMessage']);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('บันทึกการขาย ${item.code} แล้ว'), backgroundColor: const Color(0xFF1E5631)),

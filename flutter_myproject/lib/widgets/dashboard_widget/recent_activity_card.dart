@@ -25,9 +25,7 @@ class RecentActivityCard extends StatelessWidget {
       onTap: () async {
         final changed = await Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => ActivityDetailScreen(activity: activity),
-          ),
+          MaterialPageRoute(builder: (_) => ActivityDetailScreen(activity: activity)),
         );
         if (changed == true) onChanged?.call();
       },
@@ -38,11 +36,7 @@ class RecentActivityCard extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
           ],
         ),
         child: Row(
@@ -51,13 +45,8 @@ class RecentActivityCard extends StatelessWidget {
             Container(
               width: 48,
               height: 48,
-              decoration: BoxDecoration(
-                color: theme.iconBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Text(theme.emoji, style: const TextStyle(fontSize: 24)),
-              ),
+              decoration: BoxDecoration(color: theme.iconBg, borderRadius: BorderRadius.circular(12)),
+              child: Center(child: Text(theme.emoji, style: const TextStyle(fontSize: 24))),
             ),
             const SizedBox(width: 14),
             // เนื้อหา
@@ -67,19 +56,12 @@ class RecentActivityCard extends StatelessWidget {
                 children: [
                   Text(
                     _buildTitle(),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: Color(0xFF1F2937),
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF1F2937)),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     _buildSubtitle(),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -90,16 +72,9 @@ class RecentActivityCard extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  formatRelativeDate(activity.recordDate),
-                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                ),
+                Text(formatRelativeDate(activity.recordDate), style: TextStyle(fontSize: 12, color: Colors.grey[500])),
                 const SizedBox(height: 4),
-                Icon(
-                  Icons.chevron_right,
-                  size: 18,
-                  color: Colors.grey[400],
-                ),
+                Icon(Icons.chevron_right, size: 18, color: Colors.grey[400]),
               ],
             ),
           ],
@@ -144,35 +119,20 @@ class RecentActivityCard extends StatelessWidget {
     }
   }
 
-  /// emoji + สีของการ์ดตามประเภท — ดูแลสวนใช้ emoji/สีของกิจกรรมนั้นจาก care_types.dart
+  /// emoji + สีของการ์ดตามประเภท — ดูแลสวนใช้ emoji/สีของกิจกรรมนั้นจาก models/care_type.dart
   _CardTheme _resolveTheme(ActivityItem activity) {
     switch (activity.type) {
       case 'harvest':
-        return _CardTheme(
-          emoji: '🧺',
-          iconBg: const Color(0xFFFCE4EC),
-        );
+        return _CardTheme(emoji: '🧺', iconBg: const Color(0xFFFCE4EC));
       case 'care':
         final care = activity.careType!;
-        return _CardTheme(
-          emoji: care.emoji,
-          iconBg: care.bgColor,
-        );
+        return _CardTheme(emoji: care.emoji, iconBg: care.bgColor);
       case 'income':
-        return _CardTheme(
-          emoji: '💵',
-          iconBg: const Color(0xFFE0F2F1),
-        );
+        return _CardTheme(emoji: '💵', iconBg: const Color(0xFFE0F2F1));
       case 'expense':
-        return _CardTheme(
-          emoji: '💸',
-          iconBg: const Color(0xFFFFEBEE),
-        );
+        return _CardTheme(emoji: '💸', iconBg: const Color(0xFFFFEBEE));
       default:
-        return _CardTheme(
-          emoji: '📌',
-          iconBg: const Color(0xFFF5F5F5),
-        );
+        return _CardTheme(emoji: '📌', iconBg: const Color(0xFFF5F5F5));
     }
   }
 }

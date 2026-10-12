@@ -1,5 +1,10 @@
 // ============================================================
-// login_screen.dart 
+// login_screen.dart — หน้าเข้าสู่ระบบ
+//
+// เลือกบทบาท (เกษตรกร / ร้านค้า) แล้วกรอก username + password
+// ล็อกอิน 2 ขั้น (AuthService): authen_request ตรวจรหัสผ่าน + บทบาท -> access_request แลก access token
+// สำเร็จแล้วเก็บ user_id + token ในเครื่อง และพาไปหน้าตามบทบาทจริงของบัญชี:
+//   R001 แอดมิน -> AdminDashboardScreen (เลือกปุ่มบทบาทไหนก็ได้), R003 ร้าน -> ShopHomeScreen, อื่นๆ -> HomeScreen
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -7,10 +12,6 @@ import 'package:flutter_myproject/screens/auth/register_screen.dart';
 import 'package:flutter_myproject/screens/auth/splash_screen.dart';
 import 'package:flutter_myproject/theme/role_theme.dart';
 import 'dart:async';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:flutter_myproject/config/app_config.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_myproject/services/auth_service.dart';
 
 // หน้าหลักเกษตรกร
@@ -44,65 +45,15 @@ class _LoginScreenState extends State<LoginScreen> {
     {'label': 'ร้านค้า', 'icon': Icons.store, 'role_id': 'R003'},
   ];
 
-  static const _requestTimeout = Duration(seconds: 10);
-
-  /// ขั้นที่ 1: ตรวจสอบ username/password ส่งคืน (isError, authenToken, userId, roleId, errorMessage)
-  Future<(bool, String, String, String, String)> _authenRequest() async {
-    final username = _usernameController.text;
-    final password = _passwordController.text;
-
-    final response = await http.post(
-      Uri.parse("${AppConfig.apiBaseUri}/authen_request"),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: jsonEncode(<String, String>{
-        'username': username,
-        'password': password,
-        'role_id': roles[selectedRole]['role_id'] as String, // บทบาทที่เลือก ให้เซิร์ฟเวอร์ตรวจ
-      }),
-    ).timeout(_requestTimeout);
-
-    final json = jsonDecode(response.body);
-
-    return (
-      json["isError"] as bool,
-      json["data"] as String? ?? "",
-      json["user_id"] as String? ?? "",
-      json["role_id"] as String? ?? "", // ดึง role_id กลับมาตรวจสอบ
-      json["errorMessage"] as String? ?? "",
-    );
-  }
-
-  /// ขั้นที่ 2: แลก Token
-  Future<({bool isError, String errorMessage, String data})> _accessRequest(String token) async {
-    final response = await http.post(
-      Uri.parse("${AppConfig.apiBaseUri}/access_request"),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: jsonEncode(<String, String>{'token': token}),
-    ).timeout(_requestTimeout);
-
-    final json = jsonDecode(response.body);
-
-    return (
-      isError: json["isError"] as bool,
-      errorMessage: json["errorMessage"] as String? ?? "",
-      data: json["data"] as String? ?? "",
-    );
-  }
-
-  Future<void> _saveAccessToken(String accessToken) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('access_token', accessToken);
-  }
-
   void _doLogin(BuildContext context) async {
     setState(() => _isLoading = true);
 
     try {
-      var (isError, authenToken, userId, roleId, errorMessage) = await _authenRequest();
+      var (isError, authenToken, userId, roleId, errorMessage) = await AuthService.authenRequest(
+        _usernameController.text,
+        _passwordController.text,
+        roles[selectedRole]['role_id'] as String, // บทบาทที่เลือก ให้เซิร์ฟเวอร์ตรวจ
+      );
 
       if (isError) {
         setState(() => _isLoading = false);
@@ -113,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } else {
-        var result = await _accessRequest(authenToken);
+        var result = await AuthService.accessRequest(authenToken);
         setState(() => _isLoading = false);
 
         if (result.isError) {
@@ -124,7 +75,6 @@ class _LoginScreenState extends State<LoginScreen> {
             );
           }
         } else {
-          await _saveAccessToken(result.data);
           await AuthService.setUserId(userId);
           await AuthService.setToken(result.data);
 
@@ -146,15 +96,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 MaterialPageRoute(builder: (context) => const AdminTheme(child: AdminDashboardScreen())),
               );
             } else if (roleId == 'R003') {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const ShopHomeScreen()),
-              );
+              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ShopHomeScreen()));
             } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const HomeScreen()),
-              );
+              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
             }
           }
         }
@@ -192,8 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
       tween: Tween(end: selectedRole.toDouble()),
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeInOut,
-      builder: (context, t, _) =>
-          _buildPage(RoleTheme.lerp(RoleTheme.farmer, RoleTheme.shop, t)),
+      builder: (context, t, _) => _buildPage(RoleTheme.lerp(RoleTheme.farmer, RoleTheme.shop, t)),
     );
   }
 
@@ -217,12 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 12),
                 const Text(
                   'PalmTrack',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1),
                 ),
                 const SizedBox(height: 4),
                 AnimatedSwitcher(
@@ -268,28 +206,28 @@ class _LoginScreenState extends State<LoginScreen> {
                                     border: isSelected ? null : Border.all(color: theme.border),
                                   ),
                                   child: FittedBox(
-  // จอแคบ: ย่อไอคอน+ข้อความลงให้พอดีปุ่ม แทนการล้น
-  fit: BoxFit.scaleDown,
-  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        roles[index]['icon'] as IconData,
-                                        size: 16,
-                                        color: isSelected ? Colors.white : theme.primary,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        roles[index]['label'] as String,
-                                        style: TextStyle(
+                                    // จอแคบ: ย่อไอคอน+ข้อความลงให้พอดีปุ่ม แทนการล้น
+                                    fit: BoxFit.scaleDown,
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          roles[index]['icon'] as IconData,
+                                          size: 16,
                                           color: isSelected ? Colors.white : theme.primary,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          roles[index]['label'] as String,
+                                          style: TextStyle(
+                                            color: isSelected ? Colors.white : theme.primary,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-),
                                 ),
                               ),
                             ),
@@ -302,11 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextField(
                         controller: _usernameController,
                         cursorColor: theme.primary,
-                        decoration: _inputDecoration(
-                          theme,
-                          hint: 'กรอกชื่อผู้ใช้',
-                          icon: Icons.person,
-                        ),
+                        decoration: _inputDecoration(theme, hint: 'กรอกชื่อผู้ใช้', icon: Icons.person),
                       ),
                       const SizedBox(height: 16),
                       _buildLabel('รหัสผ่าน'),
@@ -322,11 +256,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: () => setState(() => obscurePassword = !obscurePassword),
                             child: Text(
                               obscurePassword ? 'แสดง' : 'ซ่อน',
-                              style: TextStyle(
-                                color: theme.primary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              style: TextStyle(color: theme.primary, fontSize: 12, fontWeight: FontWeight.w500),
                             ),
                           ),
                         ),
@@ -361,11 +291,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 )
                               : const Text(
                                   'เข้าสู่ระบบ',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                                 ),
                         ),
                       ),
@@ -382,18 +308,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 'ถ้ายังจำรหัสเดิมได้ สามารถเปลี่ยนรหัสผ่านได้ที่\n'
                                 'โปรไฟล์ → เปลี่ยนรหัสผ่าน',
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('ตกลง'),
-                                ),
-                              ],
+                              actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('ตกลง'))],
                             ),
                           ),
-                          child: const Text(
-                            'ลืมรหัสผ่าน?',
-                            style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
-                          ),
+                          child: const Text('ลืมรหัสผ่าน?', style: TextStyle(color: Color(0xFF6B7280), fontSize: 14)),
                         ),
                       ),
                       const SizedBox(height: 16),

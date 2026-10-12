@@ -5,10 +5,7 @@
 // ส่งไป PUT /api/user/:userId/password (เซิร์ฟเวอร์ตรวจรหัสเดิมอีกครั้ง)
 // ============================================================
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_myproject/config/app_config.dart';
 import 'package:flutter_myproject/services/auth_service.dart';
 import 'package:flutter_myproject/utils/error_message.dart';
 
@@ -52,18 +49,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
     setState(() => _isSubmitting = true);
     try {
-      final response = await http.put(
-        Uri.parse('${AppConfig.apiBaseUri}/user/$userId/password'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'old_password': _oldController.text,
-          'new_password': _newController.text,
-        }),
-      );
-      final body = jsonDecode(response.body);
-      if (body['isError'] == true) {
-        throw Exception(body['errorMessage'] ?? 'เปลี่ยนรหัสผ่านไม่สำเร็จ');
-      }
+      await AuthService.changePassword(userId, _oldController.text, _newController.text);
       if (!mounted) return;
       _showMessage('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว', success: true);
       Navigator.pop(context);
@@ -77,12 +63,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   /// แสดงข้อความแจ้งเตือน (สีเขียว = สำเร็จ, สีแดง = ผิดพลาด)
   void _showMessage(String text, {bool success = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(text),
-        backgroundColor: success ? const Color(0xFF22C55E) : Colors.red,
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(text), backgroundColor: success ? const Color(0xFF22C55E) : Colors.red));
   }
 
   @override
@@ -172,10 +155,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         suffixIcon: onToggle == null
             ? null
-            : IconButton(
-                icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
-                onPressed: onToggle,
-              ),
+            : IconButton(icon: Icon(obscure ? Icons.visibility_off : Icons.visibility), onPressed: onToggle),
       ),
     );
   }
