@@ -394,11 +394,12 @@ class _AddHarvestScreenState extends State<AddHarvestScreen> {
                     // ขายได้ตั้งแต่วันเก็บเกี่ยวถึงวันนี้ (เก็บเกี่ยวในอนาคต = เริ่มที่วันนี้)
                     final today = DateUtils.dateOnly(DateTime.now());
                     final first = _selectedDate.isAfter(today) ? today : DateUtils.dateOnly(_selectedDate);
+                    final last = DateTime.now();
                     final picked = await showDatePicker(
                       context: context,
-                      initialDate: _soldDate.isBefore(first) ? first : _soldDate,
+                      initialDate: _soldDate.isBefore(first) ? first : (_soldDate.isAfter(last) ? last : _soldDate),
                       firstDate: first,
-                      lastDate: DateTime.now(),
+                      lastDate: last,
                     );
                     if (picked != null) setState(() => _soldDate = picked);
                   },
